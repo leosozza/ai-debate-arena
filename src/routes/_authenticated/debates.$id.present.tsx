@@ -73,7 +73,7 @@ function PresentMode() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background flex-col gap-4">
         <p>Nenhuma fala ainda.</p>
-        <Button onClick={() => router.navigate({ to: "/_authenticated/debates/$id", params: { id } })}>Voltar</Button>
+        <Button onClick={() => router.navigate({ to: "/debates/$id", params: { id } })}>Voltar</Button>
       </div>
     );
   }
@@ -84,7 +84,7 @@ function PresentMode() {
   return (
     <div className="fixed inset-0 bg-background text-foreground flex flex-col">
       <div className="absolute top-4 right-4 z-10 flex gap-2">
-        <Button size="sm" variant="ghost" onClick={() => { window.speechSynthesis.cancel(); router.navigate({ to: "/_authenticated/debates/$id", params: { id } }); }}>
+        <Button size="sm" variant="ghost" onClick={() => { window.speechSynthesis.cancel(); router.navigate({ to: "/debates/$id", params: { id } }); }}>
           <X className="h-4 w-4" />
         </Button>
       </div>
