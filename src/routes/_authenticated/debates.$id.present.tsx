@@ -30,6 +30,8 @@ function PresentMode() {
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Vinheta de bloco: bloco a apresentar agora (ou null se não há vinheta pendente)
+  const [introBlock, setIntroBlock] = useState<number | null>(null);
   // Navegador é o padrão (sempre funciona, sem depender de chave/crédito).
   // A escolha fica salva; troque para ElevenLabs/MiniMax no painel ⚙️.
   const [provider, setProvider] = useState<Provider>("browser");
