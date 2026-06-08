@@ -63,6 +63,7 @@ function EditDebate() {
       moderatorModel: d.moderator_model,
       moderatorTone: d.moderator_tone as "formal" | "descontraído" | "acadêmico",
       rounds: d.rounds,
+      blocksCount: d.blocks_count ?? 4,
       dynamicFlow: d.dynamic_flow,
       voiceProviderMod: ((d.voice_provider_mod as VoiceProvider | null) ?? "browser"),
       voiceIdMod: d.voice_id_mod ?? null,
