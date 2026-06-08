@@ -99,6 +99,7 @@ const UpdateDebateSchema = z.object({
   moderatorModel: ModelSchema.optional(),
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]).optional(),
   rounds: z.number().int().min(2).max(6).optional(),
+  blocksCount: z.number().int().min(2).max(6).optional(),
   dynamicFlow: z.boolean().optional(),
   voiceProviderMod: VoiceProviderSchema,
   voiceIdMod: VoiceIdSchema,
