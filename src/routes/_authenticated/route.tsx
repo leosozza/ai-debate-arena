@@ -25,6 +25,7 @@ function AuthenticatedLayout() {
             Arena IA
           </Link>
           <div className="flex items-center gap-2">
+            <Link to="/personas"><Button size="sm" variant="ghost">Personas</Button></Link>
             <Link to="/new"><Button size="sm">Novo debate</Button></Link>
             <Button
               size="sm"

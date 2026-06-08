@@ -7,10 +7,10 @@ const ModelSchema = z.string().min(3).max(80);
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
   debaterAName: z.string().trim().min(1).max(60),
-  debaterAPersona: z.string().trim().min(1).max(500),
+  debaterAPersona: z.string().trim().min(1).max(20000),
   debaterAModel: ModelSchema.default("google/gemini-3-flash-preview"),
   debaterBName: z.string().trim().min(1).max(60),
-  debaterBPersona: z.string().trim().min(1).max(500),
+  debaterBPersona: z.string().trim().min(1).max(20000),
   debaterBModel: ModelSchema.default("google/gemini-3-flash-preview"),
   moderatorModel: ModelSchema.default("google/gemini-3-flash-preview"),
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]),
