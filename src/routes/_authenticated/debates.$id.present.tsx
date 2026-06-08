@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, X, Settings2, Swords, Trophy, Loader2 } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/debates/$id/present")({
   component: PresentMode,
@@ -242,10 +242,11 @@ function PresentMode() {
 
   const isWinner = !!verdict && index === messages.length;
   const role = (current?.role ?? "moderator") as Side;
-  const name = !current ? "" : role === "moderator" ? "Mediador" : role === "a" ? data.debate.debater_a_name : data.debate.debater_b_name;
   const theme = sideTheme(role);
   const currentBlockIdx = current?.block_index ?? 0;
   const currentSubtopic = subtopicsList[currentBlockIdx];
+  const moderatorSpeaking = !isWinner && role === "moderator";
+  const speakerContent = current?.content ?? "";
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
@@ -332,25 +333,65 @@ function PresentMode() {
         </div>
       )}
 
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-8">
+      <div className="relative z-10 flex-1 min-h-0 px-4 pb-2 md:px-8">
         {isWinner && verdict ? (
-          <WinnerStage verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />
+          <div className="flex h-full items-center justify-center">
+            <WinnerStage verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />
+          </div>
         ) : (
-          <div key={current?.id} className="w-full max-w-4xl text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className={`mb-3 text-xs md:text-sm font-semibold uppercase tracking-[0.3em] ${theme.text}`}>
-              {current?.phase}
-            </div>
-            <div className="mb-4 inline-flex items-center gap-3">
-              <span className={`h-3 w-3 rounded-full ${theme.dot} ${playing ? "animate-pulse" : ""}`} />
-              <h2 className={`font-display text-4xl md:text-6xl font-extrabold tracking-tight ${theme.text}`}>{name}</h2>
-              {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-            </div>
-            <div className="mb-8">
-              <VoiceWave active={playing && !loading} colorClass={theme.dot} />
-            </div>
-            <p className="text-2xl md:text-[2rem] leading-relaxed md:leading-relaxed text-foreground/95 font-medium text-balance">
-              {current?.content}
-            </p>
+          <div key={current?.id} className="mx-auto flex h-full w-full max-w-7xl flex-col gap-4 animate-in fade-in duration-500">
+            <section className={`relative mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border px-4 py-3 md:px-6 md:py-4 ${moderatorSpeaking ? "border-primary/60 bg-primary/10 shadow-[0_0_60px_oklch(0.62_0.205_277_/_0.20)]" : "border-border/70 glass"}`}>
+              <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" aria-hidden />
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border ${moderatorSpeaking ? "border-primary/50 bg-primary text-primary-foreground" : "border-border/70 bg-secondary text-muted-foreground"}`}>
+                    <Mic2 className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+                      <Radio className="h-3.5 w-3.5 text-primary" />
+                      Mediador
+                    </div>
+                    <h2 className="font-display text-xl font-extrabold text-foreground md:text-3xl">Estúdio Central</h2>
+                  </div>
+                </div>
+                <div className="hidden w-40 shrink-0 md:block">
+                  <VoiceWave active={moderatorSpeaking && playing && !loading} colorClass="bg-primary" bars={24} />
+                </div>
+              </div>
+              <p className={`mt-3 text-base leading-relaxed md:text-xl ${moderatorSpeaking ? "text-foreground" : "text-muted-foreground"}`}>
+                {moderatorSpeaking ? speakerContent : currentSubtopic?.focus ?? data.debate.topic}
+              </p>
+            </section>
+
+            <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+              <StageDebaterPanel
+                side="a"
+                name={data.debate.debater_a_name}
+                phase={current?.phase ?? ""}
+                content={role === "a" ? speakerContent : ""}
+                active={role === "a"}
+                speaking={role === "a" && playing && !loading}
+                loading={role === "a" && loading}
+              />
+              <div className="hidden items-center justify-center md:flex">
+                <div className="relative flex h-full w-20 items-center justify-center">
+                  <div className="absolute inset-y-10 w-px bg-gradient-to-b from-transparent via-border to-transparent" aria-hidden />
+                  <div className="z-10 rounded-full border border-border/70 bg-background/80 px-3 py-2 text-xs font-extrabold text-muted-foreground shadow-2xl">
+                    VS
+                  </div>
+                </div>
+              </div>
+              <StageDebaterPanel
+                side="b"
+                name={data.debate.debater_b_name}
+                phase={current?.phase ?? ""}
+                content={role === "b" ? speakerContent : ""}
+                active={role === "b"}
+                speaking={role === "b" && playing && !loading}
+                loading={role === "b" && loading}
+              />
+            </section>
           </div>
         )}
       </div>
@@ -418,6 +459,74 @@ function sideTheme(role: Side) {
     bar: "bg-primary",
     glow: "radial-gradient(80rem 55rem at 50% -10%, oklch(0.62 0.205 277 / 0.2), transparent 55%)",
   };
+}
+
+function StageDebaterPanel({
+  side,
+  name,
+  phase,
+  content,
+  active,
+  speaking,
+  loading,
+}: {
+  side: "a" | "b";
+  name: string;
+  phase: string;
+  content: string;
+  active: boolean;
+  speaking: boolean;
+  loading: boolean;
+}) {
+  const theme = sideTheme(side);
+  const align = side === "a" ? "md:text-left" : "md:text-right";
+  const avatarPosition = side === "a" ? "md:items-start" : "md:items-end";
+  const activeBorder = side === "a" ? "border-side-a/70" : "border-side-b/70";
+
+  return (
+    <article
+      className={`relative flex min-h-[18rem] overflow-hidden rounded-2xl border p-4 transition-all duration-500 md:min-h-0 md:p-6 ${
+        active
+          ? `${activeBorder} bg-card/80 shadow-2xl`
+          : "border-border/60 bg-card/35 opacity-75"
+      }`}
+    >
+      <div className={`pointer-events-none absolute inset-0 ${active ? "opacity-100" : "opacity-35"}`} style={{ background: theme.glow }} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/70 to-transparent" aria-hidden />
+      <div className={`relative z-10 flex h-full w-full flex-col justify-between gap-4 text-center ${align} ${avatarPosition}`}>
+        <div className={`flex w-full flex-col items-center gap-3 ${avatarPosition}`}>
+          <div className={`relative flex h-24 w-24 items-center justify-center rounded-full border-2 md:h-32 md:w-32 ${active ? `${theme.text} border-current bg-background/70` : "border-border text-muted-foreground bg-secondary/50"}`}>
+            {active && <span className={`absolute inset-[-8px] rounded-full border ${theme.text} opacity-30 animate-ping`} />}
+            <Bot className="h-12 w-12 md:h-16 md:w-16" />
+          </div>
+          <div className="min-w-0">
+            <div className={`mb-1 text-xs font-semibold uppercase tracking-[0.28em] ${active ? theme.text : "text-muted-foreground"}`}>
+              IA {side.toUpperCase()}
+            </div>
+            <h3 className={`font-display text-2xl font-extrabold md:text-4xl ${active ? theme.text : "text-foreground"}`}>{name}</h3>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <div className="mb-3 flex min-h-16 items-center justify-center">
+            <VoiceWave active={speaking} colorClass={theme.dot} bars={28} />
+          </div>
+          {loading && active && (
+            <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Preparando voz
+            </div>
+          )}
+          <div className={`mb-2 text-xs font-semibold uppercase tracking-[0.24em] ${active ? theme.text : "text-muted-foreground"}`}>
+            {active ? phase : "Aguardando"}
+          </div>
+          <p className={`mx-auto max-w-xl text-base leading-relaxed md:text-xl ${active ? "text-foreground" : "text-muted-foreground"}`}>
+            {active ? content : ""}
+          </p>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function WinnerStage({ verdict, aName, bName }: { verdict: Verdict; aName: string; bName: string }) {
