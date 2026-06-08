@@ -141,6 +141,8 @@ function PersonasPage() {
       description: p.description ?? "",
       persona_prompt: p.persona_prompt,
       is_public: p.is_public,
+      voice_provider: (p.voice_provider as VoiceProvider | null) ?? null,
+      voice_id: p.voice_id ?? null,
     });
   }
 
