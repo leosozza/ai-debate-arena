@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Plus, Trash2, Play } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
