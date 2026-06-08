@@ -44,6 +44,8 @@ function PersonasPage() {
     description: "",
     persona_prompt: "",
     is_public: false,
+    voice_provider: null as VoiceProvider | null,
+    voice_id: null as string | null,
   });
   const [genName, setGenName] = useState("");
   const [generating, setGenerating] = useState(false);
