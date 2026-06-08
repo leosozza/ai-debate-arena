@@ -18,6 +18,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as ApiDebateStreamRouteImport } from './routes/api/debate.stream'
 import { Route as AuthenticatedDebatesIdRouteImport } from './routes/_authenticated/debates.$id'
 import { Route as AuthenticatedDebatesIdPresentRouteImport } from './routes/_authenticated/debates.$id.present'
+import { Route as AuthenticatedDebatesIdEditRouteImport } from './routes/_authenticated/debates.$id.edit'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -64,6 +65,12 @@ const AuthenticatedDebatesIdPresentRoute =
     path: '/present',
     getParentRoute: () => AuthenticatedDebatesIdRoute,
   } as any)
+const AuthenticatedDebatesIdEditRoute =
+  AuthenticatedDebatesIdEditRouteImport.update({
+    id: '/edit',
+    path: '/edit',
+    getParentRoute: () => AuthenticatedDebatesIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/personas': typeof AuthenticatedPersonasRoute
   '/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/api/debate/stream': typeof ApiDebateStreamRoute
+  '/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
   '/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
 }
 export interface FileRoutesByTo {
@@ -83,6 +91,7 @@ export interface FileRoutesByTo {
   '/personas': typeof AuthenticatedPersonasRoute
   '/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/api/debate/stream': typeof ApiDebateStreamRoute
+  '/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
   '/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
 }
 export interface FileRoutesById {
@@ -95,6 +104,7 @@ export interface FileRoutesById {
   '/_authenticated/personas': typeof AuthenticatedPersonasRoute
   '/_authenticated/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/api/debate/stream': typeof ApiDebateStreamRoute
+  '/_authenticated/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
   '/_authenticated/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
 }
 export interface FileRouteTypes {
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/debates/$id'
     | '/api/debate/stream'
+    | '/debates/$id/edit'
     | '/debates/$id/present'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/debates/$id'
     | '/api/debate/stream'
+    | '/debates/$id/edit'
     | '/debates/$id/present'
   id:
     | '__root__'
@@ -128,6 +140,7 @@ export interface FileRouteTypes {
     | '/_authenticated/personas'
     | '/_authenticated/debates/$id'
     | '/api/debate/stream'
+    | '/_authenticated/debates/$id/edit'
     | '/_authenticated/debates/$id/present'
   fileRoutesById: FileRoutesById
 }
@@ -203,15 +216,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDebatesIdPresentRouteImport
       parentRoute: typeof AuthenticatedDebatesIdRoute
     }
+    '/_authenticated/debates/$id/edit': {
+      id: '/_authenticated/debates/$id/edit'
+      path: '/edit'
+      fullPath: '/debates/$id/edit'
+      preLoaderRoute: typeof AuthenticatedDebatesIdEditRouteImport
+      parentRoute: typeof AuthenticatedDebatesIdRoute
+    }
   }
 }
 
 interface AuthenticatedDebatesIdRouteChildren {
+  AuthenticatedDebatesIdEditRoute: typeof AuthenticatedDebatesIdEditRoute
   AuthenticatedDebatesIdPresentRoute: typeof AuthenticatedDebatesIdPresentRoute
 }
 
 const AuthenticatedDebatesIdRouteChildren: AuthenticatedDebatesIdRouteChildren =
   {
+    AuthenticatedDebatesIdEditRoute: AuthenticatedDebatesIdEditRoute,
     AuthenticatedDebatesIdPresentRoute: AuthenticatedDebatesIdPresentRoute,
   }
 
@@ -246,3 +268,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
