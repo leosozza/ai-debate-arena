@@ -45,16 +45,33 @@ function PersonasPage() {
   });
   const [genName, setGenName] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [genStage, setGenStage] = useState<string>("");
+  const [sources, setSources] = useState<Array<{ title: string; url: string }>>([]);
   const [saving, setSaving] = useState(false);
 
   function resetForm() {
     setEditingId(null);
     setForm({ name: "", description: "", persona_prompt: "", is_public: false });
+    setSources([]);
   }
 
   async function handleGenerate() {
     if (genName.trim().length < 2) return;
     setGenerating(true);
+    setSources([]);
+    // Estágios estimados — a serverFn roda inteira; isso dá feedback visual.
+    const stages = [
+      "🔎 Gerando queries de busca…",
+      "📚 Buscando fontes na web (Firecrawl)…",
+      "🧠 Analisando fontes e montando dossiê…",
+      "✍️ Encarnando a persona…",
+    ];
+    setGenStage(stages[0]);
+    let idx = 0;
+    const tick = setInterval(() => {
+      idx = Math.min(idx + 1, stages.length - 1);
+      setGenStage(stages[idx]);
+    }, 6000);
     try {
       const out = await generate({ data: { name: genName.trim() } });
       setForm({
@@ -63,14 +80,22 @@ function PersonasPage() {
         persona_prompt: out.persona_prompt,
         is_public: false,
       });
+      setSources(out.sources ?? []);
       setEditingId(null);
-      toast.success("Persona gerada — revise e salve.");
+      toast.success(
+        out.sources?.length
+          ? `Persona gerada com ${out.sources.length} fonte(s) — revise e salve.`
+          : "Persona gerada (sem fontes web) — revise e salve.",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao gerar");
     } finally {
+      clearInterval(tick);
+      setGenStage("");
       setGenerating(false);
     }
   }
+
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
