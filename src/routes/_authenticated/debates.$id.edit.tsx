@@ -39,6 +39,7 @@ function EditDebate() {
     moderatorModel: "google/gemini-3-flash-preview",
     moderatorTone: "formal" as "formal" | "descontraído" | "acadêmico",
     rounds: 3,
+    blocksCount: 4,
     dynamicFlow: false,
     voiceProviderMod: "browser" as VoiceProvider,
     voiceIdMod: null as string | null,
