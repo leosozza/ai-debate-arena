@@ -73,6 +73,31 @@ function PresentMode() {
     return () => { window.speechSynthesis.cancel(); audioRef.current?.pause(); };
   }, []);
 
+  // Hidrata provedor/voz a partir do debate (uma vez quando carrega).
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current || !data?.debate) return;
+    const d = data.debate;
+    const dp = d.voice_provider_a ?? d.voice_provider_b ?? d.voice_provider_mod;
+    if (dp === "browser" || dp === "eleven" || dp === "minimax") setProvider(dp);
+    if (d.voice_id_mod) {
+      if (d.voice_provider_mod === "eleven") setElMod(d.voice_id_mod);
+      else if (d.voice_provider_mod === "minimax") setMmMod(d.voice_id_mod);
+      else setVoiceMod(d.voice_id_mod);
+    }
+    if (d.voice_id_a) {
+      if (d.voice_provider_a === "eleven") setElA(d.voice_id_a);
+      else if (d.voice_provider_a === "minimax") setMmA(d.voice_id_a);
+      else setVoiceA(d.voice_id_a);
+    }
+    if (d.voice_id_b) {
+      if (d.voice_provider_b === "eleven") setElB(d.voice_id_b);
+      else if (d.voice_provider_b === "minimax") setMmB(d.voice_id_b);
+      else setVoiceB(d.voice_id_b);
+    }
+    hydratedRef.current = true;
+  }, [data]);
+
   const messages = data?.messages ?? [];
   const current = messages[index];
   const verdict = (data?.debate?.verdict as Verdict | null) ?? null;
