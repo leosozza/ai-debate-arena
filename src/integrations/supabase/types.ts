@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       debate_messages: {
         Row: {
+          block_index: number
           content: string
           created_at: string
           debate_id: string
@@ -26,6 +27,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          block_index?: number
           content: string
           created_at?: string
           debate_id: string
@@ -36,6 +38,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          block_index?: number
           content?: string
           created_at?: string
           debate_id?: string
@@ -57,6 +60,8 @@ export type Database = {
       }
       debates: {
         Row: {
+          block_subtopics: Json | null
+          blocks_count: number
           created_at: string
           debater_a_model: string
           debater_a_name: string
@@ -84,6 +89,8 @@ export type Database = {
           voice_provider_mod: string | null
         }
         Insert: {
+          block_subtopics?: Json | null
+          blocks_count?: number
           created_at?: string
           debater_a_model?: string
           debater_a_name: string
@@ -111,6 +118,8 @@ export type Database = {
           voice_provider_mod?: string | null
         }
         Update: {
+          block_subtopics?: Json | null
+          blocks_count?: number
           created_at?: string
           debater_a_model?: string
           debater_a_name?: string
