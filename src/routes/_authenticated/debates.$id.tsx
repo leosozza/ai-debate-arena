@@ -88,7 +88,7 @@ function DebateDetail() {
 
   return (
     <main className="container mx-auto px-4 py-10 max-w-4xl">
-      <button onClick={() => router.navigate({ to: "/_authenticated" })} className="text-sm text-muted-foreground hover:text-foreground mb-4">← Voltar</button>
+      <button onClick={() => router.navigate({ to: "/dashboard" })} className="text-sm text-muted-foreground hover:text-foreground mb-4">← Voltar</button>
       <h1 className="text-3xl font-bold mb-2">{data.debate.topic}</h1>
       <p className="text-muted-foreground mb-6">
         <span className="text-primary">{data.debate.debater_a_name}</span>

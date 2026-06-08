@@ -18,7 +18,7 @@ function AuthenticatedLayout() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border/60 bg-card/40 backdrop-blur sticky top-0 z-10">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/_authenticated" className="flex items-center gap-2 font-bold">
+          <Link to="/dashboard" className="flex items-center gap-2 font-bold">
             <Mic className="h-5 w-5 text-primary" />
             Arena IA
           </Link>
