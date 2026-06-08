@@ -18,6 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { Reveal } from "@/components/Reveal";
 import { toast } from "sonner";
 import { Sparkles, Users, Wand2, Swords, Dices } from "lucide-react";
+import { VoicePicker } from "@/components/VoicePicker";
+import { type VoiceProvider } from "@/lib/voice-catalog";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
