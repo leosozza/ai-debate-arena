@@ -25,6 +25,8 @@ const DEFAULT_MODEL = "google/gemini-3-flash-preview";
 function NewDebate() {
   const router = useRouter();
   const create = useServerFn(createDebate);
+  const listP = useServerFn(listPersonas);
+  const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: () => listP() });
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     topic: "",
@@ -39,6 +41,16 @@ function NewDebate() {
     rounds: 3,
     dynamicFlow: false,
   });
+
+  function applyPersona(side: "A" | "B", personaId: string) {
+    const p = personas.find((x) => x.id === personaId);
+    if (!p) return;
+    if (side === "A") {
+      setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt }));
+    } else {
+      setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt }));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
