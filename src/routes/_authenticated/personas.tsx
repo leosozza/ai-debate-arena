@@ -182,12 +182,13 @@ function PersonasPage() {
             <Label>Persona prompt (como a IA deve encarnar)</Label>
             <Textarea
               required
-              rows={8}
-              maxLength={2000}
+              rows={18}
+              maxLength={12000}
+              className="font-mono text-xs"
               value={form.persona_prompt}
               onChange={(e) => setForm({ ...form, persona_prompt: e.target.value })}
             />
-            <p className="text-xs text-muted-foreground">{form.persona_prompt.length}/2000</p>
+            <p className="text-xs text-muted-foreground">{form.persona_prompt.length}/12000 — quanto mais específico (bordões, posições, estilo), mais fiel a encarnação.</p>
           </div>
           <div className="flex items-center gap-3 pt-2 border-t">
             <Switch
