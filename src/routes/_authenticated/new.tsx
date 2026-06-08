@@ -300,6 +300,19 @@ function NewDebate() {
           </div>
         </Card>
 
+        <Card className="p-6 space-y-4">
+          <div>
+            <h3 className="font-display font-semibold mb-1">Vozes</h3>
+            <p className="text-xs text-muted-foreground">As vozes podem vir das personas, mas você pode trocar aqui — vale só para este debate.</p>
+          </div>
+          <VoicePicker label="Mediador" provider={form.voiceProviderMod} voiceId={form.voiceIdMod}
+            onChange={(p, v) => setForm({ ...form, voiceProviderMod: p, voiceIdMod: v })} />
+          <VoicePicker label={form.debaterAName || "Debatedor A"} provider={form.voiceProviderA} voiceId={form.voiceIdA}
+            onChange={(p, v) => setForm({ ...form, voiceProviderA: p, voiceIdA: v })} />
+          <VoicePicker label={form.debaterBName || "Debatedor B"} provider={form.voiceProviderB} voiceId={form.voiceIdB}
+            onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
+        </Card>
+
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
           <Sparkles className="h-4 w-4 mr-2" />
           {loading ? "Gerando regras…" : "Gerar regras e iniciar"}
