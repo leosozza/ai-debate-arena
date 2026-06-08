@@ -244,18 +244,38 @@ function PresentMode() {
   const role = (current?.role ?? "moderator") as Side;
   const name = !current ? "" : role === "moderator" ? "Mediador" : role === "a" ? data.debate.debater_a_name : data.debate.debater_b_name;
   const theme = sideTheme(role);
+  const currentBlockIdx = current?.block_index ?? 0;
+  const currentSubtopic = subtopicsList[currentBlockIdx];
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
+      {introBlock !== null && subtopicsList[introBlock] && (
+        <BlockIntroCard
+          blockIndex={introBlock}
+          total={blocksTotal}
+          title={subtopicsList[introBlock].title}
+          focus={subtopicsList[introBlock].focus}
+          onDone={() => setIntroBlock(null)}
+        />
+      )}
       <div className="pointer-events-none absolute inset-0 transition-all duration-700" style={{ background: theme.glow }} />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_120%,transparent_40%,oklch(0.08_0.02_264_/_0.8))]" />
 
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <Swords className="h-4 w-4 text-primary" />
-          <span className="truncate max-w-[40vw]">{data.debate.topic}</span>
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground min-w-0">
+          <Swords className="h-4 w-4 text-primary shrink-0" />
+          <span className="truncate max-w-[30vw]">{data.debate.topic}</span>
+          {blocksTotal > 1 && currentSubtopic && (
+            <>
+              <span className="text-muted-foreground/50">·</span>
+              <span className="text-xs uppercase tracking-wider text-primary font-semibold shrink-0">
+                Bloco {currentBlockIdx + 1}/{blocksTotal}
+              </span>
+              <span className="truncate text-foreground/80">{currentSubtopic.title}</span>
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <Button size="sm" variant="ghost" onClick={() => setShowSettings((s) => !s)}>
             <Settings2 className="h-4 w-4" />
           </Button>
@@ -264,6 +284,7 @@ function PresentMode() {
           </Button>
         </div>
       </div>
+
 
       {showSettings && (
         <div className="absolute right-6 top-16 z-20 w-80 rounded-xl border border-border/60 glass p-4 space-y-3 shadow-2xl">
