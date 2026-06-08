@@ -55,7 +55,7 @@ function PersonasPage() {
 
   function resetForm() {
     setEditingId(null);
-    setForm({ name: "", description: "", persona_prompt: "", is_public: false });
+    setForm({ name: "", description: "", persona_prompt: "", is_public: false, voice_provider: null, voice_id: null });
     setSources([]);
   }
 
