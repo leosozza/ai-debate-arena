@@ -114,6 +114,16 @@ export const updateDebate = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => UpdateDebateSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...d } = data;
+    // Mudança de estrutura (rounds/blocks) só é permitida se ainda não há falas geradas
+    if (d.rounds !== undefined || d.blocksCount !== undefined) {
+      const { count } = await context.supabase
+        .from("debate_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("debate_id", id);
+      if ((count ?? 0) > 0) {
+        throw new Error("Não dá pra mudar rodadas ou blocos depois que o debate começou. Apague as falas primeiro.");
+      }
+    }
     const patch: Record<string, string | number | boolean | null> = {};
     if (d.topic !== undefined) patch.topic = d.topic;
     if (d.debaterAName !== undefined) patch.debater_a_name = d.debaterAName;
@@ -125,6 +135,11 @@ export const updateDebate = createServerFn({ method: "POST" })
     if (d.moderatorModel !== undefined) patch.moderator_model = d.moderatorModel;
     if (d.moderatorTone !== undefined) patch.moderator_tone = d.moderatorTone;
     if (d.rounds !== undefined) patch.rounds = d.rounds;
+    if (d.blocksCount !== undefined) {
+      patch.blocks_count = d.blocksCount;
+      // Sub-temas viram inválidos se a contagem mudou; serão gerados de novo
+      patch.block_subtopics = null;
+    }
     if (d.dynamicFlow !== undefined) patch.dynamic_flow = d.dynamicFlow;
     if (d.voiceProviderMod !== undefined) patch.voice_provider_mod = d.voiceProviderMod;
     if (d.voiceIdMod !== undefined) patch.voice_id_mod = d.voiceIdMod;
