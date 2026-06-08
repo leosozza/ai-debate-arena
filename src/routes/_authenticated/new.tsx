@@ -55,6 +55,12 @@ function NewDebate() {
     moderatorTone: "formal" as "formal" | "descontraído" | "acadêmico",
     rounds: 3,
     dynamicFlow: false,
+    voiceProviderMod: "browser" as VoiceProvider,
+    voiceIdMod: null as string | null,
+    voiceProviderA: "browser" as VoiceProvider,
+    voiceIdA: null as string | null,
+    voiceProviderB: "browser" as VoiceProvider,
+    voiceIdB: null as string | null,
   });
 
   function applyPersona(side: "A" | "B", personaId: string) {
