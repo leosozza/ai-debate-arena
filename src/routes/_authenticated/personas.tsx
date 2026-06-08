@@ -250,6 +250,15 @@ function PersonasPage() {
             />
             <p className="text-xs text-muted-foreground">{form.persona_prompt.length}/12000 — quanto mais específico (bordões, posições, estilo), mais fiel a encarnação.</p>
           </div>
+          <div className="pt-2 border-t">
+            <VoicePicker
+              label="Voz padrão da persona"
+              provider={form.voice_provider}
+              voiceId={form.voice_id}
+              onChange={(p, v) => setForm({ ...form, voice_provider: p, voice_id: v })}
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
+          </div>
           <div className="flex items-center gap-3 pt-2 border-t">
             <Switch
               id="pub"
