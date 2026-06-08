@@ -39,6 +39,7 @@ function EditDebate() {
     moderatorModel: "google/gemini-3-flash-preview",
     moderatorTone: "formal" as "formal" | "descontraído" | "acadêmico",
     rounds: 3,
+    blocksCount: 4,
     dynamicFlow: false,
     voiceProviderMod: "browser" as VoiceProvider,
     voiceIdMod: null as string | null,
@@ -62,6 +63,7 @@ function EditDebate() {
       moderatorModel: d.moderator_model,
       moderatorTone: d.moderator_tone as "formal" | "descontraído" | "acadêmico",
       rounds: d.rounds,
+      blocksCount: d.blocks_count ?? 4,
       dynamicFlow: d.dynamic_flow,
       voiceProviderMod: ((d.voice_provider_mod as VoiceProvider | null) ?? "browser"),
       voiceIdMod: d.voice_id_mod ?? null,
@@ -139,7 +141,12 @@ function EditDebate() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2"><Label>Rodadas: {form.rounds}</Label><Slider min={2} max={6} step={1} value={[form.rounds]} onValueChange={(v) => setForm({ ...form, rounds: v[0] })} /></div>
+          <div className="space-y-2"><Label>Rodadas por bloco: {form.rounds}</Label><Slider min={2} max={6} step={1} value={[form.rounds]} onValueChange={(v) => setForm({ ...form, rounds: v[0] })} /></div>
+          <div className="space-y-2">
+            <Label>Blocos: {form.blocksCount}</Label>
+            <Slider min={2} max={6} step={1} value={[form.blocksCount]} onValueChange={(v) => setForm({ ...form, blocksCount: v[0] })} />
+            <p className="text-xs text-muted-foreground">Mudar rodadas ou blocos só é possível antes da primeira fala ser gerada.</p>
+          </div>
           <div className="flex items-center gap-3 pt-2 border-t">
             <Switch id="dyn" checked={form.dynamicFlow} onCheckedChange={(v) => setForm({ ...form, dynamicFlow: v })} />
             <Label htmlFor="dyn">Fluxo dinâmico</Label>
