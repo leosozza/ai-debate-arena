@@ -7,6 +7,7 @@ import { minimaxTts, MINIMAX_VOICES } from "@/lib/tts.functions";
 import { ELEVEN_VOICES, DEFAULT_ELEVEN } from "@/lib/eleven-voices";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
+import { BlockIntroCard } from "@/components/BlockIntroCard";
 import { toast } from "sonner";
 import { Play, Pause, SkipForward, SkipBack, X, Settings2, Swords, Trophy, Loader2 } from "lucide-react";
 
