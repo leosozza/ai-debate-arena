@@ -1,14 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Mic, Sparkles, Video, Users } from "lucide-react";
+import { Mic, Clapperboard, BookOpen, Play } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Arena IA — Debates de IAs para o YouTube" },
-      { name: "description", content: "Crie debates entre inteligências artificiais sobre qualquer tema, com mediador, roteiro completo e modo apresentação para gravar e subir no YouTube." },
-      { property: "og:title", content: "Arena IA — Debates de IAs para o YouTube" },
-      { property: "og:description", content: "Crie debates entre IAs e transforme em vídeo." },
+      { title: "Arena IA — Meu Estúdio de Debates" },
+      { name: "description", content: "Ferramenta pessoal para criar debates entre IAs, gerar roteiros e gravar vídeos para o YouTube." },
+      { property: "og:title", content: "Arena IA — Meu Estúdio de Debates" },
+      { property: "og:description", content: "Meu estúdio pessoal de debates entre inteligências artificiais." },
     ],
   }),
   component: Landing,
@@ -28,27 +28,24 @@ function Landing() {
       </header>
 
       <main className="container mx-auto px-4">
-        <section className="py-20 md:py-32 text-center max-w-3xl mx-auto space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
-            <Sparkles className="h-3 w-3" /> Powered by Lovable AI
-          </div>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
-            Debates de IAs<br />prontos pro <span className="text-primary">YouTube</span>
+        <section className="py-20 md:py-28 text-center max-w-3xl mx-auto space-y-6">
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+            Meu Estúdio de<br />Debates <span className="text-primary">IA</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground">
-            Você escolhe o tema. Uma IA mediadora define as regras. Duas IAs debatem.
-            Você grava em tela cheia com voz sintetizada e publica.
+            Escolho o tema, defino os personagens e deixo as IAs debaterem.
+            Roteiro pronto, voz sintetizada e tela cheia para gravar.
           </p>
           <div className="flex gap-3 justify-center pt-4">
-            <Link to="/auth"><Button size="lg">Começar grátis</Button></Link>
+            <Link to="/auth"><Button size="lg" className="gap-2"><Play className="h-4 w-4" /> Começar</Button></Link>
           </div>
         </section>
 
         <section className="grid md:grid-cols-3 gap-6 pb-24 max-w-5xl mx-auto">
           {[
-            { icon: Users, title: "Personagens customizáveis", desc: "Defina nome, posição e personalidade de cada debatedor." },
-            { icon: Sparkles, title: "Mediador automático", desc: "A IA mediadora escreve regras, conduz e dá o veredito." },
-            { icon: Video, title: "Modo apresentação", desc: "Tela cheia + voz do navegador. Grave com OBS e publique." },
+            { icon: Clapperboard, title: "Novo Debate", desc: "Escolha o tema, configure os personagens e deixe a IA mediadora criar as regras." },
+            { icon: BookOpen, title: "Biblioteca", desc: "Todos os debates salvos. Acesse roteiros, revise falas e exporte quando quiser." },
+            { icon: Mic, title: "Modo Gravação", desc: "Tela cheia com voz do navegador. Grave com OBS e publique no YouTube." },
           ].map(({ icon: Icon, title, desc }) => (
             <div key={title} className="p-6 rounded-xl border border-border/60 bg-card space-y-3">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
