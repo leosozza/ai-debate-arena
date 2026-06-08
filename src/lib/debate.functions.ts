@@ -129,7 +129,7 @@ export const updateDebate = createServerFn({ method: "POST" })
     if (d.voiceIdA !== undefined) patch.voice_id_a = d.voiceIdA;
     if (d.voiceProviderB !== undefined) patch.voice_provider_b = d.voiceProviderB;
     if (d.voiceIdB !== undefined) patch.voice_id_b = d.voiceIdB;
-    const { error } = await context.supabase.from("debates").update(patch).eq("id", id);
+    const { error } = await context.supabase.from("debates").update(patch as never).eq("id", id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
