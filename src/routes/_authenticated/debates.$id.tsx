@@ -5,7 +5,7 @@ import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubte
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
-import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices } from "lucide-react";
+import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
