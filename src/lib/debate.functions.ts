@@ -70,6 +70,7 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
         moderator_model: data.moderatorModel,
         moderator_tone: data.moderatorTone,
         rounds: data.rounds,
+        blocks_count: data.blocksCount,
         dynamic_flow: data.dynamicFlow,
         voice_provider_mod: data.voiceProviderMod ?? null,
         voice_id_mod: data.voiceIdMod ?? null,
