@@ -58,11 +58,15 @@ export type Database = {
       debates: {
         Row: {
           created_at: string
+          debater_a_model: string
           debater_a_name: string
           debater_a_persona: string
+          debater_b_model: string
           debater_b_name: string
           debater_b_persona: string
+          dynamic_flow: boolean
           id: string
+          moderator_model: string
           moderator_tone: string
           rounds: number
           rules: string | null
@@ -73,11 +77,15 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          debater_a_model?: string
           debater_a_name: string
           debater_a_persona: string
+          debater_b_model?: string
           debater_b_name: string
           debater_b_persona: string
+          dynamic_flow?: boolean
           id?: string
+          moderator_model?: string
           moderator_tone?: string
           rounds?: number
           rules?: string | null
@@ -88,11 +96,15 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          debater_a_model?: string
           debater_a_name?: string
           debater_a_persona?: string
+          debater_b_model?: string
           debater_b_name?: string
           debater_b_persona?: string
+          dynamic_flow?: boolean
           id?: string
+          moderator_model?: string
           moderator_tone?: string
           rounds?: number
           rules?: string | null
