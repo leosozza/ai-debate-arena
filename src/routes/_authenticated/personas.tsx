@@ -83,6 +83,8 @@ function PersonasPage() {
         description: out.description,
         persona_prompt: out.persona_prompt,
         is_public: false,
+        voice_provider: null,
+        voice_id: null,
       });
       setSources(out.sources ?? []);
       setEditingId(null);
