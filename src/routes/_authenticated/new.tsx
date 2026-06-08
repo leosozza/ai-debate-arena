@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Reveal } from "@/components/Reveal";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 
@@ -65,8 +66,10 @@ function NewDebate() {
 
   return (
     <main className="container mx-auto px-4 py-10 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-2">Novo debate</h1>
-      <p className="text-muted-foreground mb-8">O mediador (IA) escreve as regras a partir desta configuração.</p>
+      <Reveal>
+        <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Novo debate</h1>
+        <p className="text-muted-foreground mb-8">O mediador (IA) escreve as regras a partir desta configuração.</p>
+      </Reveal>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="p-6 space-y-4">
@@ -82,8 +85,10 @@ function NewDebate() {
         </Card>
 
         <div className="grid md:grid-cols-2 gap-4">
-          <Card className="p-6 space-y-4 border-l-4 border-l-primary">
-            <h3 className="font-semibold">Debatedor A</h3>
+          <Card className="p-6 space-y-4 border-l-4 border-l-side-a">
+            <h3 className="font-display font-semibold flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-side-a" /> <span className="text-side-a">Debatedor A</span>
+            </h3>
             <div className="space-y-2">
               <Label>Nome</Label>
               <Input value={form.debaterAName} onChange={(e) => setForm({ ...form, debaterAName: e.target.value })} required />
@@ -97,8 +102,10 @@ function NewDebate() {
               {modelSelect(form.debaterAModel, (v) => setForm({ ...form, debaterAModel: v }))}
             </div>
           </Card>
-          <Card className="p-6 space-y-4 border-l-4 border-l-destructive">
-            <h3 className="font-semibold">Debatedor B</h3>
+          <Card className="p-6 space-y-4 border-l-4 border-l-side-b">
+            <h3 className="font-display font-semibold flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-side-b" /> <span className="text-side-b">Debatedor B</span>
+            </h3>
             <div className="space-y-2">
               <Label>Nome</Label>
               <Input value={form.debaterBName} onChange={(e) => setForm({ ...form, debaterBName: e.target.value })} required />

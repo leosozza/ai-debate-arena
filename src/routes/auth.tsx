@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Reveal } from "@/components/Reveal";
 import { toast } from "sonner";
 import { Mic } from "lucide-react";
 
@@ -64,13 +65,14 @@ function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md p-8 space-y-6 bg-card border-border/60">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Reveal className="w-full max-w-md">
+        <Card className="w-full p-8 space-y-6 bg-card/70 border-border/60 backdrop-blur shadow-2xl shadow-black/30">
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary">
             <Mic className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-bold">Arena IA</h1>
+          <h1 className="font-display text-2xl font-bold">Arena IA</h1>
           <p className="text-sm text-muted-foreground">
             {mode === "login" ? "Entre para criar debates" : "Crie sua conta"}
           </p>
@@ -113,6 +115,7 @@ function AuthPage() {
           <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← Voltar</Link>
         </div>
       </Card>
+      </Reveal>
     </div>
   );
 }

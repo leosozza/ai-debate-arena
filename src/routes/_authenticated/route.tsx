@@ -15,11 +15,13 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border/60 bg-card/40 backdrop-blur sticky top-0 z-10">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/dashboard" className="flex items-center gap-2 font-bold">
-            <Mic className="h-5 w-5 text-primary" />
+    <div className="min-h-screen text-foreground">
+      <header className="border-b border-border/50 glass sticky top-0 z-20">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link to="/dashboard" className="flex items-center gap-2 font-display font-bold">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <Mic className="h-4 w-4" />
+            </span>
             Arena IA
           </Link>
           <div className="flex items-center gap-2">

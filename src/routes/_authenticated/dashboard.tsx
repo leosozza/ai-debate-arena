@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listDebates, deleteDebate } from "@/lib/debate.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Reveal } from "@/components/Reveal";
 import { Plus, Trash2, Play } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,13 +31,13 @@ function Dashboard() {
 
   return (
     <main className="container mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-8">
+      <Reveal className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Seus debates</h1>
-          <p className="text-muted-foreground text-sm">Biblioteca de debates gerados.</p>
+          <h1 className="font-display text-3xl md:text-4xl font-bold">Seus debates</h1>
+          <p className="text-muted-foreground text-sm mt-1">Biblioteca de debates gerados.</p>
         </div>
         <Link to="/new"><Button><Plus className="h-4 w-4 mr-2" /> Novo debate</Button></Link>
-      </div>
+      </Reveal>
 
       {isLoading && <p className="text-muted-foreground">Carregando…</p>}
 
@@ -55,9 +56,13 @@ function Dashboard() {
               className="flex-1 text-left min-w-0"
               onClick={() => router.navigate({ to: "/debates/$id", params: { id: d.id } })}
             >
-              <div className="font-medium truncate">{d.topic}</div>
+              <div className="font-display font-medium truncate">{d.topic}</div>
               <div className="text-xs text-muted-foreground mt-1">
-                {d.debater_a_name} vs {d.debater_b_name} · {d.status === "completed" ? "Concluído" : "Em rascunho"}
+                <span className="text-side-a">{d.debater_a_name}</span> vs <span className="text-side-b">{d.debater_b_name}</span>
+                {" · "}
+                {d.status === "completed"
+                  ? <span className="text-primary">Concluído</span>
+                  : "Em rascunho"}
               </div>
             </button>
             <Link to="/debates/$id/present" params={{ id: d.id }}>

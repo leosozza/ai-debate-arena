@@ -164,17 +164,17 @@ function DebateDetail() {
         ? data.debate.debater_a_name
         : data.debate.debater_b_name
     : null;
-  const streamingColor = streamingMeta?.role === "a" ? "border-l-primary" : streamingMeta?.role === "b" ? "border-l-destructive" : "border-l-muted-foreground";
+  const streamingColor = streamingMeta?.role === "a" ? "border-l-side-a" : streamingMeta?.role === "b" ? "border-l-side-b" : "border-l-muted-foreground";
 
   return (
     <main className="container mx-auto px-4 py-10 max-w-4xl">
       <button onClick={() => router.navigate({ to: "/dashboard" })} className="text-sm text-muted-foreground hover:text-foreground mb-4">← Voltar</button>
-      <h1 className="text-3xl font-bold mb-2">{data.debate.topic}</h1>
-      <p className="text-muted-foreground mb-6">
-        <span className="text-primary">{data.debate.debater_a_name}</span>
-        <span className="mx-2">vs</span>
-        <span className="text-destructive">{data.debate.debater_b_name}</span>
-        {data.debate.dynamic_flow && <span className="ml-3 text-xs px-2 py-0.5 rounded bg-accent">fluxo dinâmico</span>}
+      <h1 className="font-display text-3xl md:text-4xl font-bold mb-3">{data.debate.topic}</h1>
+      <p className="text-muted-foreground mb-6 flex items-center gap-2 flex-wrap">
+        <span className="font-medium text-side-a">{data.debate.debater_a_name}</span>
+        <span className="text-xs uppercase tracking-wide">vs</span>
+        <span className="font-medium text-side-b">{data.debate.debater_b_name}</span>
+        {data.debate.dynamic_flow && <span className="ml-1 text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary">fluxo dinâmico</span>}
       </p>
 
       <div className="flex flex-wrap gap-2 mb-6">
@@ -210,15 +210,16 @@ function DebateDetail() {
 
       <div className="space-y-3">
         {data.messages.map((m) => {
-          const color = m.role === "a" ? "border-l-primary" : m.role === "b" ? "border-l-destructive" : "border-l-muted-foreground";
+          const color = m.role === "a" ? "border-l-side-a" : m.role === "b" ? "border-l-side-b" : "border-l-primary";
+          const nameColor = m.role === "a" ? "text-side-a" : m.role === "b" ? "text-side-b" : "text-primary";
           const name = m.role === "moderator" ? "Mediador" : m.role === "a" ? data.debate.debater_a_name : data.debate.debater_b_name;
           return (
-            <Card key={m.id} className={`p-5 border-l-4 ${color}`}>
+            <Card key={m.id} className={`p-5 border-l-4 ${color} bg-card/60 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-500`}>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="font-semibold">{name}</span>
-                <span className="text-xs text-muted-foreground">{m.phase}</span>
+                <span className={`font-display font-semibold ${nameColor}`}>{name}</span>
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">{m.phase}</span>
               </div>
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">{m.content}</p>
             </Card>
           );
         })}
