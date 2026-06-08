@@ -173,6 +173,33 @@ function PersonasPage() {
             {generating ? "Gerando…" : "Gerar"}
           </Button>
         </div>
+        {generating && genStage && (
+          <p className="text-sm text-muted-foreground mt-3 animate-pulse">{genStage}</p>
+        )}
+        <p className="text-xs text-muted-foreground mt-2">
+          O orquestrador busca fontes na web com Firecrawl, monta um dossiê e gera a persona com citações.
+        </p>
+        {sources.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">
+              Fontes consultadas ({sources.length}):
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {sources.map((s, i) => (
+                <a
+                  key={s.url}
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/70 truncate max-w-[260px]"
+                  title={s.title}
+                >
+                  [{i + 1}] {s.title || new URL(s.url).hostname}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       <form onSubmit={handleSave}>
