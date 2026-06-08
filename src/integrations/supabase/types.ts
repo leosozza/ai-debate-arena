@@ -71,10 +71,17 @@ export type Database = {
           rounds: number
           rules: string | null
           status: string
+          synopsis: string | null
           topic: string
           updated_at: string
           user_id: string
           verdict: Json | null
+          voice_id_a: string | null
+          voice_id_b: string | null
+          voice_id_mod: string | null
+          voice_provider_a: string | null
+          voice_provider_b: string | null
+          voice_provider_mod: string | null
         }
         Insert: {
           created_at?: string
@@ -91,10 +98,17 @@ export type Database = {
           rounds?: number
           rules?: string | null
           status?: string
+          synopsis?: string | null
           topic: string
           updated_at?: string
           user_id: string
           verdict?: Json | null
+          voice_id_a?: string | null
+          voice_id_b?: string | null
+          voice_id_mod?: string | null
+          voice_provider_a?: string | null
+          voice_provider_b?: string | null
+          voice_provider_mod?: string | null
         }
         Update: {
           created_at?: string
@@ -111,10 +125,17 @@ export type Database = {
           rounds?: number
           rules?: string | null
           status?: string
+          synopsis?: string | null
           topic?: string
           updated_at?: string
           user_id?: string
           verdict?: Json | null
+          voice_id_a?: string | null
+          voice_id_b?: string | null
+          voice_id_mod?: string | null
+          voice_provider_a?: string | null
+          voice_provider_b?: string | null
+          voice_provider_mod?: string | null
         }
         Relationships: []
       }
@@ -128,6 +149,8 @@ export type Database = {
           persona_prompt: string
           updated_at: string
           user_id: string
+          voice_id: string | null
+          voice_provider: string | null
         }
         Insert: {
           created_at?: string
@@ -138,6 +161,8 @@ export type Database = {
           persona_prompt: string
           updated_at?: string
           user_id: string
+          voice_id?: string | null
+          voice_provider?: string | null
         }
         Update: {
           created_at?: string
@@ -148,6 +173,8 @@ export type Database = {
           persona_prompt?: string
           updated_at?: string
           user_id?: string
+          voice_id?: string | null
+          voice_provider?: string | null
         }
         Relationships: []
       }

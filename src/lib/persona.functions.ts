@@ -7,6 +7,8 @@ const PersonaInput = z.object({
   description: z.string().trim().max(400).default(""),
   persona_prompt: z.string().trim().min(10).max(12000),
   is_public: z.boolean().default(false),
+  voice_provider: z.enum(["browser", "eleven", "minimax"]).nullable().optional(),
+  voice_id: z.string().trim().max(120).nullable().optional(),
 });
 
 export const listPersonas = createServerFn({ method: "GET" })
@@ -14,7 +16,7 @@ export const listPersonas = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("personas")
-      .select("id, name, description, persona_prompt, is_public, user_id, created_at")
+      .select("id, name, description, persona_prompt, is_public, voice_provider, voice_id, user_id, created_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];

@@ -1,64 +1,50 @@
-## Objetivo
+## O que vou fazer
 
-Substituir a geração atual de persona (1 chamada Gemini "do nada") por um **orquestrador multi-agente** que pesquisa a pessoa na web via Firecrawl, monta um dossiê com fontes citadas e converte em `persona_prompt` operacional.
+### 1. Voz por persona (salva)
+- Migration: adicionar em `personas` as colunas `voice_provider` (`browser|eleven|minimax`), `voice_id` (texto). Mesma coisa em `debates` para Mediador, A e B (`voice_provider_*`, `voice_id_*`).
+- Formulário de persona (`/personas`): novo bloco "Voz" com seletor de provedor + dropdown de vozes (catálogo MiniMax/ElevenLabs; para "Navegador" salva só o nome da voz do SO).
+- Server fns `createPersona`/`updatePersona`: aceitar os novos campos.
 
-## Arquitetura
+### 2. Voz no debate (sobrescreve a da persona)
+- Em `/new`: novo card "Vozes" com 3 linhas (Mediador, A, B) — provedor + voz. Ao carregar uma persona via dropdown, pré-preenche com a voz dela.
+- `createDebate` passa esses campos.
+- No modo apresentação, a voz por padrão vem do debate (que veio da persona); painel ⚙️ continua existindo só para override em tempo real.
 
-```text
-generatePersonaWithAI (server fn)
-   │
-   ├── 1. Agente Pesquisador  (Gemini 2.5 Flash)
-   │       gera 4–6 queries de busca a partir do nome+contexto
-   │
-   ├── 2. Firecrawl /search   (em paralelo, scrapeOptions: markdown)
-   │       coleta título + URL + markdown das top fontes (limit 5 por query, dedup por URL, máx ~12 fontes)
-   │
-   ├── 3. Agente Analista     (Gemini 2.5 Pro)
-   │       recebe o material bruto + lista de URLs
-   │       devolve dossiê estruturado em markdown com [n] citações
-   │
-   └── 4. Agente Encarnador   (Gemini 2.5 Pro)
-           converte dossiê em JSON { description, persona_prompt }
-           persona_prompt em 2ª pessoa, 2500–6000 chars, com as seções já usadas hoje
-```
+### 3. Editar debate (só metadados)
+- Nova rota `/_authenticated/debates.$id.edit.tsx`: edita tema, nomes/personas A e B, modelos, tom e vozes. Não mexe em falas geradas.
+- Server fn `updateDebate` (mesmo padrão de `updatePersona`).
+- Botão "Editar" na página `/debates/$id` (ao lado de "Modo apresentação").
 
-Retorno final ao cliente:
-```ts
-{ description, persona_prompt, sources: { title, url }[] }
-```
+### 4. Nova página de intro da arena
+- Nova rota `/_authenticated/debates.$id.arena.tsx` — "Arena de Batalha":
+  - Fundo animado (já existe `ArenaBackground`), tema em destaque grande, sinopse curta (gerada por IA on-demand e cacheada na coluna `synopsis` de `debates`).
+  - Card dos 2 debatedores com cor de lado, nome, 1 linha da persona e badge da voz selecionada.
+  - Animação de entrada (fade/scale escalonado) + CTA "Iniciar apresentação" → navega para `/debates/$id/present`.
+- Botão "🎬 Modo apresentação" em `/debates/$id` passa a apontar para `/arena` (a intro), que por sua vez leva ao `/present`.
+- Nova server fn `generateSynopsis` (usa `chatComplete`, salva em `debates.synopsis`).
 
-## Arquivos a criar/editar
+### Detalhes técnicos
+- **Migration única**: adiciona em `personas`: `voice_provider text`, `voice_id text`; em `debates`: `voice_provider_mod/a/b text`, `voice_id_mod/a/b text`, `synopsis text`. Sem CHECK; valores default `NULL`. Tipos regenerados após apply.
+- **Catálogo compartilhado**: novo `src/lib/voice-catalog.ts` exporta `BROWSER` (placeholder), `ELEVEN`, `MINIMAX` para reutilizar nos pickers de persona/debate/edit/present.
+- **Componente `<VoicePicker>`** (`src/components/VoicePicker.tsx`) — UI única (provedor + voz) usada nos 4 lugares.
+- **Present mode**: ao montar, se `debate.voice_provider_*` existir, usa-os como default; mantém o painel ⚙️ para override de sessão (não persiste).
+- **Sinopse**: gerada sob demanda na primeira visita à arena se `synopsis` for null; loading com shimmer.
 
-**Novo** `src/lib/firecrawl.server.ts`
-- `firecrawlSearch(query, { limit }): Promise<{ title; url; markdown }[]>`
-- usa `process.env.FIRECRAWL_API_KEY`, chama `https://api.firecrawl.dev/v2/search` com `scrapeOptions: { formats: ['markdown'], onlyMainContent: true }`
-- trunca markdown por fonte (~6k chars) para caber no contexto
-- erros tipados (402 = sem créditos, 401 = key inválida)
+### Arquivos novos
+- `supabase/migrations/<ts>_voices_and_synopsis.sql`
+- `src/lib/voice-catalog.ts`
+- `src/components/VoicePicker.tsx`
+- `src/routes/_authenticated/debates.$id.edit.tsx`
+- `src/routes/_authenticated/debates.$id.arena.tsx`
 
-**Editar** `src/lib/persona.functions.ts` — reescrever `generatePersonaWithAI`:
-1. Etapa "queries": pede ao Flash 4–6 queries JSON (`[{q, lang}]`), em pt e en
-2. Etapa "search": `Promise.all` chamando firecrawl, dedup por URL, corta para 12 fontes
-3. Se 0 fontes → fallback para o fluxo atual (sem web) e marca `sources: []`
-4. Etapa "analista": monta prompt com `[1] título — url\n<markdown truncado>` e pede dossiê em markdown com `[n]` ao final de cada afirmação
-5. Etapa "encarnador": converte dossiê → JSON `{ description, persona_prompt }` (mesmas seções de hoje + "**Fontes consultadas**" listando `[n] título — url`)
-6. Schema de retorno expandido com `sources`
+### Arquivos editados
+- `src/lib/persona.functions.ts` — campos de voz em create/update + select
+- `src/lib/debate.functions.ts` — campos de voz em create + novo `updateDebate` + `generateSynopsis`
+- `src/routes/_authenticated/personas.tsx` — `<VoicePicker>` no form
+- `src/routes/_authenticated/new.tsx` — card "Vozes" + pré-fill ao carregar persona
+- `src/routes/_authenticated/debates.$id.tsx` — botão Editar; "Modo apresentação" → `/arena`
+- `src/routes/_authenticated/debates.$id.present.tsx` — defaults vindos do debate
 
-**Editar** `src/routes/_authenticated/personas.tsx`
-- Mostrar barra de progresso em etapas: `🔎 Gerando queries… → 📚 Buscando na web ({n} fontes) → 🧠 Analisando… → ✍️ Encarnando…` (status textual simples, sem streaming SSE — basta exibir spinner com texto variável durante o `useMutation`)
-- Após sucesso, listar `sources` (chips clicáveis com `<a target="_blank">`) abaixo do textarea
-- Salvar persona já anexa as fontes no final do `persona_prompt` (que o encarnador já incluiu)
-
-## Detalhes técnicos
-
-- **Modelos**: queries = `google/gemini-3-flash-preview` (rápido); analista e encarnador = `google/gemini-2.5-pro` (qualidade).
-- **Concorrência**: `Promise.allSettled` no search; ignora queries que falharem.
-- **Timeout/segurança**: cada chamada Firecrawl com `AbortController` 25s; total da serverFn ~90s.
-- **Tamanho de contexto**: cada fonte truncada a ~6000 chars; dossiê final cabe folgado no Gemini Pro.
-- **Sem novas tabelas** — `personas` já guarda tudo; `sources` retornadas no response e renderizadas, depois embutidas no `persona_prompt` para virem junto quando o debatedor for instanciado.
-- **Sem mudança de schema do DB**.
-
-## Fora do escopo
-
-- Agente Crítico (validação fidelidade vs dossiê) — fica como melhoria futura.
-- Streaming de progresso real (SSE) — usaremos estado local com etapas estimadas.
-- Armazenar fontes em tabela separada.
+### Fora do escopo
+- Editar falas já geradas (você escolheu "só metadados").
+- Mudar player/streaming do present (não foi pedido nesta rodada).

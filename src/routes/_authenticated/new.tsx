@@ -18,6 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { Reveal } from "@/components/Reveal";
 import { toast } from "sonner";
 import { Sparkles, Users, Wand2, Swords, Dices } from "lucide-react";
+import { VoicePicker } from "@/components/VoicePicker";
+import { type VoiceProvider } from "@/lib/voice-catalog";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
@@ -53,15 +55,23 @@ function NewDebate() {
     moderatorTone: "formal" as "formal" | "descontraído" | "acadêmico",
     rounds: 3,
     dynamicFlow: false,
+    voiceProviderMod: "browser" as VoiceProvider,
+    voiceIdMod: null as string | null,
+    voiceProviderA: "browser" as VoiceProvider,
+    voiceIdA: null as string | null,
+    voiceProviderB: "browser" as VoiceProvider,
+    voiceIdB: null as string | null,
   });
 
   function applyPersona(side: "A" | "B", personaId: string) {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
+    const vp = (p.voice_provider as VoiceProvider | null) ?? "browser";
+    const vid = p.voice_id ?? null;
     if (side === "A") {
-      setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt }));
+      setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt, voiceProviderA: vp, voiceIdA: vid }));
     } else {
-      setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt }));
+      setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt, voiceProviderB: vp, voiceIdB: vid }));
     }
   }
 
@@ -288,6 +298,19 @@ function NewDebate() {
               <p className="text-xs text-muted-foreground">Mais natural: o mediador decide a cada turno quem rebate e o quê. Desligado = ordem fixa A/B.</p>
             </div>
           </div>
+        </Card>
+
+        <Card className="p-6 space-y-4">
+          <div>
+            <h3 className="font-display font-semibold mb-1">Vozes</h3>
+            <p className="text-xs text-muted-foreground">As vozes podem vir das personas, mas você pode trocar aqui — vale só para este debate.</p>
+          </div>
+          <VoicePicker label="Mediador" provider={form.voiceProviderMod} voiceId={form.voiceIdMod}
+            onChange={(p, v) => setForm({ ...form, voiceProviderMod: p, voiceIdMod: v })} />
+          <VoicePicker label={form.debaterAName || "Debatedor A"} provider={form.voiceProviderA} voiceId={form.voiceIdA}
+            onChange={(p, v) => setForm({ ...form, voiceProviderA: p, voiceIdA: v })} />
+          <VoicePicker label={form.debaterBName || "Debatedor B"} provider={form.voiceProviderB} voiceId={form.voiceIdB}
+            onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
         </Card>
 
         <Button type="submit" size="lg" className="w-full" disabled={loading}>

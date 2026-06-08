@@ -3,6 +3,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 const ModelSchema = z.string().min(3).max(80);
+const VoiceProviderSchema = z.enum(["browser", "eleven", "minimax"]).nullable().optional();
+const VoiceIdSchema = z.string().trim().max(120).nullable().optional();
 
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
@@ -16,6 +18,12 @@ const NewDebateSchema = z.object({
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]),
   rounds: z.number().int().min(2).max(6),
   dynamicFlow: z.boolean().default(false),
+  voiceProviderMod: VoiceProviderSchema,
+  voiceIdMod: VoiceIdSchema,
+  voiceProviderA: VoiceProviderSchema,
+  voiceIdA: VoiceIdSchema,
+  voiceProviderB: VoiceProviderSchema,
+  voiceIdB: VoiceIdSchema,
 });
 
 export const createDebate = createServerFn({ method: "POST" })
@@ -62,6 +70,12 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
         moderator_tone: data.moderatorTone,
         rounds: data.rounds,
         dynamic_flow: data.dynamicFlow,
+        voice_provider_mod: data.voiceProviderMod ?? null,
+        voice_id_mod: data.voiceIdMod ?? null,
+        voice_provider_a: data.voiceProviderA ?? null,
+        voice_id_a: data.voiceIdA ?? null,
+        voice_provider_b: data.voiceProviderB ?? null,
+        voice_id_b: data.voiceIdB ?? null,
         rules,
         status: "ready",
       })
@@ -69,6 +83,81 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
       .single();
     if (error) throw new Error(error.message);
     return { id: debate.id, rules };
+  });
+
+const UpdateDebateSchema = z.object({
+  id: z.string().uuid(),
+  topic: z.string().trim().min(3).max(500).optional(),
+  debaterAName: z.string().trim().min(1).max(60).optional(),
+  debaterAPersona: z.string().trim().min(1).max(20000).optional(),
+  debaterAModel: ModelSchema.optional(),
+  debaterBName: z.string().trim().min(1).max(60).optional(),
+  debaterBPersona: z.string().trim().min(1).max(20000).optional(),
+  debaterBModel: ModelSchema.optional(),
+  moderatorModel: ModelSchema.optional(),
+  moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]).optional(),
+  rounds: z.number().int().min(2).max(6).optional(),
+  dynamicFlow: z.boolean().optional(),
+  voiceProviderMod: VoiceProviderSchema,
+  voiceIdMod: VoiceIdSchema,
+  voiceProviderA: VoiceProviderSchema,
+  voiceIdA: VoiceIdSchema,
+  voiceProviderB: VoiceProviderSchema,
+  voiceIdB: VoiceIdSchema,
+});
+
+export const updateDebate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => UpdateDebateSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { id, ...d } = data;
+    const patch: Record<string, string | number | boolean | null> = {};
+    if (d.topic !== undefined) patch.topic = d.topic;
+    if (d.debaterAName !== undefined) patch.debater_a_name = d.debaterAName;
+    if (d.debaterAPersona !== undefined) patch.debater_a_persona = d.debaterAPersona;
+    if (d.debaterAModel !== undefined) patch.debater_a_model = d.debaterAModel;
+    if (d.debaterBName !== undefined) patch.debater_b_name = d.debaterBName;
+    if (d.debaterBPersona !== undefined) patch.debater_b_persona = d.debaterBPersona;
+    if (d.debaterBModel !== undefined) patch.debater_b_model = d.debaterBModel;
+    if (d.moderatorModel !== undefined) patch.moderator_model = d.moderatorModel;
+    if (d.moderatorTone !== undefined) patch.moderator_tone = d.moderatorTone;
+    if (d.rounds !== undefined) patch.rounds = d.rounds;
+    if (d.dynamicFlow !== undefined) patch.dynamic_flow = d.dynamicFlow;
+    if (d.voiceProviderMod !== undefined) patch.voice_provider_mod = d.voiceProviderMod;
+    if (d.voiceIdMod !== undefined) patch.voice_id_mod = d.voiceIdMod;
+    if (d.voiceProviderA !== undefined) patch.voice_provider_a = d.voiceProviderA;
+    if (d.voiceIdA !== undefined) patch.voice_id_a = d.voiceIdA;
+    if (d.voiceProviderB !== undefined) patch.voice_provider_b = d.voiceProviderB;
+    if (d.voiceIdB !== undefined) patch.voice_id_b = d.voiceIdB;
+    const { error } = await context.supabase.from("debates").update(patch as never).eq("id", id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const generateSynopsis = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ debateId: z.string().uuid(), force: z.boolean().default(false) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: debate, error } = await context.supabase
+      .from("debates").select("id, topic, debater_a_name, debater_a_persona, debater_b_name, debater_b_persona, synopsis")
+      .eq("id", data.debateId).single();
+    if (error || !debate) throw new Error(error?.message ?? "Debate não encontrado.");
+    if (debate.synopsis && !data.force) return { synopsis: debate.synopsis };
+    const { chatComplete } = await import("./ai-gateway.server");
+    const out = await chatComplete(
+      [
+        { role: "system", content: "Você escreve sinopses curtas e envolventes para anunciar um debate, como narrador de luta. Português. 2 a 3 frases, no máximo 320 caracteres. Sem aspas externas." },
+        { role: "user", content: `Tema: "${debate.topic}"
+Debatedor A: ${debate.debater_a_name} — ${(debate.debater_a_persona ?? "").slice(0, 400)}
+Debatedor B: ${debate.debater_b_name} — ${(debate.debater_b_persona ?? "").slice(0, 400)}
+
+Escreva a sinopse anunciando o confronto.` },
+      ],
+      "google/gemini-3-flash-preview",
+    );
+    const synopsis = out.replace(/^["']+|["']+$/g, "").trim().slice(0, 500);
+    await context.supabase.from("debates").update({ synopsis }).eq("id", data.debateId);
+    return { synopsis };
   });
 
 export const listDebates = createServerFn({ method: "GET" })

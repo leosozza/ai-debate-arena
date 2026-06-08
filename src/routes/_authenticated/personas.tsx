@@ -18,6 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Sparkles, Trash2, Plus, Globe, Lock } from "lucide-react";
+import { VoicePicker } from "@/components/VoicePicker";
+import { type VoiceProvider } from "@/lib/voice-catalog";
 
 export const Route = createFileRoute("/_authenticated/personas")({
   component: PersonasPage,
@@ -42,6 +44,8 @@ function PersonasPage() {
     description: "",
     persona_prompt: "",
     is_public: false,
+    voice_provider: null as VoiceProvider | null,
+    voice_id: null as string | null,
   });
   const [genName, setGenName] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -51,7 +55,7 @@ function PersonasPage() {
 
   function resetForm() {
     setEditingId(null);
-    setForm({ name: "", description: "", persona_prompt: "", is_public: false });
+    setForm({ name: "", description: "", persona_prompt: "", is_public: false, voice_provider: null, voice_id: null });
     setSources([]);
   }
 
@@ -79,6 +83,8 @@ function PersonasPage() {
         description: out.description,
         persona_prompt: out.persona_prompt,
         is_public: false,
+        voice_provider: null,
+        voice_id: null,
       });
       setSources(out.sources ?? []);
       setEditingId(null);
@@ -135,6 +141,8 @@ function PersonasPage() {
       description: p.description ?? "",
       persona_prompt: p.persona_prompt,
       is_public: p.is_public,
+      voice_provider: (p.voice_provider as VoiceProvider | null) ?? null,
+      voice_id: p.voice_id ?? null,
     });
   }
 
@@ -241,6 +249,15 @@ function PersonasPage() {
               onChange={(e) => setForm({ ...form, persona_prompt: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">{form.persona_prompt.length}/12000 — quanto mais específico (bordões, posições, estilo), mais fiel a encarnação.</p>
+          </div>
+          <div className="pt-2 border-t">
+            <VoicePicker
+              label="Voz padrão da persona"
+              provider={form.voice_provider}
+              voiceId={form.voice_id}
+              onChange={(p, v) => setForm({ ...form, voice_provider: p, voice_id: v })}
+            />
+            <p className="text-[11px] text-muted-foreground mt-1">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
           </div>
           <div className="flex items-center gap-3 pt-2 border-t">
             <Switch

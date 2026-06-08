@@ -5,7 +5,7 @@ import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubte
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
-import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices } from "lucide-react";
+import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -172,9 +172,14 @@ function DebateDetail() {
             <Square className="h-4 w-4 mr-1" /> Parar
           </Button>
         )}
-        <Link to="/debates/$id/present" params={{ id }}>
+        <Link to="/debates/$id/arena" params={{ id }}>
           <Button variant="secondary" size="sm" disabled={data.messages.length === 0}>
             🎬 Modo apresentação
+          </Button>
+        </Link>
+        <Link to="/debates/$id/edit" params={{ id }}>
+          <Button variant="outline" size="sm">
+            <Pencil className="h-4 w-4 mr-1" /> Editar
           </Button>
         </Link>
         <Button onClick={openSubtemaRoulette} variant="outline" size="sm" disabled={data.messages.length === 0}>
