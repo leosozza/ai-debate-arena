@@ -23,7 +23,7 @@ function AuthenticatedLayout() {
             Arena IA
           </Link>
           <div className="flex items-center gap-2">
-            <Link to="/_authenticated/new"><Button size="sm">Novo debate</Button></Link>
+            <Link to="/new"><Button size="sm">Novo debate</Button></Link>
             <Button
               size="sm"
               variant="ghost"

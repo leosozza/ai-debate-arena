@@ -44,7 +44,7 @@ function NewDebate() {
     try {
       const result = await create({ data: form });
       toast.success("Debate criado!");
-      router.navigate({ to: "/_authenticated/debates/$id", params: { id: result.id } });
+      router.navigate({ to: "/debates/$id", params: { id: result.id } });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha");
     } finally {
