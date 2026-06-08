@@ -74,6 +74,7 @@ export type Database = {
           topic: string
           updated_at: string
           user_id: string
+          verdict: Json | null
         }
         Insert: {
           created_at?: string
@@ -93,6 +94,7 @@ export type Database = {
           topic: string
           updated_at?: string
           user_id: string
+          verdict?: Json | null
         }
         Update: {
           created_at?: string
@@ -112,6 +114,7 @@ export type Database = {
           topic?: string
           updated_at?: string
           user_id?: string
+          verdict?: Json | null
         }
         Relationships: []
       }
