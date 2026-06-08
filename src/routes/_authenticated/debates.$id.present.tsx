@@ -481,12 +481,13 @@ function StageDebaterPanel({
   const theme = sideTheme(side);
   const align = side === "a" ? "md:text-left" : "md:text-right";
   const avatarPosition = side === "a" ? "md:items-start" : "md:items-end";
+  const activeBorder = side === "a" ? "border-side-a/70" : "border-side-b/70";
 
   return (
     <article
       className={`relative flex min-h-[18rem] overflow-hidden rounded-2xl border p-4 transition-all duration-500 md:min-h-0 md:p-6 ${
         active
-          ? `border-${side === "a" ? "side-a" : "side-b"}/70 bg-card/80 shadow-2xl`
+          ? `${activeBorder} bg-card/80 shadow-2xl`
           : "border-border/60 bg-card/35 opacity-75"
       }`}
     >
