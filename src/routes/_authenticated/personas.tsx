@@ -18,6 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Sparkles, Trash2, Plus, Globe, Lock } from "lucide-react";
+import { VoicePicker } from "@/components/VoicePicker";
+import { type VoiceProvider } from "@/lib/voice-catalog";
 
 export const Route = createFileRoute("/_authenticated/personas")({
   component: PersonasPage,
