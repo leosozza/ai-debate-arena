@@ -14,7 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      debate_messages: {
+        Row: {
+          content: string
+          created_at: string
+          debate_id: string
+          id: string
+          order_index: number
+          phase: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          debate_id: string
+          id?: string
+          order_index: number
+          phase: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          debate_id?: string
+          id?: string
+          order_index?: number
+          phase?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debate_messages_debate_id_fkey"
+            columns: ["debate_id"]
+            isOneToOne: false
+            referencedRelation: "debates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      debates: {
+        Row: {
+          created_at: string
+          debater_a_name: string
+          debater_a_persona: string
+          debater_b_name: string
+          debater_b_persona: string
+          id: string
+          moderator_tone: string
+          rounds: number
+          rules: string | null
+          status: string
+          topic: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          debater_a_name: string
+          debater_a_persona: string
+          debater_b_name: string
+          debater_b_persona: string
+          id?: string
+          moderator_tone?: string
+          rounds?: number
+          rules?: string | null
+          status?: string
+          topic: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          debater_a_name?: string
+          debater_a_persona?: string
+          debater_b_name?: string
+          debater_b_persona?: string
+          id?: string
+          moderator_tone?: string
+          rounds?: number
+          rules?: string | null
+          status?: string
+          topic?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
