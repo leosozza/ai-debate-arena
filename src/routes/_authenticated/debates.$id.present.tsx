@@ -3,40 +3,53 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getDebate, ttsSpeak, type Verdict } from "@/lib/debate.functions";
+import { minimaxTts, MINIMAX_VOICES } from "@/lib/tts.functions";
 import { ELEVEN_VOICES, DEFAULT_ELEVEN } from "@/lib/eleven-voices";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, X, Settings2, Swords, Trophy } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, X, Settings2, Swords, Trophy, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/debates/$id/present")({
   component: PresentMode,
 });
 
 type Side = "moderator" | "a" | "b";
+type Provider = "browser" | "eleven" | "minimax";
 
 function PresentMode() {
   const { id } = Route.useParams();
   const router = useRouter();
   const get = useServerFn(getDebate);
+  const elTts = useServerFn(ttsSpeak);
+  const mmTts = useServerFn(minimaxTts);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
 
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [provider, setProvider] = useState<Provider>("eleven");
+
+  // Browser voices
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voiceA, setVoiceA] = useState<string>("");
   const [voiceB, setVoiceB] = useState<string>("");
   const [voiceMod, setVoiceMod] = useState<string>("");
-  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  const tts = useServerFn(ttsSpeak);
-  const [useEleven, setUseEleven] = useState(true);
-  const [elevenA, setElevenA] = useState<string>(DEFAULT_ELEVEN.a);
-  const [elevenB, setElevenB] = useState<string>(DEFAULT_ELEVEN.b);
-  const [elevenMod, setElevenMod] = useState<string>(DEFAULT_ELEVEN.moderator);
+  // ElevenLabs voices
+  const [elA, setElA] = useState<string>(DEFAULT_ELEVEN.a);
+  const [elB, setElB] = useState<string>(DEFAULT_ELEVEN.b);
+  const [elMod, setElMod] = useState<string>(DEFAULT_ELEVEN.moderator);
+
+  // MiniMax voices
+  const [mmA, setMmA] = useState<string>(MINIMAX_VOICES[0].id);
+  const [mmB, setMmB] = useState<string>(MINIMAX_VOICES[3].id);
+  const [mmMod, setMmMod] = useState<string>(MINIMAX_VOICES[7].id);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     function load() {
@@ -52,7 +65,7 @@ function PresentMode() {
     }
     load();
     window.speechSynthesis.onvoiceschanged = load;
-    return () => { window.speechSynthesis.cancel(); if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } };
+    return () => { window.speechSynthesis.cancel(); audioRef.current?.pause(); };
   }, []);
 
   const messages = data?.messages ?? [];
@@ -61,66 +74,92 @@ function PresentMode() {
   const slideCount = messages.length + (verdict ? 1 : 0);
 
   function stopAll() {
+    cancelledRef.current = true;
     window.speechSynthesis.cancel();
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.src = "";
       audioRef.current = null;
     }
   }
 
-  function browserSpeak(text: string, voiceName: string, onEnd: () => void) {
+  function browserSpeak(text: string, role: Side, onEnd: () => void) {
+    const voiceName = role === "moderator" ? voiceMod : role === "a" ? voiceA : voiceB;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     const v = voices.find((x) => x.name === voiceName);
     if (v) u.voice = v;
     u.lang = v?.lang ?? "pt-BR";
     u.rate = 1.0;
-    u.onend = onEnd;
-    utterRef.current = u;
+    u.onend = () => { if (!cancelledRef.current) onEnd(); };
     window.speechSynthesis.speak(u);
   }
 
-  async function elevenSpeak(msgId: string, text: string, voiceId: string, onEnd: () => void) {
-    const cacheKey = `${msgId}:${voiceId}`;
-    let url = audioCache.current.get(cacheKey);
-    if (!url) {
-      const res = await tts({ data: { text: text.slice(0, 5000), voiceId } });
+  async function fetchAudioUrl(prov: "eleven" | "minimax", msgId: string, text: string, role: Side): Promise<string> {
+    const voiceId =
+      prov === "eleven"
+        ? (role === "moderator" ? elMod : role === "a" ? elA : elB)
+        : (role === "moderator" ? mmMod : role === "a" ? mmA : mmB);
+    const cacheKey = `${prov}:${msgId}:${voiceId}`;
+    const cached = audioCache.current.get(cacheKey);
+    if (cached) return cached;
+    let url: string;
+    if (prov === "eleven") {
+      const res = await elTts({ data: { text: text.slice(0, 5000), voiceId } });
       url = `data:${res.mime};base64,${res.audio}`;
-      audioCache.current.set(cacheKey, url);
+    } else {
+      const res = await mmTts({ data: { text: text.slice(0, 5000), voiceId, model: "speech-02-hd", speed: 1 } });
+      url = `data:${res.mime};base64,${res.audioBase64}`;
     }
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    audio.onended = onEnd;
-    await audio.play();
+    audioCache.current.set(cacheKey, url);
+    return url;
+  }
+
+  async function speak(msgId: string, text: string, role: Side, onEnd: () => void) {
+    cancelledRef.current = false;
+    if (provider === "browser") {
+      browserSpeak(text, role, onEnd);
+      return;
+    }
+    try {
+      setLoading(true);
+      const url = await fetchAudioUrl(provider, msgId, text, role);
+      if (cancelledRef.current) return;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { if (!cancelledRef.current) onEnd(); };
+      await audio.play();
+    } catch {
+      if (cancelledRef.current) return;
+      toast.error(`${provider === "eleven" ? "ElevenLabs" : "MiniMax"} indisponível — usando voz do navegador.`);
+      browserSpeak(text, role, onEnd);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     if (!playing || !current) return;
-    let cancelled = false;
     const advance = () => {
-      if (cancelled) return;
+      if (cancelledRef.current) return;
       if (index + 1 < slideCount) setIndex((i) => i + 1);
       else setPlaying(false);
     };
-    const browserVoice = current.role === "moderator" ? voiceMod : current.role === "a" ? voiceA : voiceB;
-    if (useEleven) {
-      const voiceId = current.role === "moderator" ? elevenMod : current.role === "a" ? elevenA : elevenB;
-      elevenSpeak(current.id, current.content, voiceId, advance).catch(() => {
-        if (cancelled) return;
-        toast.error("ElevenLabs indisponível — usando voz do navegador.");
-        browserSpeak(current.content, browserVoice, advance);
-      });
-    } else {
-      browserSpeak(current.content, browserVoice, advance);
-    }
-    return () => { cancelled = true; stopAll(); };
+    speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
+    return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, useEleven]);
+  }, [playing, index, current?.id, provider]);
 
   function go(delta: number) {
     setPlaying(false);
     stopAll();
     setIndex((i) => Math.min(slideCount - 1, Math.max(0, i + delta)));
+  }
+
+  function switchProvider(p: Provider) {
+    stopAll();
+    setPlaying(false);
+    setProvider(p);
   }
 
   if (!data) {
@@ -143,14 +182,9 @@ function PresentMode() {
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
-      {/* Reactive cinematic glow — tinted by the current speaker's side */}
-      <div
-        className="pointer-events-none absolute inset-0 transition-all duration-700"
-        style={{ background: theme.glow }}
-      />
+      <div className="pointer-events-none absolute inset-0 transition-all duration-700" style={{ background: theme.glow }} />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_120%,transparent_40%,oklch(0.08_0.02_264_/_0.8))]" />
 
-      {/* Top bar */}
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Swords className="h-4 w-4 text-primary" />
@@ -166,43 +200,52 @@ function PresentMode() {
         </div>
       </div>
 
-      {/* Settings drawer */}
       {showSettings && (
         <div className="absolute right-6 top-16 z-20 w-80 rounded-xl border border-border/60 glass p-4 space-y-3 shadow-2xl">
-          <label className="flex items-center justify-between gap-2 text-sm">
-            <span className="font-medium">Voz ElevenLabs</span>
-            <input
-              type="checkbox"
-              checked={useEleven}
-              onChange={(e) => { stopAll(); setPlaying(false); setUseEleven(e.target.checked); }}
-              className="h-4 w-4 accent-primary"
-            />
-          </label>
-          <p className="text-[11px] text-muted-foreground leading-snug">
-            {useEleven
-              ? "Vozes de alta qualidade (consome créditos ElevenLabs). Cai para a voz do navegador se falhar."
-              : "Voz nativa do navegador (grátis)."}
-          </p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Provedor de voz</p>
+            <div className="flex gap-1 rounded-md border border-border/60 bg-background/40 p-0.5">
+              {([["browser", "Navegador"], ["eleven", "ElevenLabs"], ["minimax", "MiniMax"]] as const).map(([p, label]) => (
+                <button
+                  key={p}
+                  onClick={() => switchProvider(p)}
+                  className={`flex-1 rounded px-2 py-1 text-xs transition ${provider === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="border-t border-border/50 pt-3 space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vozes</p>
-            {useEleven ? (
+            {provider === "browser" && (
               <>
-                <ElevenPicker label="Mediador" value={elevenMod} onChange={setElevenMod} />
-                <ElevenPicker label={data.debate.debater_a_name} value={elevenA} onChange={setElevenA} />
-                <ElevenPicker label={data.debate.debater_b_name} value={elevenB} onChange={setElevenB} />
+                <BrowserVoicePicker label="Mediador" voices={voices} value={voiceMod} onChange={setVoiceMod} />
+                <BrowserVoicePicker label={data.debate.debater_a_name} voices={voices} value={voiceA} onChange={setVoiceA} />
+                <BrowserVoicePicker label={data.debate.debater_b_name} voices={voices} value={voiceB} onChange={setVoiceB} />
               </>
-            ) : (
+            )}
+            {provider === "eleven" && (
               <>
-                <VoicePicker label="Mediador" voices={voices} value={voiceMod} onChange={setVoiceMod} />
-                <VoicePicker label={data.debate.debater_a_name} voices={voices} value={voiceA} onChange={setVoiceA} />
-                <VoicePicker label={data.debate.debater_b_name} voices={voices} value={voiceB} onChange={setVoiceB} />
+                <CatalogPicker label="Mediador" options={ELEVEN_VOICES} value={elMod} onChange={setElMod} />
+                <CatalogPicker label={data.debate.debater_a_name} options={ELEVEN_VOICES} value={elA} onChange={setElA} />
+                <CatalogPicker label={data.debate.debater_b_name} options={ELEVEN_VOICES} value={elB} onChange={setElB} />
+                <p className="text-[10px] text-muted-foreground leading-snug">ElevenLabs sintetiza no servidor; cada fala consome créditos da sua chave.</p>
+              </>
+            )}
+            {provider === "minimax" && (
+              <>
+                <CatalogPicker label="Mediador" options={MINIMAX_VOICES} value={mmMod} onChange={setMmMod} />
+                <CatalogPicker label={data.debate.debater_a_name} options={MINIMAX_VOICES} value={mmA} onChange={setMmA} />
+                <CatalogPicker label={data.debate.debater_b_name} options={MINIMAX_VOICES} value={mmB} onChange={setMmB} />
+                <p className="text-[10px] text-muted-foreground leading-snug">MiniMax sintetiza no servidor; cada fala consome créditos da sua chave.</p>
               </>
             )}
           </div>
         </div>
       )}
 
-      {/* Stage */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-8">
         {isWinner && verdict ? (
           <WinnerStage verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />
@@ -214,9 +257,10 @@ function PresentMode() {
             <div className="mb-4 inline-flex items-center gap-3">
               <span className={`h-3 w-3 rounded-full ${theme.dot} ${playing ? "animate-pulse" : ""}`} />
               <h2 className={`font-display text-4xl md:text-6xl font-extrabold tracking-tight ${theme.text}`}>{name}</h2>
+              {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
             </div>
             <div className="mb-8">
-              <VoiceWave active={playing} colorClass={theme.dot} />
+              <VoiceWave active={playing && !loading} colorClass={theme.dot} />
             </div>
             <p className="text-2xl md:text-[2rem] leading-relaxed md:leading-relaxed text-foreground/95 font-medium text-balance">
               {current?.content}
@@ -225,9 +269,7 @@ function PresentMode() {
         )}
       </div>
 
-      {/* Bottom control bar */}
       <div className="relative z-10 px-6 pb-6">
-        {/* Progress */}
         <div className="mx-auto mb-4 flex max-w-3xl items-center gap-1.5">
           {messages.map((m, i) => {
             const t = sideTheme((m.role ?? "moderator") as Side);
@@ -320,7 +362,7 @@ function WinnerStage({ verdict, aName, bName }: { verdict: Verdict; aName: strin
   );
 }
 
-function ElevenPicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function BrowserVoicePicker({ label, voices, value, onChange }: { label: string; voices: SpeechSynthesisVoice[]; value: string; onChange: (v: string) => void }) {
   return (
     <label className="flex items-center justify-between gap-2 text-xs">
       <span className="text-muted-foreground truncate max-w-[110px]">{label}</span>
@@ -329,22 +371,22 @@ function ElevenPicker({ label, value, onChange }: { label: string; value: string
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        {ELEVEN_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+        {voices.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
       </select>
     </label>
   );
 }
 
-function VoicePicker({ label, voices, value, onChange }: { label: string; voices: SpeechSynthesisVoice[]; value: string; onChange: (v: string) => void }) {
+function CatalogPicker({ label, options, value, onChange }: { label: string; options: ReadonlyArray<{ id: string; label: string }>; value: string; onChange: (v: string) => void }) {
   return (
     <label className="flex items-center justify-between gap-2 text-xs">
-      <span className="text-muted-foreground truncate max-w-[90px]">{label}</span>
+      <span className="text-muted-foreground truncate max-w-[110px]">{label}</span>
       <select
         className="flex-1 min-w-0 rounded-md border border-border/60 bg-background/60 px-2 py-1 outline-none truncate"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        {voices.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
+        {options.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
       </select>
     </label>
   );
