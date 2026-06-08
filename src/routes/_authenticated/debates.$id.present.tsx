@@ -461,6 +461,73 @@ function sideTheme(role: Side) {
   };
 }
 
+function StageDebaterPanel({
+  side,
+  name,
+  phase,
+  content,
+  active,
+  speaking,
+  loading,
+}: {
+  side: "a" | "b";
+  name: string;
+  phase: string;
+  content: string;
+  active: boolean;
+  speaking: boolean;
+  loading: boolean;
+}) {
+  const theme = sideTheme(side);
+  const align = side === "a" ? "md:text-left" : "md:text-right";
+  const avatarPosition = side === "a" ? "md:items-start" : "md:items-end";
+
+  return (
+    <article
+      className={`relative flex min-h-[18rem] overflow-hidden rounded-2xl border p-4 transition-all duration-500 md:min-h-0 md:p-6 ${
+        active
+          ? `border-${side === "a" ? "side-a" : "side-b"}/70 bg-card/80 shadow-2xl`
+          : "border-border/60 bg-card/35 opacity-75"
+      }`}
+    >
+      <div className={`pointer-events-none absolute inset-0 ${active ? "opacity-100" : "opacity-35"}`} style={{ background: theme.glow }} />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/70 to-transparent" aria-hidden />
+      <div className={`relative z-10 flex h-full w-full flex-col justify-between gap-4 text-center ${align} ${avatarPosition}`}>
+        <div className={`flex w-full flex-col items-center gap-3 ${avatarPosition}`}>
+          <div className={`relative flex h-24 w-24 items-center justify-center rounded-full border-2 md:h-32 md:w-32 ${active ? `${theme.text} border-current bg-background/70` : "border-border text-muted-foreground bg-secondary/50"}`}>
+            {active && <span className={`absolute inset-[-8px] rounded-full border ${theme.text} opacity-30 animate-ping`} />}
+            <Bot className="h-12 w-12 md:h-16 md:w-16" />
+          </div>
+          <div className="min-w-0">
+            <div className={`mb-1 text-xs font-semibold uppercase tracking-[0.28em] ${active ? theme.text : "text-muted-foreground"}`}>
+              IA {side.toUpperCase()}
+            </div>
+            <h3 className={`font-display text-2xl font-extrabold md:text-4xl ${active ? theme.text : "text-foreground"}`}>{name}</h3>
+          </div>
+        </div>
+
+        <div className="w-full">
+          <div className="mb-3 flex min-h-16 items-center justify-center">
+            <VoiceWave active={speaking} colorClass={theme.dot} bars={28} />
+          </div>
+          {loading && active && (
+            <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Preparando voz
+            </div>
+          )}
+          <div className={`mb-2 text-xs font-semibold uppercase tracking-[0.24em] ${active ? theme.text : "text-muted-foreground"}`}>
+            {active ? phase : "Aguardando"}
+          </div>
+          <p className={`mx-auto max-w-xl text-base leading-relaxed md:text-xl ${active ? "text-foreground" : "text-muted-foreground"}`}>
+            {active ? content : ""}
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function WinnerStage({ verdict, aName, bName }: { verdict: Verdict; aName: string; bName: string }) {
   const winA = verdict.winner === "a";
   const winB = verdict.winner === "b";
