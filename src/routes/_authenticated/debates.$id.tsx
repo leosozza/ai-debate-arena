@@ -218,19 +218,36 @@ function DebateDetail() {
         </Card>
       )}
 
-      <div className="space-y-3">
-        {data.messages.map((m) => {
-          const color = m.role === "a" ? "border-l-side-a" : m.role === "b" ? "border-l-side-b" : "border-l-primary";
-          const nameColor = m.role === "a" ? "text-side-a" : m.role === "b" ? "text-side-b" : "text-primary";
-          const name = m.role === "moderator" ? "Mediador" : m.role === "a" ? data.debate.debater_a_name : data.debate.debater_b_name;
+      <div className="space-y-6">
+        {blockKeys.map((bIdx) => {
+          const msgs = grouped.get(bIdx)!;
+          const sub = subtopics[bIdx];
+          const hasBlockMeta = blockKeys.length > 1 || !!sub;
           return (
-            <Card key={m.id} className={`p-5 border-l-4 ${color} bg-card/60 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-500`}>
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className={`font-display font-semibold ${nameColor}`}>{name}</span>
-                <span className="text-xs uppercase tracking-wide text-muted-foreground">{m.phase}</span>
-              </div>
-              <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">{m.content}</p>
-            </Card>
+            <div key={bIdx} className="space-y-3">
+              {hasBlockMeta && (
+                <div className="flex items-baseline gap-3 border-b border-border/40 pb-2">
+                  <span className="text-xs uppercase tracking-[0.3em] text-primary font-semibold">
+                    Bloco {bIdx + 1}{blocksCount ? ` de ${blocksCount}` : ""}
+                  </span>
+                  {sub && <span className="font-display text-base font-semibold text-foreground/90">{sub.title}</span>}
+                </div>
+              )}
+              {msgs.map((m) => {
+                const color = m.role === "a" ? "border-l-side-a" : m.role === "b" ? "border-l-side-b" : "border-l-primary";
+                const nameColor = m.role === "a" ? "text-side-a" : m.role === "b" ? "text-side-b" : "text-primary";
+                const name = m.role === "moderator" ? "Mediador" : m.role === "a" ? data.debate.debater_a_name : data.debate.debater_b_name;
+                return (
+                  <Card key={m.id} className={`p-5 border-l-4 ${color} bg-card/60 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-500`}>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className={`font-display font-semibold ${nameColor}`}>{name}</span>
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">{m.phase}</span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">{m.content}</p>
+                  </Card>
+                );
+              })}
+            </div>
           );
         })}
 
