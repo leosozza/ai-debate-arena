@@ -17,6 +17,7 @@ const NewDebateSchema = z.object({
   moderatorModel: ModelSchema.default("google/gemini-3-flash-preview"),
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]),
   rounds: z.number().int().min(2).max(6),
+  blocksCount: z.number().int().min(2).max(6).default(4),
   dynamicFlow: z.boolean().default(false),
   voiceProviderMod: VoiceProviderSchema,
   voiceIdMod: VoiceIdSchema,
