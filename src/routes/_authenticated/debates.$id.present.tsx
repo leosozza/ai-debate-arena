@@ -187,8 +187,23 @@ function PresentMode() {
     }
   }
 
+  // Detecta entrada num novo bloco e dispara a vinheta antes de tocar a fala.
+  const lastBlockShownRef = useRef<number>(-1);
+  const subtopicsList = (data?.debate?.block_subtopics as Array<{ title: string; focus: string }> | null) ?? [];
+  const blocksTotal = data?.debate?.blocks_count ?? subtopicsList.length ?? 1;
   useEffect(() => {
-    if (!playing || !current) return;
+    if (!current) return;
+    const b = current.block_index ?? 0;
+    // Só mostra vinheta se houver mais de 1 bloco e ainda não mostramos para este bloco nesta sessão.
+    if (blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
+      lastBlockShownRef.current = b;
+      setIntroBlock(b);
+      stopAll();
+    }
+  }, [current?.id, blocksTotal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!playing || !current || introBlock !== null) return;
     const advance = () => {
       if (cancelledRef.current) return;
       if (index + 1 < slideCount) setIndex((i) => i + 1);
@@ -197,7 +212,7 @@ function PresentMode() {
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, provider]);
+  }, [playing, index, current?.id, provider, introBlock]);
 
   function go(delta: number) {
     setPlaying(false);
