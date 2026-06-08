@@ -6,19 +6,30 @@ export async function elevenTTS(text: string, voiceId: string): Promise<{ audio:
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) throw new Error("ELEVENLABS_API_KEY ausente. Configure o secret no Lovable.");
 
-  const res = await fetch(`${ENDPOINT}/${voiceId}`, {
-    method: "POST",
-    headers: {
-      "xi-api-key": key,
-      "Content-Type": "application/json",
-      Accept: "audio/mpeg",
-    },
-    body: JSON.stringify({
-      text,
-      model_id: MODEL,
-      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-    }),
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);
+  let res: Response;
+  try {
+    res = await fetch(`${ENDPOINT}/${voiceId}`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": key,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text,
+        model_id: MODEL,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      }),
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    if (ctrl.signal.aborted) throw new Error("ElevenLabs não respondeu em 30s (timeout).");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     const body = await res.text();

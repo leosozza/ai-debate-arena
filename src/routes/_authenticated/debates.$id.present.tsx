@@ -29,7 +29,9 @@ function PresentMode() {
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [provider, setProvider] = useState<Provider>("eleven");
+  // Navegador é o padrão (sempre funciona, sem depender de chave/crédito).
+  // A escolha fica salva; troque para ElevenLabs/MiniMax no painel ⚙️.
+  const [provider, setProvider] = useState<Provider>("browser");
 
   // Browser voices
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -50,6 +52,7 @@ function PresentMode() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
   const cancelledRef = useRef(false);
+  const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     function load() {
@@ -65,6 +68,8 @@ function PresentMode() {
     }
     load();
     window.speechSynthesis.onvoiceschanged = load;
+    const saved = localStorage.getItem("arena-tts-provider");
+    if (saved === "browser" || saved === "eleven" || saved === "minimax") setProvider(saved);
     return () => { window.speechSynthesis.cancel(); audioRef.current?.pause(); };
   }, []);
 
@@ -73,8 +78,16 @@ function PresentMode() {
   const verdict = (data?.debate?.verdict as Verdict | null) ?? null;
   const slideCount = messages.length + (verdict ? 1 : 0);
 
+  function clearKeepAlive() {
+    if (keepAliveRef.current) {
+      clearInterval(keepAliveRef.current);
+      keepAliveRef.current = null;
+    }
+  }
+
   function stopAll() {
     cancelledRef.current = true;
+    clearKeepAlive();
     window.speechSynthesis.cancel();
     if (audioRef.current) {
       audioRef.current.pause();
@@ -91,7 +104,15 @@ function PresentMode() {
     if (v) u.voice = v;
     u.lang = v?.lang ?? "pt-BR";
     u.rate = 1.0;
-    u.onend = () => { if (!cancelledRef.current) onEnd(); };
+    // Chrome corta falas longas (~15s); resume periódico mantém viva.
+    clearKeepAlive();
+    keepAliveRef.current = setInterval(() => {
+      if (!window.speechSynthesis.speaking) { clearKeepAlive(); return; }
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }, 10000);
+    u.onend = () => { clearKeepAlive(); if (!cancelledRef.current) onEnd(); };
+    u.onerror = () => { clearKeepAlive(); };
     window.speechSynthesis.speak(u);
   }
 
@@ -160,6 +181,7 @@ function PresentMode() {
     stopAll();
     setPlaying(false);
     setProvider(p);
+    try { localStorage.setItem("arena-tts-provider", p); } catch { /* ignore */ }
   }
 
   if (!data) {

@@ -22,30 +22,41 @@ export const minimaxTts = createServerFn({ method: "POST" })
       ? `https://api.minimax.io/v1/t2a_v2?GroupId=${encodeURIComponent(groupId)}`
       : `https://api.minimax.io/v1/t2a_v2`;
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: data.model,
-        text: data.text,
-        stream: false,
-        voice_setting: {
-          voice_id: data.voiceId,
-          speed: data.speed,
-          vol: 1,
-          pitch: 0,
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
-        audio_setting: {
-          sample_rate: 32000,
-          bitrate: 128000,
-          format: "mp3",
-          channel: 1,
-        },
-      }),
-    });
+        body: JSON.stringify({
+          model: data.model,
+          text: data.text,
+          stream: false,
+          voice_setting: {
+            voice_id: data.voiceId,
+            speed: data.speed,
+            vol: 1,
+            pitch: 0,
+          },
+          audio_setting: {
+            sample_rate: 32000,
+            bitrate: 128000,
+            format: "mp3",
+            channel: 1,
+          },
+        }),
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      if (ctrl.signal.aborted) throw new Error("MiniMax não respondeu em 30s (timeout).");
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!res.ok) {
       const body = await res.text();
