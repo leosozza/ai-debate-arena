@@ -144,10 +144,24 @@ function DebateDetail() {
 
   if (!data) return <main className="container mx-auto px-4 py-10">Carregando…</main>;
 
-  const totalTurns = 3 + data.debate.rounds * 2 + 3;
+  const blocksCount = data.debate.blocks_count ?? 4;
+  const subtopics = (data.debate.block_subtopics as Array<{ title: string; focus: string }> | null) ?? [];
+  // Aproximação do total de falas: blocos × (vinheta + 2 aberturas + rounds×2 réplicas), bloco final tem (vinheta + 2 fim + veredito)
+  const perBlock = 1 + 2 + data.debate.rounds * 2;
+  const lastBlock = 1 + 2 + 1;
+  const totalTurns = (blocksCount - 1) * perBlock + lastBlock;
   const progress = Math.min(data.messages.length, totalTurns);
   const done = data.debate.status === "completed" || progress >= totalTurns;
   const verdict = (data.debate.verdict as Verdict | null) ?? null;
+
+  // Agrupar mensagens por block_index (debates antigos ficam todos em 0)
+  const grouped = new Map<number, typeof data.messages>();
+  for (const m of data.messages) {
+    const b = m.block_index ?? 0;
+    if (!grouped.has(b)) grouped.set(b, []);
+    grouped.get(b)!.push(m);
+  }
+  const blockKeys = [...grouped.keys()].sort((a, b) => a - b);
 
   return (
     <main className="container mx-auto px-4 py-10 max-w-4xl">
