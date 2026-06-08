@@ -141,7 +141,12 @@ function EditDebate() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2"><Label>Rodadas: {form.rounds}</Label><Slider min={2} max={6} step={1} value={[form.rounds]} onValueChange={(v) => setForm({ ...form, rounds: v[0] })} /></div>
+          <div className="space-y-2"><Label>Rodadas por bloco: {form.rounds}</Label><Slider min={2} max={6} step={1} value={[form.rounds]} onValueChange={(v) => setForm({ ...form, rounds: v[0] })} /></div>
+          <div className="space-y-2">
+            <Label>Blocos: {form.blocksCount}</Label>
+            <Slider min={2} max={6} step={1} value={[form.blocksCount]} onValueChange={(v) => setForm({ ...form, blocksCount: v[0] })} />
+            <p className="text-xs text-muted-foreground">Mudar rodadas ou blocos só é possível antes da primeira fala ser gerada.</p>
+          </div>
           <div className="flex items-center gap-3 pt-2 border-t">
             <Switch id="dyn" checked={form.dynamicFlow} onCheckedChange={(v) => setForm({ ...form, dynamicFlow: v })} />
             <Label htmlFor="dyn">Fluxo dinâmico</Label>
