@@ -16,7 +16,7 @@ export const listPersonas = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("personas")
-      .select("id, name, description, persona_prompt, is_public, user_id, created_at")
+      .select("id, name, description, persona_prompt, is_public, voice_provider, voice_id, user_id, created_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
