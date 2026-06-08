@@ -45,16 +45,33 @@ function PersonasPage() {
   });
   const [genName, setGenName] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [genStage, setGenStage] = useState<string>("");
+  const [sources, setSources] = useState<Array<{ title: string; url: string }>>([]);
   const [saving, setSaving] = useState(false);
 
   function resetForm() {
     setEditingId(null);
     setForm({ name: "", description: "", persona_prompt: "", is_public: false });
+    setSources([]);
   }
 
   async function handleGenerate() {
     if (genName.trim().length < 2) return;
     setGenerating(true);
+    setSources([]);
+    // Estágios estimados — a serverFn roda inteira; isso dá feedback visual.
+    const stages = [
+      "🔎 Gerando queries de busca…",
+      "📚 Buscando fontes na web (Firecrawl)…",
+      "🧠 Analisando fontes e montando dossiê…",
+      "✍️ Encarnando a persona…",
+    ];
+    setGenStage(stages[0]);
+    let idx = 0;
+    const tick = setInterval(() => {
+      idx = Math.min(idx + 1, stages.length - 1);
+      setGenStage(stages[idx]);
+    }, 6000);
     try {
       const out = await generate({ data: { name: genName.trim() } });
       setForm({
@@ -63,14 +80,22 @@ function PersonasPage() {
         persona_prompt: out.persona_prompt,
         is_public: false,
       });
+      setSources(out.sources ?? []);
       setEditingId(null);
-      toast.success("Persona gerada — revise e salve.");
+      toast.success(
+        out.sources?.length
+          ? `Persona gerada com ${out.sources.length} fonte(s) — revise e salve.`
+          : "Persona gerada (sem fontes web) — revise e salve.",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao gerar");
     } finally {
+      clearInterval(tick);
+      setGenStage("");
       setGenerating(false);
     }
   }
+
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -148,6 +173,33 @@ function PersonasPage() {
             {generating ? "Gerando…" : "Gerar"}
           </Button>
         </div>
+        {generating && genStage && (
+          <p className="text-sm text-muted-foreground mt-3 animate-pulse">{genStage}</p>
+        )}
+        <p className="text-xs text-muted-foreground mt-2">
+          O orquestrador busca fontes na web com Firecrawl, monta um dossiê e gera a persona com citações.
+        </p>
+        {sources.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">
+              Fontes consultadas ({sources.length}):
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {sources.map((s, i) => (
+                <a
+                  key={s.url}
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/70 truncate max-w-[260px]"
+                  title={s.title}
+                >
+                  [{i + 1}] {s.title || new URL(s.url).hostname}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       <form onSubmit={handleSave}>
