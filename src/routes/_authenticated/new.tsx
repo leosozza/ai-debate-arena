@@ -289,8 +289,15 @@ function NewDebate() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Rodadas de réplica: {form.rounds}</Label>
+            <Label>Rodadas de réplica por bloco: {form.rounds}</Label>
             <Slider min={2} max={6} step={1} value={[form.rounds]} onValueChange={(v) => setForm({ ...form, rounds: v[0] })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Blocos (estilo programa de TV): {form.blocksCount}</Label>
+            <Slider min={2} max={6} step={1} value={[form.blocksCount]} onValueChange={(v) => setForm({ ...form, blocksCount: v[0] })} />
+            <p className="text-xs text-muted-foreground">
+              ≈ {form.blocksCount} blocos × ({1 + 2 + form.rounds * 2} falas) ≈ {Math.round((form.blocksCount * (3 + form.rounds * 2) * 30) / 60)} min. O último bloco é o fechamento + veredito.
+            </p>
           </div>
           <div className="flex items-start gap-3 pt-2 border-t">
             <Switch id="dyn" checked={form.dynamicFlow} onCheckedChange={(v) => setForm({ ...form, dynamicFlow: v })} />
