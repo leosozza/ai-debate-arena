@@ -1,7 +1,9 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createDebate } from "@/lib/debate.functions";
+import { listPersonas } from "@/lib/persona.functions";
 import { AVAILABLE_MODELS } from "@/lib/ai-models";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Users } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
