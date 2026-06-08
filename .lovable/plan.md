@@ -1,50 +1,98 @@
 ## O que vou fazer
 
-### 1. Voz por persona (salva)
-- Migration: adicionar em `personas` as colunas `voice_provider` (`browser|eleven|minimax`), `voice_id` (texto). Mesma coisa em `debates` para Mediador, A e B (`voice_provider_*`, `voice_id_*`).
-- Formulário de persona (`/personas`): novo bloco "Voz" com seletor de provedor + dropdown de vozes (catálogo MiniMax/ElevenLabs; para "Navegador" salva só o nome da voz do SO).
-- Server fns `createPersona`/`updatePersona`: aceitar os novos campos.
+Transformar o debate em **programa de TV com múltiplos blocos**, cada bloco com seu próprio sub-tema gerado pela IA. Hoje é uma sessão única: abertura → réplicas 1..N → considerações finais → veredito. Vou colocar isso **dentro de cada bloco**, e o veredito acontece só no fim do último bloco.
 
-### 2. Voz no debate (sobrescreve a da persona)
-- Em `/new`: novo card "Vozes" com 3 linhas (Mediador, A, B) — provedor + voz. Ao carregar uma persona via dropdown, pré-preenche com a voz dela.
-- `createDebate` passa esses campos.
-- No modo apresentação, a voz por padrão vem do debate (que veio da persona); painel ⚙️ continua existindo só para override em tempo real.
+### Estrutura nova de um debate
 
-### 3. Editar debate (só metadados)
-- Nova rota `/_authenticated/debates.$id.edit.tsx`: edita tema, nomes/personas A e B, modelos, tom e vozes. Não mexe em falas geradas.
-- Server fn `updateDebate` (mesmo padrão de `updatePersona`).
-- Botão "Editar" na página `/debates/$id` (ao lado de "Modo apresentação").
+```text
+Tema principal: "Inteligência artificial vai substituir programadores?"
 
-### 4. Nova página de intro da arena
-- Nova rota `/_authenticated/debates.$id.arena.tsx` — "Arena de Batalha":
-  - Fundo animado (já existe `ArenaBackground`), tema em destaque grande, sinopse curta (gerada por IA on-demand e cacheada na coluna `synopsis` de `debates`).
-  - Card dos 2 debatedores com cor de lado, nome, 1 linha da persona e badge da voz selecionada.
-  - Animação de entrada (fade/scale escalonado) + CTA "Iniciar apresentação" → navega para `/debates/$id/present`.
-- Botão "🎬 Modo apresentação" em `/debates/$id` passa a apontar para `/arena` (a intro), que por sua vez leva ao `/present`.
-- Nova server fn `generateSynopsis` (usa `chatComplete`, salva em `debates.synopsis`).
+▸ BLOCO 1/4 — "Impacto no mercado de trabalho hoje"
+   mediador: vinheta + apresenta o sub-tema
+   A: posição    B: posição
+   A: réplica    B: réplica   (× rounds)
+
+▸ BLOCO 2/4 — "Qualidade do código gerado"
+   ... mesmo formato ...
+
+▸ BLOCO 3/4 — "Criatividade e arquitetura"
+▸ BLOCO 4/4 — "Considerações finais e veredito"
+   A: fechamento  B: fechamento
+   mediador: veredito
+```
+
+Com 3-5 blocos × (1 vinheta + 2 aberturas + 2×rounds réplicas) ≈ 20-30 min de áudio.
+
+### 1. Migration
+
+Adicionar em `debates`:
+- `blocks_count int not null default 4` (2-6)
+- `block_subtopics jsonb` (array gerado pela IA: `[{title, focus}]`, cacheado na 1ª geração)
+
+Adicionar em `debate_messages`:
+- `block_index int not null default 0` (qual bloco é a fala)
+
+Sem CHECK; defaults preservam debates existentes (tudo cai no bloco 0).
+
+### 2. Geração das falas (`src/lib/debate.functions.ts`)
+
+- Novo helper `generateBlockSubtopics(debate)`: chama Lovable AI para produzir N sub-temas curtos a partir do tema principal, salva em `debates.block_subtopics`. Roda **na 1ª chamada de `generateNextMessage`** se ainda for null.
+- Reescrever `fixedSeq`/`fixedSeqLength` para gerar a sequência **bloco por bloco**:
+  ```
+  para cada bloco b em 0..N-1:
+    moderator/vinheta (phase="vinheta bloco b+1")
+    a/abertura, b/abertura
+    a/réplica r, b/réplica r   (r = 1..rounds)
+  bloco final adiciona:
+    a/considerações finais, b/considerações finais
+    moderator/veredito
+  ```
+- `block_index` é calculado a partir do índice na sequência e gravado em cada mensagem.
+- O prompt do gerador inclui o **sub-tema do bloco atual** ("Foque exclusivamente em: <subtopic>") + o tema principal como contexto. Mediador na vinheta apresenta o bloco em 1-2 frases.
+- `dynamic_flow` segue funcionando, mas restrito ao bloco atual (o mediador só pode escolher A ou B até completarem `rounds` réplicas do bloco; depois força transição pro próximo).
+
+### 3. Form de criação (`/new`)
+
+- Novo campo "Blocos" (slider 2-6, default 4) ao lado de "Rodadas". UI mostra estimativa: `~ blocos × (3 + rounds×2) × 30s`.
+- `createDebate` recebe `blocksCount`.
+
+### 4. Form de edição (`/edit`)
+
+- Mesmo campo "Blocos". `updateDebate` aceita só se ainda não houver falas geradas (caso contrário, bloqueia com hint "apague as falas para mudar a estrutura").
+
+### 5. Página do debate (`/debates/$id`)
+
+- Agrupar as falas por `block_index` na timeline: card `BLOCO 1 — <subtopic>` com as falas dentro. Sem mudar lógica de geração — só apresentação.
+
+### 6. Modo apresentação (`/debates/$id/present`)
+
+- Detectar mudança de `block_index` entre fala atual e próxima. Quando vai mudar:
+  - Exibir **cartela full-screen animada** ("BLOCO 2 DE 4 — <subtopic>") por ~3s, com efeito de entrada estilo programa de TV (faixa diagonal + número grande + subtema).
+  - Depois toca normal a próxima fala (que é o mediador apresentando o bloco).
+- Header do present mostra agora: `Tema · Bloco 2/4 — <subtopic>`.
+- Mini-timeline de bolinhas vira **agrupada por bloco** (separadores verticais entre blocos).
 
 ### Detalhes técnicos
-- **Migration única**: adiciona em `personas`: `voice_provider text`, `voice_id text`; em `debates`: `voice_provider_mod/a/b text`, `voice_id_mod/a/b text`, `synopsis text`. Sem CHECK; valores default `NULL`. Tipos regenerados após apply.
-- **Catálogo compartilhado**: novo `src/lib/voice-catalog.ts` exporta `BROWSER` (placeholder), `ELEVEN`, `MINIMAX` para reutilizar nos pickers de persona/debate/edit/present.
-- **Componente `<VoicePicker>`** (`src/components/VoicePicker.tsx`) — UI única (provedor + voz) usada nos 4 lugares.
-- **Present mode**: ao montar, se `debate.voice_provider_*` existir, usa-os como default; mantém o painel ⚙️ para override de sessão (não persiste).
-- **Sinopse**: gerada sob demanda na primeira visita à arena se `synopsis` for null; loading com shimmer.
 
-### Arquivos novos
-- `supabase/migrations/<ts>_voices_and_synopsis.sql`
-- `src/lib/voice-catalog.ts`
-- `src/components/VoicePicker.tsx`
-- `src/routes/_authenticated/debates.$id.edit.tsx`
-- `src/routes/_authenticated/debates.$id.arena.tsx`
+- Cartela = novo componente `<BlockIntroCard block, total, subtopic, onDone />` em `src/components/BlockIntroCard.tsx` — usa motion, auto-dismiss após 2.8s, pode pular com click.
+- A geração de sub-temas usa o mesmo `chatComplete` que `generateSynopsis` já usa, modelo `google/gemini-3-flash-preview`, JSON estrito `{ subtopics: [{title, focus}] }`.
+- Se a geração falhar, fallback: `["Parte 1", "Parte 2", ...]` (não quebra o debate).
+- `verdict` continua só no fim; veredito leva em conta toda a transcrição (já é assim).
 
-### Arquivos editados
-- `src/lib/persona.functions.ts` — campos de voz em create/update + select
-- `src/lib/debate.functions.ts` — campos de voz em create + novo `updateDebate` + `generateSynopsis`
-- `src/routes/_authenticated/personas.tsx` — `<VoicePicker>` no form
-- `src/routes/_authenticated/new.tsx` — card "Vozes" + pré-fill ao carregar persona
-- `src/routes/_authenticated/debates.$id.tsx` — botão Editar; "Modo apresentação" → `/arena`
-- `src/routes/_authenticated/debates.$id.present.tsx` — defaults vindos do debate
+### Arquivos
+
+**Novo:**
+- `src/components/BlockIntroCard.tsx`
+- `supabase/migrations/<ts>_debate_blocks.sql`
+
+**Editado:**
+- `src/lib/debate.functions.ts` — geração de sub-temas, nova `fixedSeq` com blocos, prompts com sub-tema, gravar `block_index`, validação em `updateDebate`.
+- `src/routes/_authenticated/new.tsx` — slider de blocos.
+- `src/routes/_authenticated/debates.$id.edit.tsx` — slider de blocos.
+- `src/routes/_authenticated/debates.$id.tsx` — agrupamento visual por bloco.
+- `src/routes/_authenticated/debates.$id.present.tsx` — cartela de bloco + header com sub-tema + timeline agrupada.
 
 ### Fora do escopo
-- Editar falas já geradas (você escolheu "só metadados").
-- Mudar player/streaming do present (não foi pedido nesta rodada).
+
+- Não vou mexer no layout "TV" das laterais do present (mediador no topo, A esquerda, B direita) — isso ficou pendente da rodada anterior e não é o que você pediu agora. Avisa se quiser que eu encaixe junto.
+- Não vou re-gerar debates já existentes; eles continuam como bloco único (0).
