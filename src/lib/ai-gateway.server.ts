@@ -28,8 +28,22 @@ function handleStatus(status: number, body: string) {
   throw new Error(`Falha na IA (${status}): ${body.slice(0, 200)}`);
 }
 
+/** fetch with an abort-based timeout so a stalled gateway fails loudly instead of hanging forever. */
+async function fetchWithTimeout(input: string, init: RequestInit, ms = 75000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(input, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if (ctrl.signal.aborted) throw new Error(`A IA não respondeu em ${Math.round(ms / 1000)}s (timeout). Tente novamente.`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function chatComplete(messages: ChatMessage[], model: string = DEFAULT_MODEL): Promise<string> {
-  const res = await fetch(ENDPOINT, {
+  const res = await fetchWithTimeout(ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey() },
     body: JSON.stringify({ model, messages }),
@@ -43,7 +57,7 @@ export async function chatComplete(messages: ChatMessage[], model: string = DEFA
 
 /** Returns a ReadableStream<string> of text deltas, plus a promise that resolves with the full text. */
 export async function chatStream(messages: ChatMessage[], model: string = DEFAULT_MODEL) {
-  const res = await fetch(ENDPOINT, {
+  const res = await fetchWithTimeout(ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey() },
     body: JSON.stringify({ model, messages, stream: true }),

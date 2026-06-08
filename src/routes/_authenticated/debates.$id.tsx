@@ -1,8 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getDebate, generateVerdict, drawSubtemas, injectSubtema, type Verdict } from "@/lib/debate.functions";
-import { supabase } from "@/integrations/supabase/client";
+import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, type Verdict } from "@/lib/debate.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
@@ -18,6 +17,7 @@ function DebateDetail() {
   const { id } = Route.useParams();
   const router = useRouter();
   const get = useServerFn(getDebate);
+  const genNext = useServerFn(generateNextTurn);
   const genVerdict = useServerFn(generateVerdict);
   const drawSubtemasFn = useServerFn(drawSubtemas);
   const injectSubtemaFn = useServerFn(injectSubtema);
@@ -26,9 +26,6 @@ function DebateDetail() {
   const [subtemaOptions, setSubtemaOptions] = useState<string[]>([]);
   const [subtemaLoading, setSubtemaLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [streamingText, setStreamingText] = useState("");
-  const [streamingMeta, setStreamingMeta] = useState<{ role: string; phase: string } | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const stopAllRef = useRef(false);
 
   const { data, refetch } = useQuery({
@@ -36,75 +33,25 @@ function DebateDetail() {
     queryFn: () => get({ data: { id } }),
   });
 
-  async function streamOne(): Promise<{ done: boolean; final: boolean }> {
-    const { data: sess } = await supabase.auth.getSession();
-    const token = sess.session?.access_token;
-    if (!token) throw new Error("Sessão expirada.");
-
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    setStreamingText("");
-    setStreamingMeta(null);
-
-    const res = await fetch("/api/debate/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ debateId: id }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok || !res.body) throw new Error(`Falha (${res.status})`);
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let result = { done: false, final: false };
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const events = buffer.split("\n\n");
-      buffer = events.pop() ?? "";
-      for (const evt of events) {
-        const lines = evt.split("\n");
-        let name = "message";
-        let dataLine = "";
-        for (const l of lines) {
-          if (l.startsWith("event:")) name = l.slice(6).trim();
-          else if (l.startsWith("data:")) dataLine += l.slice(5).trim();
-        }
-        if (!dataLine) continue;
-        try {
-          const payload = JSON.parse(dataLine);
-          if (name === "meta") setStreamingMeta(payload);
-          else if (name === "delta") setStreamingText((p) => p + (payload.t ?? ""));
-          else if (name === "done") {
-            result = { done: !payload.message, final: !!payload.final };
-          } else if (name === "error") {
-            throw new Error(payload.error ?? "Erro no stream");
-          }
-        } catch (e) {
-          if (name === "error") throw e;
-        }
-      }
-    }
-
-    setStreamingText("");
-    setStreamingMeta(null);
+  // Non-streaming generation: one robust request/response per turn (reliable on
+  // serverless/Cloudflare, where SSE can stall). Returns whether the debate is
+  // done and whether this turn was the final verdict.
+  async function generateOne(): Promise<{ done: boolean; final: boolean }> {
+    const r = await genNext({ data: { debateId: id } });
     await refetch();
-    return result;
+    if (r.done || !r.message) return { done: true, final: false };
+    return { done: false, final: r.message.phase === "veredito" };
   }
 
   async function handleNext() {
     setGenerating(true);
     try {
-      const r = await streamOne();
-      if (r.final) toast.info("Debate concluído.");
+      const r = await generateOne();
+      if (r.done || r.final) toast.info("Debate concluído.");
     } catch (e) {
-      if ((e as Error).name !== "AbortError") toast.error(e instanceof Error ? e.message : "Falha");
+      toast.error(e instanceof Error ? e.message : "Falha ao gerar fala");
     } finally {
       setGenerating(false);
-      abortRef.current = null;
     }
   }
 
@@ -112,25 +59,24 @@ function DebateDetail() {
     setGenerating(true);
     stopAllRef.current = false;
     try {
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 40; i++) {
         if (stopAllRef.current) break;
-        const r = await streamOne();
+        const r = await generateOne();
+        if (r.done) break;
         if (r.final) {
           toast.success("Debate concluído!");
           break;
         }
       }
     } catch (e) {
-      if ((e as Error).name !== "AbortError") toast.error(e instanceof Error ? e.message : "Falha");
+      toast.error(e instanceof Error ? e.message : "Falha ao gerar");
     } finally {
       setGenerating(false);
-      abortRef.current = null;
     }
   }
 
   function handleStop() {
     stopAllRef.current = true;
-    abortRef.current?.abort();
   }
 
   async function handleVerdict() {
@@ -203,15 +149,6 @@ function DebateDetail() {
   const done = data.debate.status === "completed" || progress >= totalTurns;
   const verdict = (data.debate.verdict as Verdict | null) ?? null;
 
-  const streamingName = streamingMeta
-    ? streamingMeta.role === "moderator"
-      ? "Mediador"
-      : streamingMeta.role === "a"
-        ? data.debate.debater_a_name
-        : data.debate.debater_b_name
-    : null;
-  const streamingColor = streamingMeta?.role === "a" ? "border-l-side-a" : streamingMeta?.role === "b" ? "border-l-side-b" : "border-l-muted-foreground";
-
   return (
     <main className="container mx-auto px-4 py-10 max-w-4xl">
       <button onClick={() => router.navigate({ to: "/dashboard" })} className="text-sm text-muted-foreground hover:text-foreground mb-4">← Voltar</button>
@@ -278,18 +215,15 @@ function DebateDetail() {
           );
         })}
 
-        {streamingMeta && (
-          <Card className={`p-5 border-l-4 ${streamingColor} animate-pulse`}>
-            <div className="flex items-baseline gap-2 mb-2">
-              <span className="font-semibold">{streamingName}</span>
-              <span className="text-xs text-muted-foreground">{streamingMeta.phase}</span>
-              <span className="text-xs text-primary ml-2">● digitando…</span>
+        {generating && (
+          <Card className="p-5 border-l-4 border-l-primary bg-card/60 animate-pulse">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Gerando próxima fala…
             </div>
-            <p className="text-sm whitespace-pre-wrap leading-relaxed">{streamingText}<span className="animate-pulse">▍</span></p>
           </Card>
         )}
 
-        {data.messages.length === 0 && !streamingMeta && (
+        {data.messages.length === 0 && !generating && (
           <Card className="p-8 text-center border-dashed">
             <p className="text-muted-foreground mb-4">O debate ainda não começou.</p>
             <Button onClick={handleGenerateAll} disabled={generating}>
@@ -354,13 +288,22 @@ function Scoreboard({ verdict, aName, bName }: { verdict: Verdict; aName: string
               <div className="h-1.5 rounded-full bg-border overflow-hidden flex justify-end">
                 <div className="h-full bg-side-a" style={{ width: `${c.a * 10}%` }} />
               </div>
-              <span className="text-center text-muted-foreground truncate">{c.name}</span>
+              <span className="text-center text-muted-foreground truncate">
+                {c.name}{c.weight ? <span className="opacity-60"> · {Math.round(c.weight * 100)}%</span> : null}
+              </span>
               <div className="h-1.5 rounded-full bg-border overflow-hidden">
                 <div className="h-full bg-side-b" style={{ width: `${c.b * 10}%` }} />
               </div>
               <span className="tabular-nums text-side-b font-medium">{c.b}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {(verdict.bonus || verdict.penalty) && (
+        <div className="flex justify-between text-[11px] text-muted-foreground mb-4">
+          <span>Bônus +{verdict.bonus?.a ?? 0} · Penalidade −{verdict.penalty?.a ?? 0}</span>
+          <span>Bônus +{verdict.bonus?.b ?? 0} · Penalidade −{verdict.penalty?.b ?? 0}</span>
         </div>
       )}
 

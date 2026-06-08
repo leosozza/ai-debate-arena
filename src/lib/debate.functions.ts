@@ -308,15 +308,25 @@ export const injectSubtema = createServerFn({ method: "POST" })
 export type Verdict = {
   winner: "a" | "b" | "empate";
   summary: string;
-  criteria: Array<{ name: string; a: number; b: number }>;
-  scoreA: number;
+  criteria: Array<{ name: string; weight: number; a: number; b: number }>;
+  bonus: { a: number; b: number };
+  penalty: { a: number; b: number };
+  scoreA: number; // 0-100 (ponderado + ajustes)
   scoreB: number;
   mvp_quote: string;
 };
 
-function clamp10(n: unknown): number {
+// Critérios ponderados (somam 1) — evidência tem o maior peso, como num debate sério.
+const VERDICT_CRITERIA = [
+  { name: "Qualidade do argumento", weight: 0.2 },
+  { name: "Qualidade da evidência", weight: 0.4 },
+  { name: "Consistência lógica", weight: 0.2 },
+  { name: "Resposta às falhas do oponente", weight: 0.2 },
+] as const;
+
+function clampInt(n: unknown, max: number): number {
   const v = Math.round(Number(n));
-  return Number.isFinite(v) ? Math.max(0, Math.min(10, v)) : 0;
+  return Number.isFinite(v) ? Math.max(0, Math.min(max, v)) : 0;
 }
 
 export const generateVerdict = createServerFn({ method: "POST" })
@@ -336,9 +346,10 @@ export const generateVerdict = createServerFn({ method: "POST" })
     if (msgs.length === 0) throw new Error("O debate ainda não tem falas para avaliar.");
 
     const transcript = msgs.map((m) => `[${labelFor(m.role, debate)}] (${m.phase}): ${m.content}`).join("\n\n");
+    const critList = VERDICT_CRITERIA.map((c, i) => `${i + 1}. ${c.name} (peso ${Math.round(c.weight * 100)}%)`).join("\n");
     const raw = await chatComplete(
       [
-        { role: "system", content: "Você é um juiz imparcial de debates. Avalia por critérios e dá um veredito honesto e específico. Responda APENAS JSON puro, sem markdown." },
+        { role: "system", content: "Você é um juiz imparcial e rigoroso de debates. Avalia por critérios ponderados, premia quem reconhece pontos válidos do oponente e penaliza fraquezas não respondidas. Responda APENAS JSON puro, sem markdown." },
         { role: "user", content: `Tema: "${debate.topic}"
 Debatedor A: ${debate.debater_a_name}
 Debatedor B: ${debate.debater_b_name}
@@ -346,19 +357,25 @@ Debatedor B: ${debate.debater_b_name}
 Transcrição do debate:
 ${transcript}
 
-Avalie e responda JSON:
+Avalie cada debatedor (A e B) nos critérios, NA ORDEM:
+${critList}
+
+Responda JSON (notas 0-10 nos critérios; bonus/penalty 0-5):
 {
-  "winner": "a" | "b" | "empate",
   "summary": "2-3 frases resumindo o debate e por que esse lado venceu",
   "criteria": [
-    {"name":"Argumentação","a":0,"b":0},
-    {"name":"Evidências","a":0,"b":0},
-    {"name":"Retórica","a":0,"b":0},
-    {"name":"Refutação","a":0,"b":0}
+    {"a":0,"b":0},
+    {"a":0,"b":0},
+    {"a":0,"b":0},
+    {"a":0,"b":0}
   ],
+  "bonus": {"a":0,"b":0},
+  "penalty": {"a":0,"b":0},
   "mvp_quote": "uma frase de impacto realmente dita no debate"
 }
-Notas de 0 a 10. Seja justo, específico ao tema, e coerente entre as notas e o vencedor. Português.` },
+- bonus: reconheceu pontos válidos do oponente e ainda assim sustentou sua posição.
+- penalty: deixou fraquezas/contra-argumentos importantes sem resposta.
+Seja justo e específico ao tema. Português.` },
       ],
       debate.moderator_model || "google/gemini-2.5-pro",
     );
@@ -366,24 +383,33 @@ Notas de 0 a 10. Seja justo, específico ao tema, e coerente entre as notas e o 
     const cleaned = raw.replace(/^```json\s*|\s*```$/g, "").trim();
     try {
       const p = JSON.parse(cleaned) as {
-        winner?: string; summary?: string; mvp_quote?: string;
-        criteria?: Array<{ name?: string; a?: number; b?: number }>;
+        summary?: string; mvp_quote?: string;
+        criteria?: Array<{ a?: number; b?: number }>;
+        bonus?: { a?: number; b?: number };
+        penalty?: { a?: number; b?: number };
       };
-      const criteria = (Array.isArray(p.criteria) ? p.criteria : []).slice(0, 6).map((c) => ({
-        name: String(c?.name ?? "").slice(0, 40),
-        a: clamp10(c?.a),
-        b: clamp10(c?.b),
+      const criteria = VERDICT_CRITERIA.map((c, i) => ({
+        name: c.name,
+        weight: c.weight,
+        a: clampInt(p.criteria?.[i]?.a, 10),
+        b: clampInt(p.criteria?.[i]?.b, 10),
       }));
-      const scoreA = criteria.reduce((s, c) => s + c.a, 0);
-      const scoreB = criteria.reduce((s, c) => s + c.b, 0);
-      const winner: Verdict["winner"] =
-        p.winner === "a" || p.winner === "b" || p.winner === "empate"
-          ? p.winner
-          : scoreA === scoreB ? "empate" : scoreA > scoreB ? "a" : "b";
+      const bonus = { a: clampInt(p.bonus?.a, 5), b: clampInt(p.bonus?.b, 5) };
+      const penalty = { a: clampInt(p.penalty?.a, 5), b: clampInt(p.penalty?.b, 5) };
+
+      // Pontuação ponderada (0-100) + ajustes (cada ponto de bônus/penalidade vale 2).
+      const weighted = (side: "a" | "b") => criteria.reduce((s, c) => s + c.weight * c[side], 0) * 10;
+      const scoreA = Math.max(0, Math.min(100, Math.round(weighted("a") + bonus.a * 2 - penalty.a * 2)));
+      const scoreB = Math.max(0, Math.min(100, Math.round(weighted("b") + bonus.b * 2 - penalty.b * 2)));
+      const diff = scoreA - scoreB;
+      const winner: Verdict["winner"] = Math.abs(diff) <= 3 ? "empate" : diff > 0 ? "a" : "b";
+
       const verdict: Verdict = {
         winner,
         summary: String(p.summary ?? "").slice(0, 800),
         criteria,
+        bonus,
+        penalty,
         scoreA,
         scoreB,
         mvp_quote: String(p.mvp_quote ?? "").slice(0, 300),
