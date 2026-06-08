@@ -3,9 +3,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 const PersonaInput = z.object({
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(300).default(""),
-  persona_prompt: z.string().trim().min(10).max(2000),
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(400).default(""),
+  persona_prompt: z.string().trim().min(10).max(12000),
   is_public: z.boolean().default(false),
 });
 
