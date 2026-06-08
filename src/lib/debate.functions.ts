@@ -718,74 +718,90 @@ export function buildSystemPrompt(role: "moderator" | "a" | "b", debate: Debate)
   return `Você é ${debate.debater_b_name}. Personalidade e posição: ${debate.debater_b_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.`;
 }
 
-function fixedSeqLength(rounds: number) {
-  return 3 + rounds * 2 + 3;
+// ===== Sequência com blocos estilo programa de TV =====
+// Para cada bloco intermediário: vinheta(mod) + abertura(A) + abertura(B) + (réplica A + réplica B) × rounds
+// Bloco final: vinheta(mod) + considerações finais(A) + considerações finais(B) + veredito(mod)
+
+function blockTurnsCount(rounds: number, isFinal: boolean): number {
+  if (isFinal) return 1 + 2 + 1; // vinheta + A fim + B fim + veredito
+  return 1 + 2 + rounds * 2; // vinheta + 2 aberturas + rounds × 2 réplicas
 }
 
-function fixedSeq(rounds: number) {
-  const seq: Array<{ role: "moderator" | "a" | "b"; phase: string }> = [
-    { role: "moderator", phase: "abertura" },
-    { role: "a", phase: "abertura" },
-    { role: "b", phase: "abertura" },
-  ];
-  for (let r = 1; r <= rounds; r++) {
-    seq.push({ role: "a", phase: `réplica ${r}` });
-    seq.push({ role: "b", phase: `réplica ${r}` });
+function fullSeqLength(debate: Pick<Debate, "rounds" | "blocks_count">): number {
+  const n = debate.blocks_count ?? 4;
+  let total = 0;
+  for (let i = 0; i < n; i++) total += blockTurnsCount(debate.rounds, i === n - 1);
+  return total;
+}
+
+function fixedSeq(debate: Pick<Debate, "rounds" | "blocks_count">) {
+  const n = debate.blocks_count ?? 4;
+  const seq: Array<{ role: "moderator" | "a" | "b"; phase: string; block_index: number }> = [];
+  for (let b = 0; b < n; b++) {
+    const isFinal = b === n - 1;
+    seq.push({ role: "moderator", phase: `vinheta ${b + 1}`, block_index: b });
+    if (isFinal) {
+      seq.push({ role: "a", phase: "considerações finais", block_index: b });
+      seq.push({ role: "b", phase: "considerações finais", block_index: b });
+      seq.push({ role: "moderator", phase: "veredito", block_index: b });
+    } else {
+      seq.push({ role: "a", phase: "abertura", block_index: b });
+      seq.push({ role: "b", phase: "abertura", block_index: b });
+      for (let r = 1; r <= debate.rounds; r++) {
+        seq.push({ role: "a", phase: `réplica ${r}`, block_index: b });
+        seq.push({ role: "b", phase: `réplica ${r}`, block_index: b });
+      }
+    }
   }
-  seq.push({ role: "a", phase: "considerações finais" });
-  seq.push({ role: "b", phase: "considerações finais" });
-  seq.push({ role: "moderator", phase: "veredito" });
   return seq;
 }
 
-type NextTurn = { role: "moderator" | "a" | "b"; phase: string; guidance?: string };
+type NextTurn = { role: "moderator" | "a" | "b"; phase: string; block_index: number; guidance?: string };
 
 async function decideNextTurn(
   debate: Debate,
   existing: Msg[],
   chat: (messages: Array<{ role: "system" | "user" | "assistant"; content: string }>, model?: string) => Promise<string>,
 ): Promise<NextTurn | null> {
-  // "reviravolta" messages (subtemas injected live) are context-only — they
-  // don't consume a slot in the debate sequence.
+  // "reviravolta" messages são contexto puro — não consomem slot.
   const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
+  const seq = fixedSeq(debate);
 
   if (!debate.dynamic_flow) {
-    const seq = fixedSeq(debate.rounds);
     return seq[seqCount] ?? null;
   }
 
-  // Dynamic flow: moderator opens, both openings, then moderator dynamically picks next speaker
-  // until a max of (3 + rounds*2 + 3) turns; final turn is moderator verdict.
-  const max = fixedSeqLength(debate.rounds);
-  const count = seqCount;
-  if (count === 0) return { role: "moderator", phase: "abertura" };
-  if (count === 1) return { role: "a", phase: "abertura" };
-  if (count === 2) return { role: "b", phase: "abertura" };
-  if (count >= max - 1) return { role: "moderator", phase: "veredito" };
+  // Fluxo dinâmico: mediador continua decidindo dentro de cada bloco,
+  // mas vinhetas, aberturas, considerações finais e veredito são fixas.
+  const fixed = seq[seqCount];
+  if (!fixed) return null;
+  if (fixed.role === "moderator" || fixed.phase === "abertura" || fixed.phase === "considerações finais") {
+    return fixed;
+  }
 
-  // Ask the moderator-LLM to choose A or B and give a brief instruction.
+  // Estamos numa réplica — deixa o mediador escolher A ou B.
   const transcript = existing.map((m) => `[${labelFor(m.role, debate)}] (${m.phase}): ${m.content}`).join("\n\n");
+  const block = (debate.block_subtopics ?? [])[fixed.block_index];
+  const blockHint = block ? `\nBloco atual: "${block.title}" — ${block.focus}` : "";
   const decision = await chat(
     [
       {
         role: "system",
-        content: `Você é o MEDIADOR de um debate. Decida quem deve falar agora: "${debate.debater_a_name}" (A) ou "${debate.debater_b_name}" (B). Responda APENAS um JSON válido: {"speaker":"a"|"b","instruction":"...","phase":"réplica"|"contraponto"|"aprofundamento"}. A instrução deve orientar o próximo a rebater um ponto específico do oponente. Sem markdown, sem texto extra.`,
+        content: `Você é o MEDIADOR de um debate. Decida quem deve falar agora dentro do bloco atual: "${debate.debater_a_name}" (A) ou "${debate.debater_b_name}" (B). Responda APENAS um JSON válido: {"speaker":"a"|"b","instruction":"..."}. A instrução deve orientar o próximo a rebater um ponto específico do oponente DENTRO do sub-tema do bloco. Sem markdown, sem texto extra.`,
       },
-      { role: "user", content: `Tema: ${debate.topic}\n\nHistórico:\n${transcript}\n\nQuem fala agora e o que deve abordar?` },
+      { role: "user", content: `Tema: ${debate.topic}${blockHint}\n\nHistórico:\n${transcript}\n\nQuem fala agora e o que deve abordar?` },
     ],
     debate.moderator_model,
   );
 
   try {
     const cleaned = decision.replace(/^```json\s*|\s*```$/g, "").trim();
-    const parsed = JSON.parse(cleaned) as { speaker?: string; instruction?: string; phase?: string };
+    const parsed = JSON.parse(cleaned) as { speaker?: string; instruction?: string };
     const speaker = parsed.speaker === "b" ? "b" : "a";
-    const phase = (parsed.phase && parsed.phase.length < 40) ? parsed.phase : "réplica";
-    return { role: speaker, phase, guidance: parsed.instruction };
+    return { role: speaker, phase: fixed.phase, block_index: fixed.block_index, guidance: parsed.instruction };
   } catch {
-    // Fallback: alternate based on last debater
     const lastDebater = [...existing].reverse().find((m) => m.role === "a" || m.role === "b");
     const speaker = lastDebater?.role === "a" ? "b" : "a";
-    return { role: speaker, phase: "réplica" };
+    return { role: speaker, phase: fixed.phase, block_index: fixed.block_index };
   }
 }
