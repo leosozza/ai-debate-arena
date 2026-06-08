@@ -19,6 +19,7 @@ import { Route as ApiDebateStreamRouteImport } from './routes/api/debate.stream'
 import { Route as AuthenticatedDebatesIdRouteImport } from './routes/_authenticated/debates.$id'
 import { Route as AuthenticatedDebatesIdPresentRouteImport } from './routes/_authenticated/debates.$id.present'
 import { Route as AuthenticatedDebatesIdEditRouteImport } from './routes/_authenticated/debates.$id.edit'
+import { Route as AuthenticatedDebatesIdArenaRouteImport } from './routes/_authenticated/debates.$id.arena'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -71,6 +72,12 @@ const AuthenticatedDebatesIdEditRoute =
     path: '/edit',
     getParentRoute: () => AuthenticatedDebatesIdRoute,
   } as any)
+const AuthenticatedDebatesIdArenaRoute =
+  AuthenticatedDebatesIdArenaRouteImport.update({
+    id: '/arena',
+    path: '/arena',
+    getParentRoute: () => AuthenticatedDebatesIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/personas': typeof AuthenticatedPersonasRoute
   '/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/api/debate/stream': typeof ApiDebateStreamRoute
+  '/debates/$id/arena': typeof AuthenticatedDebatesIdArenaRoute
   '/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
   '/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
 }
@@ -91,6 +99,7 @@ export interface FileRoutesByTo {
   '/personas': typeof AuthenticatedPersonasRoute
   '/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/api/debate/stream': typeof ApiDebateStreamRoute
+  '/debates/$id/arena': typeof AuthenticatedDebatesIdArenaRoute
   '/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
   '/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
 }
@@ -104,6 +113,7 @@ export interface FileRoutesById {
   '/_authenticated/personas': typeof AuthenticatedPersonasRoute
   '/_authenticated/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/api/debate/stream': typeof ApiDebateStreamRoute
+  '/_authenticated/debates/$id/arena': typeof AuthenticatedDebatesIdArenaRoute
   '/_authenticated/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
   '/_authenticated/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
 }
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/debates/$id'
     | '/api/debate/stream'
+    | '/debates/$id/arena'
     | '/debates/$id/edit'
     | '/debates/$id/present'
   fileRoutesByTo: FileRoutesByTo
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/personas'
     | '/debates/$id'
     | '/api/debate/stream'
+    | '/debates/$id/arena'
     | '/debates/$id/edit'
     | '/debates/$id/present'
   id:
@@ -140,6 +152,7 @@ export interface FileRouteTypes {
     | '/_authenticated/personas'
     | '/_authenticated/debates/$id'
     | '/api/debate/stream'
+    | '/_authenticated/debates/$id/arena'
     | '/_authenticated/debates/$id/edit'
     | '/_authenticated/debates/$id/present'
   fileRoutesById: FileRoutesById
@@ -223,16 +236,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDebatesIdEditRouteImport
       parentRoute: typeof AuthenticatedDebatesIdRoute
     }
+    '/_authenticated/debates/$id/arena': {
+      id: '/_authenticated/debates/$id/arena'
+      path: '/arena'
+      fullPath: '/debates/$id/arena'
+      preLoaderRoute: typeof AuthenticatedDebatesIdArenaRouteImport
+      parentRoute: typeof AuthenticatedDebatesIdRoute
+    }
   }
 }
 
 interface AuthenticatedDebatesIdRouteChildren {
+  AuthenticatedDebatesIdArenaRoute: typeof AuthenticatedDebatesIdArenaRoute
   AuthenticatedDebatesIdEditRoute: typeof AuthenticatedDebatesIdEditRoute
   AuthenticatedDebatesIdPresentRoute: typeof AuthenticatedDebatesIdPresentRoute
 }
 
 const AuthenticatedDebatesIdRouteChildren: AuthenticatedDebatesIdRouteChildren =
   {
+    AuthenticatedDebatesIdArenaRoute: AuthenticatedDebatesIdArenaRoute,
     AuthenticatedDebatesIdEditRoute: AuthenticatedDebatesIdEditRoute,
     AuthenticatedDebatesIdPresentRoute: AuthenticatedDebatesIdPresentRoute,
   }
