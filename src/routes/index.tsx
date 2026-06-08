@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/Reveal";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { Mic, Clapperboard, BookOpen, Play, Sparkles, Swords, ArrowRight, Menu, X } from "lucide-react";
@@ -162,6 +163,7 @@ function Navbar({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
+          <ThemeToggle />
           <Link to="/auth"><Button size="sm" variant="ghost">Entrar</Button></Link>
           <Link to="/auth"><Button size="sm" className="gap-1.5">Começar <ArrowRight className="h-4 w-4" /></Button></Link>
         </div>

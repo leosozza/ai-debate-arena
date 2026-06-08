@@ -2,8 +2,10 @@ import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createDebate } from "@/lib/debate.functions";
+import { createDebate, generateDebateTopic, generateOpposingDebaters, drawTopics, generateMatchupThemes } from "@/lib/debate.functions";
 import { listPersonas } from "@/lib/persona.functions";
+import { PersonaRoulette, type RoulettePersona } from "@/components/PersonaRoulette";
+import { Roulette } from "@/components/Roulette";
 import { AVAILABLE_MODELS } from "@/lib/ai-models";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,7 +17,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Reveal } from "@/components/Reveal";
 import { toast } from "sonner";
-import { Sparkles, Users } from "lucide-react";
+import { Sparkles, Users, Wand2, Swords, Dices } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
@@ -28,7 +30,17 @@ function NewDebate() {
   const create = useServerFn(createDebate);
   const listP = useServerFn(listPersonas);
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: () => listP() });
+  const genTopicFn = useServerFn(generateDebateTopic);
+  const genSidesFn = useServerFn(generateOpposingDebaters);
+  const drawTopicsFn = useServerFn(drawTopics);
+  const matchupFn = useServerFn(generateMatchupThemes);
   const [loading, setLoading] = useState(false);
+  const [genTopic, setGenTopic] = useState(false);
+  const [genSides, setGenSides] = useState(false);
+  const [rouletteOpen, setRouletteOpen] = useState(false);
+  const [topicRouletteOpen, setTopicRouletteOpen] = useState(false);
+  const [topicOptions, setTopicOptions] = useState<string[]>([]);
+  const [topicOptionsLoading, setTopicOptionsLoading] = useState(false);
   const [form, setForm] = useState({
     topic: "",
     debaterAName: "Aurora",
@@ -51,6 +63,64 @@ function NewDebate() {
     } else {
       setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt }));
     }
+  }
+
+  async function surpriseTopic() {
+    setGenTopic(true);
+    try {
+      const { topic } = await genTopicFn({ data: { hint: form.topic || undefined } });
+      setForm((f) => ({ ...f, topic }));
+      toast.success("Tema gerado!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao gerar tema");
+    } finally {
+      setGenTopic(false);
+    }
+  }
+
+  async function generateSides() {
+    if (form.topic.trim().length < 3) {
+      toast.error("Escreva ou gere um tema primeiro.");
+      return;
+    }
+    setGenSides(true);
+    try {
+      const r = await genSidesFn({ data: { topic: form.topic } });
+      setForm((f) => ({
+        ...f,
+        debaterAName: r.a.name, debaterAPersona: r.a.persona,
+        debaterBName: r.b.name, debaterBPersona: r.b.persona,
+      }));
+      toast.success("Debatedores opostos gerados!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao gerar debatedores");
+    } finally {
+      setGenSides(false);
+    }
+  }
+
+  async function openTopicRoulette() {
+    setTopicRouletteOpen(true);
+    setTopicOptions([]);
+    setTopicOptionsLoading(true);
+    try {
+      const { options } = await drawTopicsFn();
+      setTopicOptions(options);
+    } catch {
+      setTopicOptions([]);
+    } finally {
+      setTopicOptionsLoading(false);
+    }
+  }
+
+  function applyRoulette(a: RoulettePersona, b: RoulettePersona, theme?: string) {
+    setForm((f) => ({
+      ...f,
+      debaterAName: a.name, debaterAPersona: a.persona_prompt,
+      debaterBName: b.name, debaterBPersona: b.persona_prompt,
+      ...(theme ? { topic: theme } : {}),
+    }));
+    toast.success(theme ? `${a.name} × ${b.name} — tema: ${theme}` : `Sorteados: ${a.name} × ${b.name}`);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -88,7 +158,17 @@ function NewDebate() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="p-6 space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="topic">Tema do debate</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="topic">Tema do debate</Label>
+              <div className="flex items-center gap-1">
+                <Button type="button" variant="ghost" size="sm" onClick={openTopicRoulette} className="gap-1.5">
+                  <Dices className="h-3.5 w-3.5" /> Sortear tema
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={surpriseTopic} disabled={genTopic} className="gap-1.5 text-primary hover:text-primary">
+                  <Wand2 className="h-3.5 w-3.5" /> {genTopic ? "Gerando…" : "Surpreenda-me"}
+                </Button>
+              </div>
+            </div>
             <Textarea
               id="topic" required minLength={3} maxLength={500} rows={2}
               placeholder="Ex: A IA vai substituir empregos criativos?"
@@ -97,6 +177,16 @@ function NewDebate() {
             />
           </div>
         </Card>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground mr-1">Preencher debatedores:</span>
+          <Button type="button" variant="outline" size="sm" onClick={generateSides} disabled={genSides} className="gap-1.5">
+            <Swords className="h-3.5 w-3.5" /> {genSides ? "Gerando…" : "Gerar lados opostos (IA)"}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setRouletteOpen(true)} disabled={personas.length < 2} className="gap-1.5" title={personas.length < 2 ? "Precisa de 2+ personas salvas" : "Sortear entre personas salvas"}>
+            <Dices className="h-3.5 w-3.5" /> Sortear personas
+          </Button>
+        </div>
 
         <div className="grid md:grid-cols-2 gap-4">
           <Card className="p-6 space-y-4 border-l-4 border-l-side-a">
@@ -205,6 +295,27 @@ function NewDebate() {
           {loading ? "Gerando regras…" : "Gerar regras e iniciar"}
         </Button>
       </form>
+
+      <PersonaRoulette
+        personas={personas as RoulettePersona[]}
+        open={rouletteOpen}
+        onOpenChange={setRouletteOpen}
+        onPick={applyRoulette}
+        onSuggestThemes={(a, b) =>
+          matchupFn({ data: { aName: a.name, aPersona: a.persona_prompt, bName: b.name, bPersona: b.persona_prompt } }).then((r) => r.options)
+        }
+      />
+
+      <Roulette
+        open={topicRouletteOpen}
+        onOpenChange={setTopicRouletteOpen}
+        title="Sortear tema"
+        description="Gira entre temas curados e gerados por IA. Caia num e use no debate."
+        options={topicOptions}
+        loading={topicOptionsLoading}
+        confirmLabel="Usar tema"
+        onPick={(t) => { setForm((f) => ({ ...f, topic: t })); toast.success("Tema sorteado!"); }}
+      />
     </main>
   );
 }

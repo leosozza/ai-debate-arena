@@ -104,6 +104,301 @@ export const deleteDebate = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ===== Criação assistida por IA (gerador de tema / debatedores opostos) =====
+
+export const generateDebateTopic = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ hint: z.string().trim().max(200).optional() }).parse(d ?? {}))
+  .handler(async ({ data }) => {
+    const { chatComplete } = await import("./ai-gateway.server");
+    const hint = data.hint ? ` Área de interesse: "${data.hint}".` : "";
+    const out = await chatComplete(
+      [
+        { role: "system", content: "Você gera temas de debate provocativos e equilibrados (dois lados fortes e defensáveis) para um canal do YouTube. Responda APENAS o tema, em português, sem aspas e sem explicação, no máximo 120 caracteres." },
+        { role: "user", content: `Gere UM tema de debate original e polêmico, com dois lados claramente defensáveis.${hint}` },
+      ],
+      "google/gemini-3-flash-preview",
+    );
+    return { topic: out.replace(/^["']+|["']+$/g, "").trim().slice(0, 200) };
+  });
+
+export const generateOpposingDebaters = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ topic: z.string().trim().min(3).max(500) }).parse(d))
+  .handler(async ({ data }) => {
+    const { chatComplete } = await import("./ai-gateway.server");
+    const raw = await chatComplete(
+      [
+        { role: "system", content: "Você cria dois debatedores com posições OPOSTAS e personalidades distintas. Responda APENAS JSON puro, sem markdown." },
+        { role: "user", content: `Tema: "${data.topic}".
+
+Crie dois debatedores contrastantes, em lados opostos. JSON:
+{"a":{"name":"...","persona":"..."},"b":{"name":"...","persona":"..."}}
+- name: nome curto e marcante (1-3 palavras).
+- persona: 1-2 frases com personalidade + a posição que defende. Lados claramente opostos. Português.` },
+      ],
+      "google/gemini-2.5-flash",
+    );
+    const cleaned = raw.replace(/^```json\s*|\s*```$/g, "").trim();
+    try {
+      const p = JSON.parse(cleaned) as { a?: { name?: string; persona?: string }; b?: { name?: string; persona?: string } };
+      if (!p.a?.name || !p.a?.persona || !p.b?.name || !p.b?.persona) throw new Error("incompleto");
+      return {
+        a: { name: p.a.name.slice(0, 60), persona: p.a.persona.slice(0, 500) },
+        b: { name: p.b.name.slice(0, 60), persona: p.b.persona.slice(0, 500) },
+      };
+    } catch {
+      throw new Error("A IA não retornou debatedores válidos. Tente novamente.");
+    }
+  });
+
+// ===== Sorteios (roleta) de tema e subtema: lista curada + IA =====
+
+const CURATED_THEMES = [
+  "A inteligência artificial deveria ter direitos?",
+  "Rede social faz mais mal do que bem para a sociedade?",
+  "O livre-arbítrio é uma ilusão?",
+  "Vale a pena colonizar Marte?",
+  "Dinheiro compra felicidade?",
+  "A escola tradicional está obsoleta?",
+  "Carne cultivada em laboratório é o futuro?",
+  "Anonimato na internet deveria ser proibido?",
+  "A arte feita por IA é arte de verdade?",
+  "Votar deveria ser obrigatório?",
+  "Imortalidade: bênção ou maldição?",
+  "Redes sociais deveriam ter idade mínima de 16 anos?",
+];
+
+// Recortes/facetas genéricas que funcionam como subárea de qualquer tema.
+const CURATED_SUBTEMAS = [
+  "Impacto econômico",
+  "Questão ética",
+  "Efeitos a longo prazo",
+  "Quem é mais afetado",
+  "O papel do Estado",
+  "Comparação internacional",
+];
+
+function sample<T>(arr: T[], n: number): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+export const drawTopics = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { chatComplete } = await import("./ai-gateway.server");
+    let ai: string[] = [];
+    try {
+      const raw = await chatComplete(
+        [
+          { role: "system", content: "Você gera temas de debate polêmicos, com dois lados fortes. Responda APENAS JSON puro: {\"temas\":[\"...\"]}." },
+          { role: "user", content: "Gere 4 temas de debate originais e variados, curtos (máx 90 caracteres cada). Português." },
+        ],
+        "google/gemini-3-flash-preview",
+      );
+      const p = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, "").trim()) as { temas?: string[] };
+      ai = (p.temas ?? []).filter(Boolean).map((t) => String(t).slice(0, 120)).slice(0, 4);
+    } catch {
+      ai = [];
+    }
+    const curated = sample(CURATED_THEMES, 5);
+    return { options: sample([...curated, ...ai], Math.min(8, curated.length + ai.length)) };
+  });
+
+export const drawSubtemas = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ topic: z.string().trim().max(500).optional() }).parse(d ?? {}))
+  .handler(async ({ data }) => {
+    const { chatComplete } = await import("./ai-gateway.server");
+    let ai: string[] = [];
+    if (data.topic) {
+      try {
+        const raw = await chatComplete(
+          [
+            { role: "system", content: "Você lista subáreas/recortes CONCRETOS de um tema amplo, para focar um trecho do debate. Ex: tema 'Política' → 'Segurança pública', 'Educação', 'Saneamento básico'. Responda APENAS JSON puro: {\"subtemas\":[\"...\"]}." },
+            { role: "user", content: `Tema do debate: "${data.topic}". Liste 6 subáreas concretas desse tema que renderiam um bom aprofundamento (1 a 4 palavras cada). Português.` },
+          ],
+          "google/gemini-2.5-flash",
+        );
+        const p = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, "").trim()) as { subtemas?: string[] };
+        ai = (p.subtemas ?? []).filter(Boolean).map((t) => String(t).slice(0, 100)).slice(0, 6);
+      } catch {
+        ai = [];
+      }
+    }
+    // Subáreas são específicas do tema → IA é a fonte principal; curadas entram só como complemento.
+    const curated = sample(CURATED_SUBTEMAS, ai.length > 0 ? 2 : 6);
+    return { options: sample([...curated, ...ai], Math.min(8, curated.length + ai.length)) };
+  });
+
+export const ttsSpeak = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ text: z.string().trim().min(1).max(5000), voiceId: z.string().trim().min(1).max(60) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { elevenTTS } = await import("./elevenlabs.server");
+    return elevenTTS(data.text, data.voiceId);
+  });
+
+export const generateMatchupThemes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      aName: z.string().trim().min(1).max(120),
+      aPersona: z.string().trim().max(20000).default(""),
+      bName: z.string().trim().min(1).max(120),
+      bPersona: z.string().trim().max(20000).default(""),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { chatComplete } = await import("./ai-gateway.server");
+    const raw = await chatComplete(
+      [
+        { role: "system", content: "Você sugere temas de debate sob medida para um confronto entre duas personalidades específicas, em que elas teriam visões fortemente opostas. Responda APENAS JSON puro: {\"temas\":[\"...\"]}." },
+        { role: "user", content: `Confronto:
+A = ${data.aName}${data.aPersona ? ` — ${data.aPersona.slice(0, 600)}` : ""}
+B = ${data.bName}${data.bPersona ? ` — ${data.bPersona.slice(0, 600)}` : ""}
+
+Sugira 6 temas em que esses dois divergiriam fortemente e renderiam um ótimo confronto. Curtos (máx 90 caracteres). Português.` },
+      ],
+      "google/gemini-2.5-flash",
+    );
+    try {
+      const p = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, "").trim()) as { temas?: string[] };
+      const temas = (p.temas ?? []).filter(Boolean).map((t) => String(t).slice(0, 120)).slice(0, 8);
+      if (temas.length === 0) throw new Error("vazio");
+      return { options: temas };
+    } catch {
+      throw new Error("Não consegui sugerir temas para esse confronto. Tente novamente.");
+    }
+  });
+
+export const injectSubtema = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ debateId: z.string().uuid(), subtema: z.string().trim().min(1).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { count, error: cErr } = await context.supabase
+      .from("debate_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("debate_id", data.debateId);
+    if (cErr) throw new Error(cErr.message);
+    const orderIndex = count ?? 0;
+    const content = `🎲 Reviravolta! Vamos focar agora na subárea: "${data.subtema}". Debatedores, tragam este recorte para a discussão a partir de agora.`;
+    const { data: inserted, error } = await context.supabase
+      .from("debate_messages").insert({
+        debate_id: data.debateId,
+        user_id: context.userId,
+        role: "moderator",
+        phase: "reviravolta",
+        content,
+        order_index: orderIndex,
+      }).select().single();
+    if (error) throw new Error(error.message);
+    // Reabre o debate se já estava concluído, para gerar falas que reagem.
+    await context.supabase.from("debates").update({ status: "ready" }).eq("id", data.debateId);
+    return inserted;
+  });
+
+export type Verdict = {
+  winner: "a" | "b" | "empate";
+  summary: string;
+  criteria: Array<{ name: string; a: number; b: number }>;
+  scoreA: number;
+  scoreB: number;
+  mvp_quote: string;
+};
+
+function clamp10(n: unknown): number {
+  const v = Math.round(Number(n));
+  return Number.isFinite(v) ? Math.max(0, Math.min(10, v)) : 0;
+}
+
+export const generateVerdict = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ debateId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }): Promise<Verdict> => {
+    const { chatComplete } = await import("./ai-gateway.server");
+
+    const { data: debate, error: dErr } = await context.supabase
+      .from("debates").select("*").eq("id", data.debateId).single();
+    if (dErr || !debate) throw new Error(dErr?.message ?? "Debate não encontrado.");
+
+    const { data: messages, error: mErr } = await context.supabase
+      .from("debate_messages").select("role, phase, content").eq("debate_id", data.debateId).order("order_index");
+    if (mErr) throw new Error(mErr.message);
+    const msgs = (messages ?? []) as Msg[];
+    if (msgs.length === 0) throw new Error("O debate ainda não tem falas para avaliar.");
+
+    const transcript = msgs.map((m) => `[${labelFor(m.role, debate)}] (${m.phase}): ${m.content}`).join("\n\n");
+    const raw = await chatComplete(
+      [
+        { role: "system", content: "Você é um juiz imparcial de debates. Avalia por critérios e dá um veredito honesto e específico. Responda APENAS JSON puro, sem markdown." },
+        { role: "user", content: `Tema: "${debate.topic}"
+Debatedor A: ${debate.debater_a_name}
+Debatedor B: ${debate.debater_b_name}
+
+Transcrição do debate:
+${transcript}
+
+Avalie e responda JSON:
+{
+  "winner": "a" | "b" | "empate",
+  "summary": "2-3 frases resumindo o debate e por que esse lado venceu",
+  "criteria": [
+    {"name":"Argumentação","a":0,"b":0},
+    {"name":"Evidências","a":0,"b":0},
+    {"name":"Retórica","a":0,"b":0},
+    {"name":"Refutação","a":0,"b":0}
+  ],
+  "mvp_quote": "uma frase de impacto realmente dita no debate"
+}
+Notas de 0 a 10. Seja justo, específico ao tema, e coerente entre as notas e o vencedor. Português.` },
+      ],
+      debate.moderator_model || "google/gemini-2.5-pro",
+    );
+
+    const cleaned = raw.replace(/^```json\s*|\s*```$/g, "").trim();
+    try {
+      const p = JSON.parse(cleaned) as {
+        winner?: string; summary?: string; mvp_quote?: string;
+        criteria?: Array<{ name?: string; a?: number; b?: number }>;
+      };
+      const criteria = (Array.isArray(p.criteria) ? p.criteria : []).slice(0, 6).map((c) => ({
+        name: String(c?.name ?? "").slice(0, 40),
+        a: clamp10(c?.a),
+        b: clamp10(c?.b),
+      }));
+      const scoreA = criteria.reduce((s, c) => s + c.a, 0);
+      const scoreB = criteria.reduce((s, c) => s + c.b, 0);
+      const winner: Verdict["winner"] =
+        p.winner === "a" || p.winner === "b" || p.winner === "empate"
+          ? p.winner
+          : scoreA === scoreB ? "empate" : scoreA > scoreB ? "a" : "b";
+      const verdict: Verdict = {
+        winner,
+        summary: String(p.summary ?? "").slice(0, 800),
+        criteria,
+        scoreA,
+        scoreB,
+        mvp_quote: String(p.mvp_quote ?? "").slice(0, 300),
+      };
+
+      const { error: uErr } = await context.supabase
+        .from("debates").update({ verdict }).eq("id", data.debateId);
+      if (uErr) throw new Error(uErr.message);
+      return verdict;
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("column")) throw e;
+      throw new Error("A IA não retornou um veredito válido. Tente novamente.");
+    }
+  });
+
 type Debate = {
   rounds: number;
   rules: string | null;
@@ -170,7 +465,8 @@ Sua tarefa: produzir a próxima fala da fase "${next.phase}". Seja claro, direto
 
     // Recompute terminal state based on the updated history
     const after = [...existing, { role: next.role, phase: next.phase, content }];
-    const willDone = next.phase === "veredito" || (!debate.dynamic_flow && existing.length + 1 >= fixedSeqLength(debate.rounds));
+    const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
+    const willDone = next.phase === "veredito" || (!debate.dynamic_flow && seqCount + 1 >= fixedSeqLength(debate.rounds));
     if (willDone) {
       await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
     }
@@ -229,15 +525,19 @@ async function decideNextTurn(
   existing: Msg[],
   chat: (messages: Array<{ role: "system" | "user" | "assistant"; content: string }>, model?: string) => Promise<string>,
 ): Promise<NextTurn | null> {
+  // "reviravolta" messages (subtemas injected live) are context-only — they
+  // don't consume a slot in the debate sequence.
+  const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
+
   if (!debate.dynamic_flow) {
     const seq = fixedSeq(debate.rounds);
-    return seq[existing.length] ?? null;
+    return seq[seqCount] ?? null;
   }
 
   // Dynamic flow: moderator opens, both openings, then moderator dynamically picks next speaker
   // until a max of (3 + rounds*2 + 3) turns; final turn is moderator verdict.
   const max = fixedSeqLength(debate.rounds);
-  const count = existing.length;
+  const count = seqCount;
   if (count === 0) return { role: "moderator", phase: "abertura" };
   if (count === 1) return { role: "a", phase: "abertura" };
   if (count === 2) return { role: "b", phase: "abertura" };

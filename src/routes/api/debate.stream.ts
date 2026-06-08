@@ -41,7 +41,8 @@ export const Route = createFileRoute("/api/debate/stream")({
           // Inline next-turn decision (avoids exporting async helper)
           let next: { role: "moderator" | "a" | "b"; phase: string; guidance?: string } | null = null;
           const max = 3 + debate.rounds * 2 + 3;
-          const count = existing.length;
+          // "reviravolta" messages (live subtemas) are context-only and don't consume a sequence slot.
+          const count = existing.filter((m) => m.phase !== "reviravolta").length;
           if (count === 0) next = { role: "moderator", phase: "abertura" };
           else if (count === 1) next = { role: "a", phase: "abertura" };
           else if (count === 2) next = { role: "b", phase: "abertura" };
