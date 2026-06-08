@@ -3,6 +3,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 const ModelSchema = z.string().min(3).max(80);
+const VoiceProviderSchema = z.enum(["browser", "eleven", "minimax"]).nullable().optional();
+const VoiceIdSchema = z.string().trim().max(120).nullable().optional();
 
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
@@ -16,6 +18,12 @@ const NewDebateSchema = z.object({
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]),
   rounds: z.number().int().min(2).max(6),
   dynamicFlow: z.boolean().default(false),
+  voiceProviderMod: VoiceProviderSchema,
+  voiceIdMod: VoiceIdSchema,
+  voiceProviderA: VoiceProviderSchema,
+  voiceIdA: VoiceIdSchema,
+  voiceProviderB: VoiceProviderSchema,
+  voiceIdB: VoiceIdSchema,
 });
 
 export const createDebate = createServerFn({ method: "POST" })
