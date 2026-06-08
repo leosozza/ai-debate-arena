@@ -111,7 +111,7 @@ export const updateDebate = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => UpdateDebateSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...d } = data;
-    const patch: Record<string, unknown> = {};
+    const patch: Record<string, string | number | boolean | null> = {};
     if (d.topic !== undefined) patch.topic = d.topic;
     if (d.debaterAName !== undefined) patch.debater_a_name = d.debaterAName;
     if (d.debaterAPersona !== undefined) patch.debater_a_persona = d.debaterAPersona;
