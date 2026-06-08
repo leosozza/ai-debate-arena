@@ -1,7 +1,9 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createDebate } from "@/lib/debate.functions";
+import { listPersonas } from "@/lib/persona.functions";
 import { AVAILABLE_MODELS } from "@/lib/ai-models";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Users } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
@@ -23,6 +25,8 @@ const DEFAULT_MODEL = "google/gemini-3-flash-preview";
 function NewDebate() {
   const router = useRouter();
   const create = useServerFn(createDebate);
+  const listP = useServerFn(listPersonas);
+  const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: () => listP() });
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     topic: "",
@@ -37,6 +41,16 @@ function NewDebate() {
     rounds: 3,
     dynamicFlow: false,
   });
+
+  function applyPersona(side: "A" | "B", personaId: string) {
+    const p = personas.find((x) => x.id === personaId);
+    if (!p) return;
+    if (side === "A") {
+      setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt }));
+    } else {
+      setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt }));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,14 +97,32 @@ function NewDebate() {
 
         <div className="grid md:grid-cols-2 gap-4">
           <Card className="p-6 space-y-4 border-l-4 border-l-primary">
-            <h3 className="font-semibold">Debatedor A</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Debatedor A</h3>
+              <Link to="/personas" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+                <Users className="h-3 w-3" /> gerenciar
+              </Link>
+            </div>
+            {personas.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Carregar persona salva</Label>
+                <Select value="" onValueChange={(v) => applyPersona("A", v)}>
+                  <SelectTrigger><SelectValue placeholder="Escolher persona…" /></SelectTrigger>
+                  <SelectContent>
+                    {personas.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Nome</Label>
               <Input value={form.debaterAName} onChange={(e) => setForm({ ...form, debaterAName: e.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label>Personalidade e posição</Label>
-              <Textarea rows={3} value={form.debaterAPersona} onChange={(e) => setForm({ ...form, debaterAPersona: e.target.value })} required />
+              <Textarea rows={5} value={form.debaterAPersona} onChange={(e) => setForm({ ...form, debaterAPersona: e.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label>Modelo</Label>
@@ -98,14 +130,32 @@ function NewDebate() {
             </div>
           </Card>
           <Card className="p-6 space-y-4 border-l-4 border-l-destructive">
-            <h3 className="font-semibold">Debatedor B</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Debatedor B</h3>
+              <Link to="/personas" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+                <Users className="h-3 w-3" /> gerenciar
+              </Link>
+            </div>
+            {personas.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Carregar persona salva</Label>
+                <Select value="" onValueChange={(v) => applyPersona("B", v)}>
+                  <SelectTrigger><SelectValue placeholder="Escolher persona…" /></SelectTrigger>
+                  <SelectContent>
+                    {personas.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Nome</Label>
               <Input value={form.debaterBName} onChange={(e) => setForm({ ...form, debaterBName: e.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label>Personalidade e posição</Label>
-              <Textarea rows={3} value={form.debaterBPersona} onChange={(e) => setForm({ ...form, debaterBPersona: e.target.value })} required />
+              <Textarea rows={5} value={form.debaterBPersona} onChange={(e) => setForm({ ...form, debaterBPersona: e.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label>Modelo</Label>
