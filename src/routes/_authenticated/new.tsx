@@ -66,10 +66,12 @@ function NewDebate() {
   function applyPersona(side: "A" | "B", personaId: string) {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
+    const vp = (p.voice_provider as VoiceProvider | null) ?? "browser";
+    const vid = p.voice_id ?? null;
     if (side === "A") {
-      setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt }));
+      setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt, voiceProviderA: vp, voiceIdA: vid }));
     } else {
-      setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt }));
+      setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt, voiceProviderB: vp, voiceIdB: vid }));
     }
   }
 
