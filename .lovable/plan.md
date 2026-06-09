@@ -1,32 +1,19 @@
-Vou corrigir o modo apresentação para funcionar como uma transmissão de TV já a partir das 31 falas geradas.
+Plano para corrigir o modo apresentação inativo:
 
-## Plano
+1. Corrigir o botão da tela do debate
+- O botão “Modo apresentação” hoje aponta para `/debates/$id/arena`, que é só uma tela intermediária de introdução.
+- Vou alterar para abrir diretamente `/debates/$id/present`, onde ficam o palco, controles e áudio.
+- O botão continuará desabilitado apenas quando não houver falas geradas.
 
-1. **Destravar o início do modo apresentação**
-   - Ajustar a lógica da vinheta para ela não bloquear o botão Tocar.
-   - Ao clicar em Tocar, mostrar a cartela do bloco e depois iniciar automaticamente a primeira fala com áudio.
+2. Deixar a opção de disparar evidente
+- Na tela de apresentação, manter um botão principal “Tocar” sempre visível na barra inferior.
+- Se a apresentação abrir pausada, o usuário verá imediatamente como iniciar.
+- Se houver cartela/vinheta de bloco, ela só entra depois do primeiro toque em “Tocar”, sem bloquear a navegação.
 
-2. **Sincronizar áudio e avanço das falas**
-   - Trocar o controle atual por um token de reprodução, evitando que áudios antigos ou eventos duplicados avancem a apresentação na hora errada.
-   - Garantir que cada fala só avance quando o áudio ativo realmente terminar.
-   - Melhorar fallback: se ElevenLabs/MiniMax falhar, usar voz do navegador e continuar o debate.
+3. Resolver a tela intermediária antiga
+- Ajustar a rota `/arena` para não parecer o modo final quando ela for acessada.
+- O botão “Iniciar apresentação” nela continuará levando para `/present`, mas o fluxo principal não dependerá mais dela.
 
-3. **Navegação estilo TV por blocos**
-   - Adicionar botões de bloco anterior e próximo bloco no controle inferior.
-   - Fazer esses botões pularem para a primeira fala do bloco correto, pausando áudio atual com segurança.
-   - Manter avançar/voltar fala funcionando.
-
-4. **Vinheta e cartela entre blocos**
-   - Mostrar a cartela animada antes de cada novo bloco.
-   - Depois da cartela, tocar a fala de vinheta do mediador daquele bloco e seguir para os debatedores.
-   - Adicionar barra de progresso visual na cartela.
-
-5. **Manter palco de TV**
-   - Preservar o mediador no topo e as IAs lado a lado na arena.
-   - Ajustar responsividade para mobile sem quebrar o fluxo.
-
-## Detalhes técnicos
-
-- Editar `src/routes/_authenticated/debates.$id.present.tsx`.
-- Editar `src/components/BlockIntroCard.tsx`.
-- Não será necessário regerar o debate nem alterar o banco: o debate atual já tem 31 falas, 4 blocos e configuração de voz do navegador.
+4. Validar navegação e áudio
+- Conferir que um debate com falas geradas abre o modo apresentação e exibe mediador no topo, IAs lado a lado e controles de TV.
+- Confirmar que “Tocar”, pausar, próxima fala e próximo bloco continuam disponíveis.
