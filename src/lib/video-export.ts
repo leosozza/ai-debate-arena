@@ -187,6 +187,7 @@ function drawStageFrame(
     ctx.beginPath();
     ctx.arc(W / 2, 90, 6, 0, Math.PI * 2);
     ctx.fill();
+  }
 }
 
 /** Opening frame: two guests side-by-side with bios, Roda Viva style. */
