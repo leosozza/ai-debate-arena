@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getDebate, ttsSpeak, updateDebate, type Verdict } from "@/lib/debate.functions";
 import { minimaxTts, MINIMAX_VOICES } from "@/lib/tts.functions";
+import { replicateTts } from "@/lib/voice-replicate.functions";
+import { REPLICATE_VOICES } from "@/lib/replicate-voices";
 import { ELEVEN_VOICES, DEFAULT_ELEVEN } from "@/lib/eleven-voices";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
@@ -16,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/presentation/$id")({
 });
 
 type Side = "moderator" | "a" | "b";
-type Provider = "browser" | "eleven" | "minimax";
+type Provider = "browser" | "eleven" | "minimax" | "replicate";
 
 function PresentMode() {
   const { id } = Route.useParams();
@@ -24,6 +26,7 @@ function PresentMode() {
   const get = useServerFn(getDebate);
   const elTts = useServerFn(ttsSpeak);
   const mmTts = useServerFn(minimaxTts);
+  const rpTts = useServerFn(replicateTts);
   const updDebate = useServerFn(updateDebate);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
   const [savingVoices, setSavingVoices] = useState(false);
@@ -54,6 +57,11 @@ function PresentMode() {
   const [mmB, setMmB] = useState<string>(MINIMAX_VOICES[3].id);
   const [mmMod, setMmMod] = useState<string>(MINIMAX_VOICES[7].id);
 
+  // Replicate voices
+  const [rpA, setRpA] = useState<string>(REPLICATE_VOICES[4].id);
+  const [rpB, setRpB] = useState<string>(REPLICATE_VOICES[3].id);
+  const [rpMod, setRpMod] = useState<string>(REPLICATE_VOICES[0].id);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
   const playTokenRef = useRef(0);
@@ -75,7 +83,7 @@ function PresentMode() {
     load();
     window.speechSynthesis.onvoiceschanged = load;
     const saved = localStorage.getItem("arena-tts-provider");
-    if (saved === "browser" || saved === "eleven" || saved === "minimax") setProvider(saved);
+    if (saved === "browser" || saved === "eleven" || saved === "minimax" || saved === "replicate") setProvider(saved);
     return () => { window.speechSynthesis.cancel(); audioRef.current?.pause(); };
   }, []);
 
@@ -85,7 +93,7 @@ function PresentMode() {
     if (hydratedRef.current || !data?.debate) return;
     const d = data.debate;
     const dp = d.voice_provider_a ?? d.voice_provider_b ?? d.voice_provider_mod;
-    if (dp === "browser" || dp === "eleven" || dp === "minimax") setProvider(dp);
+    if (dp === "browser" || dp === "eleven" || dp === "minimax" || dp === "replicate") setProvider(dp);
     if (d.voice_id_mod) {
       if (d.voice_provider_mod === "eleven") setElMod(d.voice_id_mod);
       else if (d.voice_provider_mod === "minimax") setMmMod(d.voice_id_mod);
