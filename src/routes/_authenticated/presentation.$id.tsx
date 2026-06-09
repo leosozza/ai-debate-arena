@@ -577,7 +577,12 @@ function PresentMode() {
       <div className="relative z-10 flex-1 min-h-0 px-4 pb-2 md:px-8">
         {isWinner && verdict ? (
           <div className="flex h-full items-center justify-center">
-            <WinnerStage verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />
+            <ClosingCard
+              topic={data.debate.topic}
+              verdict={verdict}
+              a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved }}
+              b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved }}
+            />
           </div>
         ) : (
           <div key={current?.id} className="mx-auto flex h-full w-full max-w-7xl flex-col gap-4 animate-in fade-in duration-500">
