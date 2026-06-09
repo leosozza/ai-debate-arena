@@ -301,7 +301,10 @@ function PersonasPage() {
                   provider={form.voice_provider}
                   voiceId={form.voice_id}
                   onChange={(p, v) => setForm({ ...form, voice_provider: p, voice_id: v })}
+                  settings={form.voice_settings}
+                  onSettingsChange={(vs) => setForm((f) => ({ ...f, voice_settings: vs }))}
                 />
+
                 <p className="text-[11px] text-muted-foreground">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
 
                 <VoiceClonePanel
