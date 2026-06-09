@@ -235,7 +235,6 @@ function PresentMode() {
   }
 
   function go(delta: number) {
-    setPlaying(false);
     stopAll();
     setIndex((i) => Math.min(slideCount - 1, Math.max(0, i + delta)));
   }
