@@ -249,6 +249,39 @@ function PresentMode() {
     try { localStorage.setItem("arena-tts-provider", p); } catch { /* ignore */ }
   }
 
+  async function saveVoicesToDebate() {
+    setSavingVoices(true);
+    try {
+      const payload =
+        provider === "browser"
+          ? {
+              id,
+              voiceProviderMod: "browser" as const, voiceIdMod: voiceMod || null,
+              voiceProviderA: "browser" as const, voiceIdA: voiceA || null,
+              voiceProviderB: "browser" as const, voiceIdB: voiceB || null,
+            }
+          : provider === "eleven"
+          ? {
+              id,
+              voiceProviderMod: "eleven" as const, voiceIdMod: elMod,
+              voiceProviderA: "eleven" as const, voiceIdA: elA,
+              voiceProviderB: "eleven" as const, voiceIdB: elB,
+            }
+          : {
+              id,
+              voiceProviderMod: "minimax" as const, voiceIdMod: mmMod,
+              voiceProviderA: "minimax" as const, voiceIdA: mmA,
+              voiceProviderB: "minimax" as const, voiceIdB: mmB,
+            };
+      await updDebate({ data: payload });
+      toast.success("Vozes salvas neste debate");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar vozes");
+    } finally {
+      setSavingVoices(false);
+    }
+  }
+
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
