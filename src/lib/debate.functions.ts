@@ -67,10 +67,13 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
         debater_a_name: data.debaterAName,
         debater_a_persona: data.debaterAPersona,
         debater_a_model: data.debaterAModel,
+        debater_a_image_url: data.debaterAImageUrl ?? null,
         debater_b_name: data.debaterBName,
         debater_b_persona: data.debaterBPersona,
         debater_b_model: data.debaterBModel,
+        debater_b_image_url: data.debaterBImageUrl ?? null,
         moderator_model: data.moderatorModel,
+
         moderator_tone: data.moderatorTone,
         rounds: data.rounds,
         blocks_count: data.blocksCount,
