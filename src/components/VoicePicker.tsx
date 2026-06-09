@@ -125,14 +125,24 @@ export function VoicePicker({ label, provider, voiceId, onChange, sampleText }: 
               </SelectContent>
             </Select>
           ) : (
-            <Select value={voiceId ?? VOICE_CATALOG[p][0].id} onValueChange={(v) => { stop(); onChange(p, v); }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {VOICE_CATALOG[p].map((v) => (
-                  <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            (() => {
+              const catalog = VOICE_CATALOG[p];
+              const currentId = voiceId ?? catalog[0].id;
+              const isCustom = !catalog.some((v) => v.id === currentId);
+              return (
+                <Select value={currentId} onValueChange={(v) => { stop(); onChange(p, v); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {isCustom && (
+                      <SelectItem value={currentId}>🎙 Personalizada ({currentId.slice(0, 12)}…)</SelectItem>
+                    )}
+                    {catalog.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            })()
           )}
         </div>
         <Button

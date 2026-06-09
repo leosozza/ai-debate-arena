@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { getDebate, ttsSpeak, type Verdict } from "@/lib/debate.functions";
+import { getDebate, ttsSpeak, updateDebate, type Verdict } from "@/lib/debate.functions";
 import { minimaxTts, MINIMAX_VOICES } from "@/lib/tts.functions";
 import { ELEVEN_VOICES, DEFAULT_ELEVEN } from "@/lib/eleven-voices";
 import { useEffect, useRef, useState } from "react";
@@ -24,7 +24,9 @@ function PresentMode() {
   const get = useServerFn(getDebate);
   const elTts = useServerFn(ttsSpeak);
   const mmTts = useServerFn(minimaxTts);
+  const updDebate = useServerFn(updateDebate);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
+  const [savingVoices, setSavingVoices] = useState(false);
 
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -247,6 +249,39 @@ function PresentMode() {
     try { localStorage.setItem("arena-tts-provider", p); } catch { /* ignore */ }
   }
 
+  async function saveVoicesToDebate() {
+    setSavingVoices(true);
+    try {
+      const payload =
+        provider === "browser"
+          ? {
+              id,
+              voiceProviderMod: "browser" as const, voiceIdMod: voiceMod || null,
+              voiceProviderA: "browser" as const, voiceIdA: voiceA || null,
+              voiceProviderB: "browser" as const, voiceIdB: voiceB || null,
+            }
+          : provider === "eleven"
+          ? {
+              id,
+              voiceProviderMod: "eleven" as const, voiceIdMod: elMod,
+              voiceProviderA: "eleven" as const, voiceIdA: elA,
+              voiceProviderB: "eleven" as const, voiceIdB: elB,
+            }
+          : {
+              id,
+              voiceProviderMod: "minimax" as const, voiceIdMod: mmMod,
+              voiceProviderA: "minimax" as const, voiceIdA: mmA,
+              voiceProviderB: "minimax" as const, voiceIdB: mmB,
+            };
+      await updDebate({ data: payload });
+      toast.success("Vozes salvas neste debate");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar vozes");
+    } finally {
+      setSavingVoices(false);
+    }
+  }
+
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -403,6 +438,21 @@ function PresentMode() {
                 <p className="text-[10px] text-muted-foreground leading-snug">MiniMax sintetiza no servidor; cada fala consome créditos da sua chave.</p>
               </>
             )}
+          </div>
+
+          <div className="border-t border-border/50 pt-3 space-y-2">
+            <Button
+              onClick={saveVoicesToDebate}
+              disabled={savingVoices}
+              className="w-full"
+              size="sm"
+            >
+              {savingVoices ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+              💾 Salvar essas vozes no debate
+            </Button>
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              Persiste a escolha — aplicada nas próximas reproduções e gravada para todos.
+            </p>
           </div>
         </div>
       )}

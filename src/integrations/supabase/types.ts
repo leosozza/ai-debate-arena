@@ -158,6 +158,8 @@ export type Database = {
           persona_prompt: string
           updated_at: string
           user_id: string
+          voice_clone_name: string | null
+          voice_clone_source: string | null
           voice_id: string | null
           voice_provider: string | null
         }
@@ -170,6 +172,8 @@ export type Database = {
           persona_prompt: string
           updated_at?: string
           user_id: string
+          voice_clone_name?: string | null
+          voice_clone_source?: string | null
           voice_id?: string | null
           voice_provider?: string | null
         }
@@ -182,6 +186,8 @@ export type Database = {
           persona_prompt?: string
           updated_at?: string
           user_id?: string
+          voice_clone_name?: string | null
+          voice_clone_source?: string | null
           voice_id?: string | null
           voice_provider?: string | null
         }

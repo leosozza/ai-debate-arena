@@ -17,8 +17,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Sparkles, Trash2, Plus, Globe, Lock } from "lucide-react";
+import { Sparkles, Trash2, Plus, Globe, Lock, Mic } from "lucide-react";
 import { VoicePicker } from "@/components/VoicePicker";
+import { VoiceClonePanel } from "@/components/VoiceClonePanel";
+import { attachVoiceToPersona } from "@/lib/voice-clone.functions";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 
 export const Route = createFileRoute("/_authenticated/personas")({
@@ -31,6 +33,7 @@ function PersonasPage() {
   const update = useServerFn(updatePersona);
   const remove = useServerFn(deletePersona);
   const generate = useServerFn(generatePersonaWithAI);
+  const attachVoice = useServerFn(attachVoiceToPersona);
   const qc = useQueryClient();
 
   const { data: personas = [], isLoading } = useQuery({
@@ -250,14 +253,29 @@ function PersonasPage() {
             />
             <p className="text-xs text-muted-foreground">{form.persona_prompt.length}/12000 — quanto mais específico (bordões, posições, estilo), mais fiel a encarnação.</p>
           </div>
-          <div className="pt-2 border-t">
+          <div className="pt-2 border-t space-y-3">
             <VoicePicker
               label="Voz padrão da persona"
               provider={form.voice_provider}
               voiceId={form.voice_id}
               onChange={(p, v) => setForm({ ...form, voice_provider: p, voice_id: v })}
             />
-            <p className="text-[11px] text-muted-foreground mt-1">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
+            <p className="text-[11px] text-muted-foreground">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
+
+            <VoiceClonePanel
+              defaultName={form.name || undefined}
+              onCloned={async ({ provider, voiceId, source, cloneName }) => {
+                setForm((f) => ({ ...f, voice_provider: provider, voice_id: voiceId }));
+                if (editingId) {
+                  try {
+                    await attachVoice({ data: { personaId: editingId, provider, voiceId, source, cloneName } });
+                    qc.invalidateQueries({ queryKey: ["personas"] });
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Falha ao salvar voz na persona");
+                  }
+                }
+              }}
+            />
           </div>
           <div className="flex items-center gap-3 pt-2 border-t">
             <Switch
@@ -292,10 +310,18 @@ function PersonasPage() {
                     <p className="text-sm text-muted-foreground line-clamp-2">{p.description}</p>
                   )}
                 </div>
-                <Badge variant={p.is_public ? "default" : "secondary"} className="shrink-0">
-                  {p.is_public ? <Globe className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
-                  {p.is_public ? "Pública" : "Privada"}
-                </Badge>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <Badge variant={p.is_public ? "default" : "secondary"}>
+                    {p.is_public ? <Globe className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
+                    {p.is_public ? "Pública" : "Privada"}
+                  </Badge>
+                  {p.voice_clone_source && (
+                    <Badge variant="outline" className="text-[10px]" title={p.voice_clone_name ?? ""}>
+                      <Mic className="h-3 w-3 mr-1" />
+                      {p.voice_clone_source === "manual" ? "Voz manual" : p.voice_clone_source === "upload-eleven" ? "Voz ElevenLabs" : "Voz MiniMax"}
+                    </Badge>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <Button size="sm" variant="outline" onClick={() => loadIntoForm(p)}>
