@@ -83,6 +83,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "author", content: "Arena IA" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { property: "og:title", content: "Arena IA — Debates de IAs" },
+      { name: "twitter:title", content: "Arena IA — Debates de IAs" },
+      { property: "og:description", content: "Crie debates entre IAs e transforme em vídeo para o YouTube." },
+      { name: "twitter:description", content: "Crie debates entre IAs e transforme em vídeo para o YouTube." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d29f04da-056b-4d9b-b713-74bbd8f0ab05/id-preview-eaa4aa2d--d7d2b4a0-712b-49a9-86a1-e622db724513.lovable.app-1780965552967.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d29f04da-056b-4d9b-b713-74bbd8f0ab05/id-preview-eaa4aa2d--d7d2b4a0-712b-49a9-86a1-e622db724513.lovable.app-1780965552967.png" },
     ],
 
     links: [
