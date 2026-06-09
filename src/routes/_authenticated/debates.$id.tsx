@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, type Verdict } from "@/lib/debate.functions";
@@ -14,6 +14,8 @@ export const Route = createFileRoute("/_authenticated/debates/$id")({
 });
 
 function DebateDetail() {
+  return <Outlet />;
+
   const { id } = Route.useParams();
   const router = useRouter();
   const get = useServerFn(getDebate);
