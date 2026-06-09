@@ -351,7 +351,9 @@ function PresentMode() {
   useEffect(() => {
     if (!playing || !current) return;
     const b = current.block_index ?? 0;
-    if (blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
+    // O bloco 0 é coberto pelo card de apresentação dos convidados (DebaterIntroCard),
+    // então não exibimos o BlockIntroCard tradicional nesse caso.
+    if (b > 0 && blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
       lastBlockShownRef.current = b;
       stopAll();
       setIntroBlock(b);
