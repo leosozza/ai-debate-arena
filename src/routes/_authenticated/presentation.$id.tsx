@@ -304,18 +304,18 @@ function PresentMode() {
 
       // 2) Importa o exporter (lazy) e gera o MP4
       const { exportDebateMp4 } = await import("@/lib/video-export");
+      const findP = (name: string | null | undefined) =>
+        personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (name ?? "").trim().toLowerCase()) ?? null;
+      const pA = findP(data.debate.debater_a_name);
+      const pB = findP(data.debate.debater_b_name);
       const blob = await exportDebateMp4({
         topic: data.debate.topic,
         aName: data.debate.debater_a_name,
         bName: data.debate.debater_b_name,
-        aImageUrl:
-          data.debate.debater_a_image_url ??
-          personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_a_name ?? "").trim().toLowerCase())?.image_url ??
-          null,
-        bImageUrl:
-          data.debate.debater_b_image_url ??
-          personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_b_name ?? "").trim().toLowerCase())?.image_url ??
-          null,
+        aImageUrl: data.debate.debater_a_image_url ?? pA?.image_url ?? null,
+        bImageUrl: data.debate.debater_b_image_url ?? pB?.image_url ?? null,
+        aDescription: pA?.description ?? null,
+        bDescription: pB?.description ?? null,
         messages: messages.map((m) => ({
           id: m.id,
           role: (m.role ?? "moderator") as Side,
