@@ -96,9 +96,11 @@ export async function pollPrediction(
 export async function runPrediction(
   model: string,
   input: Record<string, unknown>,
-  opts?: { maxMs?: number },
+  opts?: { maxMs?: number; useVersion?: boolean },
 ): Promise<unknown> {
-  const created = await createPrediction(model, input);
+  const created = opts?.useVersion
+    ? await createPredictionByVersion(await getLatestVersion(model), input)
+    : await createPrediction(model, input);
   if (created.status === "succeeded") return created.output;
   const done = await pollPrediction(created.id, opts);
   return done.output;
