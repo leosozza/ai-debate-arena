@@ -641,10 +641,24 @@ function WinnerStage({ verdict, aName, bName }: { verdict: Verdict; aName: strin
   );
 }
 
-function BrowserVoicePicker({ label, voices, value, onChange }: { label: string; voices: SpeechSynthesisVoice[]; value: string; onChange: (v: string) => void }) {
+function PreviewBtn({ state, onClick }: { state: "idle" | "loading" | "playing"; onClick: () => void }) {
   return (
-    <label className="flex items-center justify-between gap-2 text-xs">
-      <span className="text-muted-foreground truncate max-w-[110px]">{label}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/60 text-muted-foreground hover:text-foreground hover:bg-background"
+      aria-label={state === "playing" ? "Parar amostra" : "Ouvir amostra"}
+      title={state === "playing" ? "Parar" : "Ouvir amostra"}
+    >
+      {state === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state === "playing" ? <Square className="h-3 w-3" /> : <Volume2 className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+function BrowserVoicePicker({ label, voices, value, onChange, onPreview, preview }: { label: string; voices: SpeechSynthesisVoice[]; value: string; onChange: (v: string) => void; onPreview: (id: string) => void; preview: "idle" | "loading" | "playing" }) {
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-muted-foreground truncate w-[90px]">{label}</span>
       <select
         className="flex-1 min-w-0 rounded-md border border-border/60 bg-background/60 px-2 py-1 outline-none truncate"
         value={value}
@@ -652,14 +666,15 @@ function BrowserVoicePicker({ label, voices, value, onChange }: { label: string;
       >
         {voices.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
       </select>
-    </label>
+      <PreviewBtn state={preview} onClick={() => onPreview(value)} />
+    </div>
   );
 }
 
-function CatalogPicker({ label, options, value, onChange }: { label: string; options: ReadonlyArray<{ id: string; label: string }>; value: string; onChange: (v: string) => void }) {
+function CatalogPicker({ label, options, value, onChange, onPreview, preview }: { label: string; options: ReadonlyArray<{ id: string; label: string }>; value: string; onChange: (v: string) => void; onPreview: (id: string) => void; preview: "idle" | "loading" | "playing" }) {
   return (
-    <label className="flex items-center justify-between gap-2 text-xs">
-      <span className="text-muted-foreground truncate max-w-[110px]">{label}</span>
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-muted-foreground truncate w-[90px]">{label}</span>
       <select
         className="flex-1 min-w-0 rounded-md border border-border/60 bg-background/60 px-2 py-1 outline-none truncate"
         value={value}
@@ -667,6 +682,7 @@ function CatalogPicker({ label, options, value, onChange }: { label: string; opt
       >
         {options.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
       </select>
-    </label>
+      <PreviewBtn state={preview} onClick={() => onPreview(value)} />
+    </div>
   );
 }
