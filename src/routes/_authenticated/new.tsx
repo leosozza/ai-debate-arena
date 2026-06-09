@@ -48,9 +48,11 @@ function NewDebate() {
     debaterAName: "Aurora",
     debaterAPersona: "Defensora apaixonada da tecnologia, otimista quanto ao futuro da IA.",
     debaterAModel: DEFAULT_MODEL,
+    debaterAImageUrl: null as string | null,
     debaterBName: "Cético",
     debaterBPersona: "Crítico cauteloso, preocupado com impactos sociais e éticos.",
     debaterBModel: DEFAULT_MODEL,
+    debaterBImageUrl: null as string | null,
     moderatorModel: DEFAULT_MODEL,
     moderatorTone: "formal" as "formal" | "descontraído" | "acadêmico",
     rounds: 3,
@@ -69,12 +71,14 @@ function NewDebate() {
     if (!p) return;
     const vp = (p.voice_provider as VoiceProvider | null) ?? "browser";
     const vid = p.voice_id ?? null;
+    const img = p.image_url ?? null;
     if (side === "A") {
-      setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt, voiceProviderA: vp, voiceIdA: vid }));
+      setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt, voiceProviderA: vp, voiceIdA: vid, debaterAImageUrl: img }));
     } else {
-      setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt, voiceProviderB: vp, voiceIdB: vid }));
+      setForm((f) => ({ ...f, debaterBName: p.name, debaterBPersona: p.persona_prompt, voiceProviderB: vp, voiceIdB: vid, debaterBImageUrl: img }));
     }
   }
+
 
   async function surpriseTopic() {
     setGenTopic(true);
