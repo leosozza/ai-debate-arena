@@ -522,6 +522,28 @@ function PresentMode() {
             <p className="text-[10px] text-muted-foreground leading-snug">
               Gera todos os áudios agora — sem pausas durante a transmissão ao vivo.
             </p>
+
+            <Button
+              onClick={exportVideo}
+              disabled={exportProgress !== null || pregenProgress !== null}
+              className="w-full"
+              size="sm"
+            >
+              {exportProgress !== null ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> {exportProgress.label} ({Math.round(exportProgress.pct * 100)}%)</>
+              ) : (
+                <><Film className="h-3.5 w-3.5 mr-1.5" /> Exportar vídeo MP4 (720p)</>
+              )}
+            </Button>
+            {exportProgress !== null && (
+              <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+                <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(exportProgress.pct * 100)}%` }} />
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              Gera as vozes (se faltar) e monta um MP4 720p com avatares + legendas. Tudo no seu navegador — pode demorar alguns minutos.
+              Defina vozes não-navegador para todos os participantes antes de exportar.
+            </p>
           </div>
 
         </div>
