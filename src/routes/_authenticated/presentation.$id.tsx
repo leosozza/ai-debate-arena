@@ -433,6 +433,19 @@ function PresentMode() {
   const moderatorSpeaking = !isWinner && role === "moderator";
   const speakerContent = current?.content ?? "";
 
+  // Resolve persona description/image once for the intro / closing cards.
+  const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+  const personaA = personas?.find((p) => norm(p.name) === norm(data.debate.debater_a_name)) ?? null;
+  const personaB = personas?.find((p) => norm(p.name) === norm(data.debate.debater_b_name)) ?? null;
+  const aImageResolved = data.debate.debater_a_image_url ?? personaA?.image_url ?? null;
+  const bImageResolved = data.debate.debater_b_image_url ?? personaB?.image_url ?? null;
+  const aDescription = personaA?.description ?? null;
+  const bDescription = personaB?.description ?? null;
+
+  // Card de apresentação dos convidados: aparece em cima da tela enquanto a
+  // primeira vinheta do mediador é narrada (index 0). Some assim que avançamos.
+  const showDebaterIntro = playing && index === 0 && currentBlockIdx === 0 && role === "moderator";
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
       {introBlock !== null && subtopicsList[introBlock] && (
@@ -442,6 +455,14 @@ function PresentMode() {
           title={subtopicsList[introBlock].title}
           focus={subtopicsList[introBlock].focus}
           onDone={() => setIntroBlock(null)}
+        />
+      )}
+      {showDebaterIntro && (
+        <DebaterIntroCard
+          topic={data.debate.topic}
+          a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved, description: aDescription }}
+          b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, description: bDescription }}
+          onSkip={() => { stopAll(); setIndex((i) => Math.min(slideCount - 1, i + 1)); }}
         />
       )}
       <div className="pointer-events-none absolute inset-0 transition-all duration-700" style={{ background: theme.glow }} />
