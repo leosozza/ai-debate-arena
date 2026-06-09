@@ -427,7 +427,7 @@ function PresentMode() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Provedor de voz</p>
             <div className="flex gap-1 rounded-md border border-border/60 bg-background/40 p-0.5">
-              {([["browser", "Navegador"], ["eleven", "ElevenLabs"], ["minimax", "MiniMax"]] as const).map(([p, label]) => (
+              {([["browser", "Navegador"], ["replicate", "Replicate"], ["eleven", "ElevenLabs"], ["minimax", "MiniMax"]] as const).map(([p, label]) => (
                 <button
                   key={p}
                   onClick={() => switchProvider(p)}
