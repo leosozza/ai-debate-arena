@@ -163,6 +163,7 @@ export type Database = {
           voice_clone_source: string | null
           voice_id: string | null
           voice_provider: string | null
+          voice_settings: Json | null
         }
         Insert: {
           created_at?: string
@@ -178,6 +179,7 @@ export type Database = {
           voice_clone_source?: string | null
           voice_id?: string | null
           voice_provider?: string | null
+          voice_settings?: Json | null
         }
         Update: {
           created_at?: string
@@ -193,6 +195,7 @@ export type Database = {
           voice_clone_source?: string | null
           voice_id?: string | null
           voice_provider?: string | null
+          voice_settings?: Json | null
         }
         Relationships: []
       }
