@@ -186,7 +186,7 @@ function DebateDetail() {
             <Square className="h-4 w-4 mr-1" /> Parar
           </Button>
         )}
-        <Link to="/debates/$id/present" params={{ id }}>
+        <Link to="/presentation/$id" params={{ id }}>
           <Button variant="secondary" size="sm" disabled={data.messages.length === 0}>
             🎬 Modo apresentação
           </Button>

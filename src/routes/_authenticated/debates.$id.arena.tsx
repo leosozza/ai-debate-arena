@@ -93,7 +93,7 @@ function ArenaIntro() {
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1, duration: 0.5 }}>
           <Button size="lg" className="gap-2 px-10 py-6 text-base shadow-2xl shadow-primary/30"
-            onClick={() => router.navigate({ to: "/debates/$id/present", params: { id } })}
+            onClick={() => router.navigate({ to: "/presentation/$id", params: { id } })}
             disabled={data.messages.length === 0}>
             <Play className="h-5 w-5" /> Iniciar apresentação
           </Button>
