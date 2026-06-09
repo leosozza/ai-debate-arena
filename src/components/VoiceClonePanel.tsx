@@ -7,28 +7,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Mic, Upload, Loader2, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cloneVoiceEleven, cloneVoiceMinimax } from "@/lib/voice-clone.functions";
+import { cloneVoiceReplicate } from "@/lib/voice-replicate.functions";
 import type { VoiceProvider } from "@/lib/voice-catalog";
 
 interface Props {
   defaultName?: string;
-  onCloned: (result: { provider: VoiceProvider; voiceId: string; source: "upload-eleven" | "upload-minimax" | "manual"; cloneName: string }) => void;
+  onCloned: (result: { provider: VoiceProvider; voiceId: string; source: "upload-eleven" | "upload-minimax" | "upload-replicate" | "manual"; cloneName: string }) => void;
 }
 
 export function VoiceClonePanel({ defaultName, onCloned }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [name, setName] = useState(defaultName ?? "");
-  const [busy, setBusy] = useState<null | "eleven" | "minimax">(null);
+  const [busy, setBusy] = useState<null | "eleven" | "minimax" | "replicate">(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
-  const [manualProvider, setManualProvider] = useState<"eleven" | "minimax">("eleven");
+  const [manualProvider, setManualProvider] = useState<"eleven" | "minimax" | "replicate">("replicate");
   const [manualId, setManualId] = useState("");
 
   const cloneEl = useServerFn(cloneVoiceEleven);
   const cloneMm = useServerFn(cloneVoiceMinimax);
+  const cloneRp = useServerFn(cloneVoiceReplicate);
 
   const totalMb = files.reduce((s, f) => s + f.size, 0) / (1024 * 1024);
 
-  async function run(provider: "eleven" | "minimax") {
+  async function run(provider: "eleven" | "minimax" | "replicate") {
     if (files.length === 0) {
       toast.error("Escolha pelo menos 1 arquivo de áudio.");
       return;
@@ -40,13 +42,14 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
     setBusy(provider);
     setLastError(null);
     try {
-      const fn = provider === "eleven" ? cloneEl : cloneMm;
+      const fn = provider === "eleven" ? cloneEl : provider === "minimax" ? cloneMm : cloneRp;
       const res = await fn({ data: fd as unknown as never });
-      toast.success(`Voz clonada (${provider === "eleven" ? "ElevenLabs" : "MiniMax"})`);
+      const label = provider === "eleven" ? "ElevenLabs" : provider === "minimax" ? "MiniMax" : "Replicate";
+      toast.success(`Voz clonada (${label})`);
       onCloned({
         provider: res.provider,
         voiceId: res.voiceId,
-        source: provider === "eleven" ? "upload-eleven" : "upload-minimax",
+        source: provider === "eleven" ? "upload-eleven" : provider === "minimax" ? "upload-minimax" : "upload-replicate",
         cloneName,
       });
     } catch (e) {
