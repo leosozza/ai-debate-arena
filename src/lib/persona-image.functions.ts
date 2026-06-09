@@ -58,7 +58,9 @@ function b64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
-/** Gera avatar realista da persona via AI Gateway (gpt-image-2). */
+/** Gera avatar da persona. Se for pessoa real, busca imagens de referência
+ *  na web (Firecrawl) e usa Gemini image edit para produzir um avatar fiel.
+ *  Se não houver referências, cai num fallback puramente textual (gpt-image-2). */
 export const generatePersonaImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -70,18 +72,71 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const prompt = `Photorealistic portrait avatar of "${data.name}"${
+    const { firecrawlImageSearch } = await import("./firecrawl.server");
+
+    // 1) tenta achar referências reais da pessoa
+    let refs: Array<{ url: string; title: string }> = [];
+    try {
+      refs = await firecrawlImageSearch(`${data.name} retrato rosto`, { limit: 6 });
+    } catch {
+      refs = [];
+    }
+
+    // 2) baixa até 3 referências como data URLs
+    const refDataUrls: string[] = [];
+    for (const r of refs.slice(0, 6)) {
+      if (refDataUrls.length >= 3) break;
+      try {
+        const resp = await fetch(r.url, { signal: AbortSignal.timeout(8000) });
+        if (!resp.ok) continue;
+        const ct = resp.headers.get("content-type") ?? "image/jpeg";
+        if (!ct.startsWith("image/")) continue;
+        const buf = new Uint8Array(await resp.arrayBuffer());
+        if (buf.byteLength < 4_000 || buf.byteLength > 6 * 1024 * 1024) continue;
+        // btoa em chunks (evita stack overflow em buffers grandes)
+        let bin = "";
+        for (let i = 0; i < buf.length; i += 0x8000) {
+          bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+        }
+        refDataUrls.push(`data:${ct};base64,${btoa(bin)}`);
+      } catch {
+        // ignora referência ruim
+      }
+    }
+
+    const baseInstruction = `Photorealistic head-and-shoulders portrait avatar of "${data.name}"${
       data.description ? `, ${data.description}` : ""
-    }. Head-and-shoulders, neutral studio background, soft lighting, dignified expression, square framing, ultra-high detail.`;
-    const b64 = await callImageGateway({
-      model: "openai/gpt-image-2",
-      prompt,
-      size: "1024x1024",
-      quality: "low",
-      n: 1,
-    });
+    }. Square framing, neutral studio background, soft lighting, dignified expression, ultra-high detail.`;
+
+    let b64: string;
+    if (refDataUrls.length > 0) {
+      const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person. Reproduce their actual face, features, ethnicity, age range, hair, and overall likeness as faithfully as possible — do not invent a different person. Use the references as ground truth for the identity; only the framing, lighting, and background should be standardized.`;
+      b64 = await callImageGateway({
+        model: "google/gemini-3.1-flash-image-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: instruction },
+              ...refDataUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+            ],
+          },
+        ],
+        modalities: ["image", "text"],
+      });
+    } else {
+      // fallback: sem referências, gera um avatar fictício baseado só na descrição
+      b64 = await callImageGateway({
+        model: "openai/gpt-image-2",
+        prompt: baseInstruction,
+        size: "1024x1024",
+        quality: "low",
+        n: 1,
+      });
+    }
+
     const url = await uploadAndSign(context.userId, b64ToBytes(b64), "image/png", "png");
-    return { imageUrl: url };
+    return { imageUrl: url, referencesUsed: refDataUrls.length };
   });
 
 /** Upload direto de imagem da persona. */
