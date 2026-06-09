@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2 } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2, Volume2, Square } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/presentation/$id")({
   component: PresentMode,
@@ -215,7 +215,7 @@ function PresentMode() {
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, introBlock, provider]);
+  }, [playing, index, current?.id, introBlock, provider, voiceMod, voiceA, voiceB, elMod, elA, elB, mmMod, mmA, mmB]);
 
   function handlePlayToggle() {
     if (!playing) hasStartedRef.current = true;
@@ -241,9 +241,64 @@ function PresentMode() {
 
   function switchProvider(p: Provider) {
     stopAll();
+    stopPreview();
     setPlaying(false);
     setProvider(p);
     try { localStorage.setItem("arena-tts-provider", p); } catch { /* ignore */ }
+  }
+
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  function stopPreview() {
+    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+    if (previewAudioRef.current) {
+      try { previewAudioRef.current.pause(); } catch { /* ignore */ }
+      previewAudioRef.current = null;
+    }
+    setPreviewing(null);
+    setPreviewLoading(null);
+  }
+
+  async function previewVoice(prov: Provider, voiceId: string, key: string) {
+    if (previewing === key || previewLoading === key) { stopPreview(); return; }
+    stopPreview();
+    setPlaying(false);
+    stopAll();
+    const sample = "Olá! Esta é uma amostra da minha voz para o debate.";
+    // Pre-create utterance now to preserve user gesture for speechSynthesis on iOS.
+    const utter = prov === "browser" ? new SpeechSynthesisUtterance(sample) : null;
+    if (utter) {
+      utter.lang = "pt-BR";
+      const v = voices.find((x) => x.name === voiceId);
+      if (v) { utter.voice = v; utter.lang = v.lang; }
+      utter.onend = () => setPreviewing((p) => (p === key ? null : p));
+      utter.onerror = () => setPreviewing((p) => (p === key ? null : p));
+    }
+    try {
+      if (prov === "browser" && utter) {
+        setPreviewing(key);
+        window.speechSynthesis.speak(utter);
+        return;
+      }
+      setPreviewLoading(key);
+      const res = prov === "eleven"
+        ? await elTts({ data: { text: sample, voiceId } })
+        : await mmTts({ data: { text: sample, voiceId, model: "speech-02-hd", speed: 1 } });
+      const url = `data:${res.mime};base64,${"audio" in res ? res.audio : res.audioBase64}`;
+      const audio = new Audio(url);
+      previewAudioRef.current = audio;
+      audio.onended = () => setPreviewing((p) => (p === key ? null : p));
+      audio.onerror = () => setPreviewing((p) => (p === key ? null : p));
+      setPreviewLoading(null);
+      setPreviewing(key);
+      await audio.play();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha na amostra");
+      setPreviewing(null);
+      setPreviewLoading(null);
+    }
   }
 
   if (!data) {
@@ -327,24 +382,24 @@ function PresentMode() {
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vozes</p>
             {provider === "browser" && (
               <>
-                <BrowserVoicePicker label="Mediador" voices={voices} value={voiceMod} onChange={setVoiceMod} />
-                <BrowserVoicePicker label={data.debate.debater_a_name} voices={voices} value={voiceA} onChange={setVoiceA} />
-                <BrowserVoicePicker label={data.debate.debater_b_name} voices={voices} value={voiceB} onChange={setVoiceB} />
+                <BrowserVoicePicker label="Mediador" voices={voices} value={voiceMod} onChange={setVoiceMod} onPreview={(id) => previewVoice("browser", id, "br-mod")} preview={previewing === "br-mod" ? "playing" : previewLoading === "br-mod" ? "loading" : "idle"} />
+                <BrowserVoicePicker label={data.debate.debater_a_name} voices={voices} value={voiceA} onChange={setVoiceA} onPreview={(id) => previewVoice("browser", id, "br-a")} preview={previewing === "br-a" ? "playing" : previewLoading === "br-a" ? "loading" : "idle"} />
+                <BrowserVoicePicker label={data.debate.debater_b_name} voices={voices} value={voiceB} onChange={setVoiceB} onPreview={(id) => previewVoice("browser", id, "br-b")} preview={previewing === "br-b" ? "playing" : previewLoading === "br-b" ? "loading" : "idle"} />
               </>
             )}
             {provider === "eleven" && (
               <>
-                <CatalogPicker label="Mediador" options={ELEVEN_VOICES} value={elMod} onChange={setElMod} />
-                <CatalogPicker label={data.debate.debater_a_name} options={ELEVEN_VOICES} value={elA} onChange={setElA} />
-                <CatalogPicker label={data.debate.debater_b_name} options={ELEVEN_VOICES} value={elB} onChange={setElB} />
+                <CatalogPicker label="Mediador" options={ELEVEN_VOICES} value={elMod} onChange={setElMod} onPreview={(id) => previewVoice("eleven", id, "el-mod")} preview={previewing === "el-mod" ? "playing" : previewLoading === "el-mod" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_a_name} options={ELEVEN_VOICES} value={elA} onChange={setElA} onPreview={(id) => previewVoice("eleven", id, "el-a")} preview={previewing === "el-a" ? "playing" : previewLoading === "el-a" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_b_name} options={ELEVEN_VOICES} value={elB} onChange={setElB} onPreview={(id) => previewVoice("eleven", id, "el-b")} preview={previewing === "el-b" ? "playing" : previewLoading === "el-b" ? "loading" : "idle"} />
                 <p className="text-[10px] text-muted-foreground leading-snug">ElevenLabs sintetiza no servidor; cada fala consome créditos da sua chave.</p>
               </>
             )}
             {provider === "minimax" && (
               <>
-                <CatalogPicker label="Mediador" options={MINIMAX_VOICES} value={mmMod} onChange={setMmMod} />
-                <CatalogPicker label={data.debate.debater_a_name} options={MINIMAX_VOICES} value={mmA} onChange={setMmA} />
-                <CatalogPicker label={data.debate.debater_b_name} options={MINIMAX_VOICES} value={mmB} onChange={setMmB} />
+                <CatalogPicker label="Mediador" options={MINIMAX_VOICES} value={mmMod} onChange={setMmMod} onPreview={(id) => previewVoice("minimax", id, "mm-mod")} preview={previewing === "mm-mod" ? "playing" : previewLoading === "mm-mod" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_a_name} options={MINIMAX_VOICES} value={mmA} onChange={setMmA} onPreview={(id) => previewVoice("minimax", id, "mm-a")} preview={previewing === "mm-a" ? "playing" : previewLoading === "mm-a" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_b_name} options={MINIMAX_VOICES} value={mmB} onChange={setMmB} onPreview={(id) => previewVoice("minimax", id, "mm-b")} preview={previewing === "mm-b" ? "playing" : previewLoading === "mm-b" ? "loading" : "idle"} />
                 <p className="text-[10px] text-muted-foreground leading-snug">MiniMax sintetiza no servidor; cada fala consome créditos da sua chave.</p>
               </>
             )}
@@ -586,10 +641,24 @@ function WinnerStage({ verdict, aName, bName }: { verdict: Verdict; aName: strin
   );
 }
 
-function BrowserVoicePicker({ label, voices, value, onChange }: { label: string; voices: SpeechSynthesisVoice[]; value: string; onChange: (v: string) => void }) {
+function PreviewBtn({ state, onClick }: { state: "idle" | "loading" | "playing"; onClick: () => void }) {
   return (
-    <label className="flex items-center justify-between gap-2 text-xs">
-      <span className="text-muted-foreground truncate max-w-[110px]">{label}</span>
+    <button
+      type="button"
+      onClick={onClick}
+      className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/60 text-muted-foreground hover:text-foreground hover:bg-background"
+      aria-label={state === "playing" ? "Parar amostra" : "Ouvir amostra"}
+      title={state === "playing" ? "Parar" : "Ouvir amostra"}
+    >
+      {state === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state === "playing" ? <Square className="h-3 w-3" /> : <Volume2 className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+function BrowserVoicePicker({ label, voices, value, onChange, onPreview, preview }: { label: string; voices: SpeechSynthesisVoice[]; value: string; onChange: (v: string) => void; onPreview: (id: string) => void; preview: "idle" | "loading" | "playing" }) {
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-muted-foreground truncate w-[90px]">{label}</span>
       <select
         className="flex-1 min-w-0 rounded-md border border-border/60 bg-background/60 px-2 py-1 outline-none truncate"
         value={value}
@@ -597,14 +666,15 @@ function BrowserVoicePicker({ label, voices, value, onChange }: { label: string;
       >
         {voices.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
       </select>
-    </label>
+      <PreviewBtn state={preview} onClick={() => onPreview(value)} />
+    </div>
   );
 }
 
-function CatalogPicker({ label, options, value, onChange }: { label: string; options: ReadonlyArray<{ id: string; label: string }>; value: string; onChange: (v: string) => void }) {
+function CatalogPicker({ label, options, value, onChange, onPreview, preview }: { label: string; options: ReadonlyArray<{ id: string; label: string }>; value: string; onChange: (v: string) => void; onPreview: (id: string) => void; preview: "idle" | "loading" | "playing" }) {
   return (
-    <label className="flex items-center justify-between gap-2 text-xs">
-      <span className="text-muted-foreground truncate max-w-[110px]">{label}</span>
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-muted-foreground truncate w-[90px]">{label}</span>
       <select
         className="flex-1 min-w-0 rounded-md border border-border/60 bg-background/60 px-2 py-1 outline-none truncate"
         value={value}
@@ -612,6 +682,7 @@ function CatalogPicker({ label, options, value, onChange }: { label: string; opt
       >
         {options.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
       </select>
-    </label>
+      <PreviewBtn state={preview} onClick={() => onPreview(value)} />
+    </div>
   );
 }
