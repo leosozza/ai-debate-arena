@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { VOICE_CATALOG, PROVIDER_LABEL, type VoiceProvider } from "@/lib/voice-catalog";
 import { ttsSpeak } from "@/lib/debate.functions";
 import { minimaxTts } from "@/lib/tts.functions";
+import { replicateTts } from "@/lib/voice-replicate.functions";
 import { Play, Square, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,6 +28,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, sampleText }: 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const elTts = useServerFn(ttsSpeak);
   const mmTts = useServerFn(minimaxTts);
+  const rpTts = useServerFn(replicateTts);
 
   useEffect(() => {
     function load() {

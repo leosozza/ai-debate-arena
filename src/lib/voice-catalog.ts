@@ -1,22 +1,25 @@
 // Catálogo unificado de vozes (client-safe).
 import { ELEVEN_VOICES } from "./eleven-voices";
 import { MINIMAX_VOICES } from "./tts.functions";
+import { REPLICATE_VOICES } from "./replicate-voices";
 
-export type VoiceProvider = "browser" | "eleven" | "minimax";
+export type VoiceProvider = "browser" | "eleven" | "minimax" | "replicate";
 
 export const VOICE_CATALOG: Record<Exclude<VoiceProvider, "browser">, ReadonlyArray<{ id: string; label: string }>> = {
   eleven: ELEVEN_VOICES,
   minimax: MINIMAX_VOICES,
+  replicate: REPLICATE_VOICES,
 };
 
 export const PROVIDER_LABEL: Record<VoiceProvider, string> = {
   browser: "Navegador",
   eleven: "ElevenLabs",
   minimax: "MiniMax",
+  replicate: "Replicate",
 };
 
 export function isProvider(v: unknown): v is VoiceProvider {
-  return v === "browser" || v === "eleven" || v === "minimax";
+  return v === "browser" || v === "eleven" || v === "minimax" || v === "replicate";
 }
 
 export function voiceLabel(provider: VoiceProvider | null | undefined, id: string | null | undefined): string {
