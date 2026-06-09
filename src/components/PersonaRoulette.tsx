@@ -15,7 +15,9 @@ export type RoulettePersona = {
   name: string;
   description?: string | null;
   persona_prompt: string;
+  image_url?: string | null;
 };
+
 
 /**
  * Slot-machine that randomly draws two distinct saved personas to be the
