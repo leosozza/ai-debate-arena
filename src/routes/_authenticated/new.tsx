@@ -131,12 +131,13 @@ function NewDebate() {
   function applyRoulette(a: RoulettePersona, b: RoulettePersona, theme?: string) {
     setForm((f) => ({
       ...f,
-      debaterAName: a.name, debaterAPersona: a.persona_prompt,
-      debaterBName: b.name, debaterBPersona: b.persona_prompt,
+      debaterAName: a.name, debaterAPersona: a.persona_prompt, debaterAImageUrl: a.image_url ?? null,
+      debaterBName: b.name, debaterBPersona: b.persona_prompt, debaterBImageUrl: b.image_url ?? null,
       ...(theme ? { topic: theme } : {}),
     }));
     toast.success(theme ? `${a.name} × ${b.name} — tema: ${theme}` : `Sorteados: ${a.name} × ${b.name}`);
   }
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
