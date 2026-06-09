@@ -13,7 +13,7 @@ import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/compo
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2, Download } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2, Download, Film } from "lucide-react";
 
 
 export const Route = createFileRoute("/_authenticated/presentation/$id")({
@@ -255,6 +255,92 @@ function PresentMode() {
     toast.success(`Vozes pré-geradas (${done}/${todo.length}). Reprodução agora é instantânea.`);
   }
 
+  const [exportProgress, setExportProgress] = useState<{ label: string; pct: number } | null>(null);
+  async function exportVideo() {
+    if (!data) return;
+    const browserSlots = messages.filter((m) => {
+      const s = slotFor((m.role ?? "moderator") as Side);
+      return s.provider === "browser" || !s.voiceId;
+    });
+    if (browserSlots.length > 0) {
+      toast.error("Defina uma voz não-navegador para todos os participantes antes de exportar.");
+      return;
+    }
+    setExportProgress({ label: "Preparando vozes", pct: 0 });
+    try {
+      // 1) Gera todas as vozes (com progresso)
+      const todo = messages.map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }));
+      let voiceDone = 0;
+      const concurrency = 3;
+      let cursor = 0;
+      const audioByMsg = new Map<string, string>();
+      async function worker() {
+        while (cursor < todo.length) {
+          const i = cursor++;
+          const { m, slot } = todo[i];
+          try {
+            const url = await fetchAudioUrl(slot, m.id, m.content);
+            audioByMsg.set(m.id, url);
+          } catch {
+            // skip — vai falhar no export se faltar
+          }
+          voiceDone++;
+          setExportProgress({
+            label: `Gerando vozes ${voiceDone}/${todo.length}`,
+            pct: (voiceDone / todo.length) * 0.35,
+          });
+        }
+      }
+      await Promise.all(Array.from({ length: concurrency }, worker));
+
+      const missing = messages.filter((m) => !audioByMsg.get(m.id));
+      if (missing.length > 0) {
+        toast.error(`Falha ao gerar ${missing.length} áudio(s). Tente novamente.`);
+        setExportProgress(null);
+        return;
+      }
+
+      // 2) Importa o exporter (lazy) e gera o MP4
+      const { exportDebateMp4 } = await import("@/lib/video-export");
+      const blob = await exportDebateMp4({
+        topic: data.debate.topic,
+        aName: data.debate.debater_a_name,
+        bName: data.debate.debater_b_name,
+        aImageUrl:
+          data.debate.debater_a_image_url ??
+          personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_a_name ?? "").trim().toLowerCase())?.image_url ??
+          null,
+        bImageUrl:
+          data.debate.debater_b_image_url ??
+          personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_b_name ?? "").trim().toLowerCase())?.image_url ??
+          null,
+        messages: messages.map((m) => ({
+          id: m.id,
+          role: (m.role ?? "moderator") as Side,
+          phase: m.phase ?? "",
+          content: m.content,
+          audioUrl: audioByMsg.get(m.id)!,
+        })),
+        onProgress: (label, pct) =>
+          setExportProgress({ label, pct: 0.35 + pct * 0.65 }),
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `debate-${id.slice(0, 8)}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Vídeo MP4 exportado!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao exportar vídeo");
+    } finally {
+      setExportProgress(null);
+    }
+  }
+
 
   // Cartela do bloco só aparece DEPOIS que o usuário começa (não bloqueia o botão Tocar).
   const lastBlockShownRef = useRef<number>(-1);
@@ -435,6 +521,28 @@ function PresentMode() {
             </Button>
             <p className="text-[10px] text-muted-foreground leading-snug">
               Gera todos os áudios agora — sem pausas durante a transmissão ao vivo.
+            </p>
+
+            <Button
+              onClick={exportVideo}
+              disabled={exportProgress !== null || pregenProgress !== null}
+              className="w-full"
+              size="sm"
+            >
+              {exportProgress !== null ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> {exportProgress.label} ({Math.round(exportProgress.pct * 100)}%)</>
+              ) : (
+                <><Film className="h-3.5 w-3.5 mr-1.5" /> Exportar vídeo MP4 (720p)</>
+              )}
+            </Button>
+            {exportProgress !== null && (
+              <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+                <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(exportProgress.pct * 100)}%` }} />
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              Gera as vozes (se faltar) e monta um MP4 720p com avatares + legendas. Tudo no seu navegador — pode demorar alguns minutos.
+              Defina vozes não-navegador para todos os participantes antes de exportar.
             </p>
           </div>
 
