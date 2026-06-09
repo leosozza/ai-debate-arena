@@ -80,7 +80,11 @@ export function VoicePicker({ label, provider, voiceId, onChange, sampleText }: 
         return;
       }
 
-      const id = voiceId ?? VOICE_CATALOG[p][0].id;
+      const id = (voiceId && voiceId.length > 0 ? voiceId : VOICE_CATALOG[p]?.[0]?.id) ?? "";
+      if (!id) {
+        toast.error("Selecione uma voz primeiro.");
+        return;
+      }
       setLoading(true);
       const res =
         p === "eleven"
