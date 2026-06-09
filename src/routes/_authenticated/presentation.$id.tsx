@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { getDebate, ttsSpeak, type Verdict } from "@/lib/debate.functions";
+import { getDebate, ttsSpeak, updateDebate, type Verdict } from "@/lib/debate.functions";
 import { minimaxTts, MINIMAX_VOICES } from "@/lib/tts.functions";
 import { ELEVEN_VOICES, DEFAULT_ELEVEN } from "@/lib/eleven-voices";
 import { useEffect, useRef, useState } from "react";
