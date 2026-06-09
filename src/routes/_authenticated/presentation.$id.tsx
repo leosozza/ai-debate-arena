@@ -614,11 +614,7 @@ function PresentMode() {
               <StageDebaterPanel
                 side="a"
                 name={data.debate.debater_a_name}
-                imageUrl={
-                  data.debate.debater_a_image_url ??
-                  personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_a_name ?? "").trim().toLowerCase())?.image_url ??
-                  null
-                }
+                imageUrl={aImageResolved}
                 phase={current?.phase ?? ""}
                 content={role === "a" ? speakerContent : ""}
                 active={role === "a"}
