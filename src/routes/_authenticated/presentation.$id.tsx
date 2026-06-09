@@ -34,6 +34,8 @@ function PresentMode() {
   const rpTts = useServerFn(replicateTts);
   const updDebate = useServerFn(updateDebate);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
+  const lp = useServerFn(listPersonas);
+  const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
   const [savingVoices, setSavingVoices] = useState(false);
 
   const [index, setIndex] = useState(0);
