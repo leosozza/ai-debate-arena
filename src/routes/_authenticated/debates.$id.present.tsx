@@ -437,18 +437,28 @@ function PresentMode() {
           )}
         </div>
 
-        <div className="mx-auto flex max-w-3xl items-center justify-center gap-3 rounded-2xl border border-border/60 glass px-4 py-3">
-          <Button size="icon" variant="ghost" onClick={() => go(-1)} disabled={index === 0}>
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-2 rounded-2xl border border-border/60 glass px-3 py-3 md:gap-3 md:px-4">
+          {blocksTotal > 1 && (
+            <Button size="icon" variant="ghost" onClick={() => goToBlock(-1)} disabled={(current?.block_index ?? 0) === 0} title="Bloco anterior">
+              <ChevronsLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" onClick={() => go(-1)} disabled={index === 0} title="Fala anterior">
             <SkipBack className="h-5 w-5" />
           </Button>
-          <Button size="lg" className="gap-2 px-8 shadow-lg shadow-primary/20" onClick={() => setPlaying((p) => !p)}>
+          <Button size="lg" className="gap-2 px-6 shadow-lg shadow-primary/20 md:px-8" onClick={handlePlayToggle}>
             {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             {playing ? "Pausar" : "Tocar"}
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => go(1)} disabled={index >= slideCount - 1}>
+          <Button size="icon" variant="ghost" onClick={() => go(1)} disabled={index >= slideCount - 1} title="Próxima fala">
             <SkipForward className="h-5 w-5" />
           </Button>
-          <span className="ml-2 text-sm tabular-nums text-muted-foreground">{index + 1} / {slideCount}</span>
+          {blocksTotal > 1 && (
+            <Button size="icon" variant="ghost" onClick={() => goToBlock(1)} disabled={(current?.block_index ?? 0) >= blocksTotal - 1} title="Próximo bloco">
+              <ChevronsRight className="h-5 w-5" />
+            </Button>
+          )}
+          <span className="ml-1 text-xs tabular-nums text-muted-foreground md:ml-2 md:text-sm">{index + 1} / {slideCount}</span>
         </div>
       </div>
     </div>
