@@ -85,7 +85,9 @@ export function VoicePicker({ label, provider, voiceId, onChange, sampleText }: 
       const res =
         p === "eleven"
           ? await elTts({ data: { text, voiceId: id } })
-          : await mmTts({ data: { text, voiceId: id, model: "speech-02-hd", speed: 1 } });
+          : p === "minimax"
+          ? await mmTts({ data: { text, voiceId: id, model: "speech-02-hd", speed: 1 } })
+          : await rpTts({ data: { text, voiceId: id } });
       const base64 = "audio" in res ? res.audio : res.audioBase64;
       const mime = res.mime;
       const audio = new Audio(`data:${mime};base64,${base64}`);
@@ -120,7 +122,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, sampleText }: 
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {(["browser", "eleven", "minimax"] as const).map((k) => (
+              {(["browser", "eleven", "minimax", "replicate"] as const).map((k) => (
                 <SelectItem key={k} value={k}>{PROVIDER_LABEL[k]}</SelectItem>
               ))}
             </SelectContent>
