@@ -241,9 +241,64 @@ function PresentMode() {
 
   function switchProvider(p: Provider) {
     stopAll();
+    stopPreview();
     setPlaying(false);
     setProvider(p);
     try { localStorage.setItem("arena-tts-provider", p); } catch { /* ignore */ }
+  }
+
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  function stopPreview() {
+    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+    if (previewAudioRef.current) {
+      try { previewAudioRef.current.pause(); } catch { /* ignore */ }
+      previewAudioRef.current = null;
+    }
+    setPreviewing(null);
+    setPreviewLoading(null);
+  }
+
+  async function previewVoice(prov: Provider, voiceId: string, key: string) {
+    if (previewing === key || previewLoading === key) { stopPreview(); return; }
+    stopPreview();
+    setPlaying(false);
+    stopAll();
+    const sample = "Olá! Esta é uma amostra da minha voz para o debate.";
+    // Pre-create utterance now to preserve user gesture for speechSynthesis on iOS.
+    const utter = prov === "browser" ? new SpeechSynthesisUtterance(sample) : null;
+    if (utter) {
+      utter.lang = "pt-BR";
+      const v = voices.find((x) => x.name === voiceId);
+      if (v) { utter.voice = v; utter.lang = v.lang; }
+      utter.onend = () => setPreviewing((p) => (p === key ? null : p));
+      utter.onerror = () => setPreviewing((p) => (p === key ? null : p));
+    }
+    try {
+      if (prov === "browser" && utter) {
+        setPreviewing(key);
+        window.speechSynthesis.speak(utter);
+        return;
+      }
+      setPreviewLoading(key);
+      const res = prov === "eleven"
+        ? await elTts({ data: { text: sample, voiceId } })
+        : await mmTts({ data: { text: sample, voiceId, model: "speech-02-hd", speed: 1 } });
+      const url = `data:${res.mime};base64,${"audio" in res ? res.audio : res.audioBase64}`;
+      const audio = new Audio(url);
+      previewAudioRef.current = audio;
+      audio.onended = () => setPreviewing((p) => (p === key ? null : p));
+      audio.onerror = () => setPreviewing((p) => (p === key ? null : p));
+      setPreviewLoading(null);
+      setPreviewing(key);
+      await audio.play();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha na amostra");
+      setPreviewing(null);
+      setPreviewLoading(null);
+    }
   }
 
   if (!data) {
