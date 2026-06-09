@@ -29,6 +29,12 @@ function Dashboard() {
     }
   }
 
+  function openPresentation(id: string) {
+    router.navigate({ to: "/presentation/$id", params: { id } }).catch(() => {
+      window.location.href = `/presentation/${id}`;
+    });
+  }
+
   return (
     <main className="container mx-auto px-4 py-10">
       <Reveal className="flex items-center justify-between mb-8">
@@ -65,9 +71,9 @@ function Dashboard() {
                   : "Em rascunho"}
               </div>
             </button>
-            <Link to="/presentation/$id" params={{ id: d.id }}>
-              <Button size="sm" variant="outline"><Play className="h-4 w-4" /></Button>
-            </Link>
+            <Button size="sm" variant="outline" onClick={() => openPresentation(d.id)}>
+              <Play className="h-4 w-4" />
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => handleDelete(d.id)}>
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
