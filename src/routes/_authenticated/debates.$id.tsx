@@ -142,6 +142,12 @@ function DebateDetail() {
     URL.revokeObjectURL(url);
   }
 
+  function openPresentation() {
+    router.navigate({ to: "/presentation/$id", params: { id } }).catch(() => {
+      window.location.href = `/presentation/${id}`;
+    });
+  }
+
   if (!data) return <main className="container mx-auto px-4 py-10">Carregando…</main>;
 
   const blocksCount = data.debate.blocks_count ?? 4;
@@ -186,11 +192,9 @@ function DebateDetail() {
             <Square className="h-4 w-4 mr-1" /> Parar
           </Button>
         )}
-        <Link to="/presentation/$id" params={{ id }}>
-          <Button variant="secondary" size="sm" disabled={data.messages.length === 0}>
-            🎬 Modo apresentação
-          </Button>
-        </Link>
+        <Button onClick={openPresentation} variant="secondary" size="sm" disabled={data.messages.length === 0}>
+          🎬 Modo apresentação
+        </Button>
         <Link to="/debates/$id/edit" params={{ id }}>
           <Button variant="outline" size="sm">
             <Pencil className="h-4 w-4 mr-1" /> Editar
