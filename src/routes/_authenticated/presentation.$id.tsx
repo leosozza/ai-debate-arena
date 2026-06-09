@@ -382,24 +382,24 @@ function PresentMode() {
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vozes</p>
             {provider === "browser" && (
               <>
-                <BrowserVoicePicker label="Mediador" voices={voices} value={voiceMod} onChange={setVoiceMod} />
-                <BrowserVoicePicker label={data.debate.debater_a_name} voices={voices} value={voiceA} onChange={setVoiceA} />
-                <BrowserVoicePicker label={data.debate.debater_b_name} voices={voices} value={voiceB} onChange={setVoiceB} />
+                <BrowserVoicePicker label="Mediador" voices={voices} value={voiceMod} onChange={setVoiceMod} onPreview={(id) => previewVoice("browser", id, "br-mod")} preview={previewing === "br-mod" ? "playing" : previewLoading === "br-mod" ? "loading" : "idle"} />
+                <BrowserVoicePicker label={data.debate.debater_a_name} voices={voices} value={voiceA} onChange={setVoiceA} onPreview={(id) => previewVoice("browser", id, "br-a")} preview={previewing === "br-a" ? "playing" : previewLoading === "br-a" ? "loading" : "idle"} />
+                <BrowserVoicePicker label={data.debate.debater_b_name} voices={voices} value={voiceB} onChange={setVoiceB} onPreview={(id) => previewVoice("browser", id, "br-b")} preview={previewing === "br-b" ? "playing" : previewLoading === "br-b" ? "loading" : "idle"} />
               </>
             )}
             {provider === "eleven" && (
               <>
-                <CatalogPicker label="Mediador" options={ELEVEN_VOICES} value={elMod} onChange={setElMod} />
-                <CatalogPicker label={data.debate.debater_a_name} options={ELEVEN_VOICES} value={elA} onChange={setElA} />
-                <CatalogPicker label={data.debate.debater_b_name} options={ELEVEN_VOICES} value={elB} onChange={setElB} />
+                <CatalogPicker label="Mediador" options={ELEVEN_VOICES} value={elMod} onChange={setElMod} onPreview={(id) => previewVoice("eleven", id, "el-mod")} preview={previewing === "el-mod" ? "playing" : previewLoading === "el-mod" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_a_name} options={ELEVEN_VOICES} value={elA} onChange={setElA} onPreview={(id) => previewVoice("eleven", id, "el-a")} preview={previewing === "el-a" ? "playing" : previewLoading === "el-a" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_b_name} options={ELEVEN_VOICES} value={elB} onChange={setElB} onPreview={(id) => previewVoice("eleven", id, "el-b")} preview={previewing === "el-b" ? "playing" : previewLoading === "el-b" ? "loading" : "idle"} />
                 <p className="text-[10px] text-muted-foreground leading-snug">ElevenLabs sintetiza no servidor; cada fala consome créditos da sua chave.</p>
               </>
             )}
             {provider === "minimax" && (
               <>
-                <CatalogPicker label="Mediador" options={MINIMAX_VOICES} value={mmMod} onChange={setMmMod} />
-                <CatalogPicker label={data.debate.debater_a_name} options={MINIMAX_VOICES} value={mmA} onChange={setMmA} />
-                <CatalogPicker label={data.debate.debater_b_name} options={MINIMAX_VOICES} value={mmB} onChange={setMmB} />
+                <CatalogPicker label="Mediador" options={MINIMAX_VOICES} value={mmMod} onChange={setMmMod} onPreview={(id) => previewVoice("minimax", id, "mm-mod")} preview={previewing === "mm-mod" ? "playing" : previewLoading === "mm-mod" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_a_name} options={MINIMAX_VOICES} value={mmA} onChange={setMmA} onPreview={(id) => previewVoice("minimax", id, "mm-a")} preview={previewing === "mm-a" ? "playing" : previewLoading === "mm-a" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_b_name} options={MINIMAX_VOICES} value={mmB} onChange={setMmB} onPreview={(id) => previewVoice("minimax", id, "mm-b")} preview={previewing === "mm-b" ? "playing" : previewLoading === "mm-b" ? "loading" : "idle"} />
                 <p className="text-[10px] text-muted-foreground leading-snug">MiniMax sintetiza no servidor; cada fala consome créditos da sua chave.</p>
               </>
             )}
