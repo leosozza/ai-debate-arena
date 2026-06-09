@@ -24,7 +24,9 @@ function PresentMode() {
   const get = useServerFn(getDebate);
   const elTts = useServerFn(ttsSpeak);
   const mmTts = useServerFn(minimaxTts);
+  const updDebate = useServerFn(updateDebate);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
+  const [savingVoices, setSavingVoices] = useState(false);
 
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
