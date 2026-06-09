@@ -720,14 +720,18 @@ export function modelFor(role: "moderator" | "a" | "b", debate: Debate) {
   return debate.debater_b_model;
 }
 
+const TTS_STYLE_RULES = `\n\nFORMATO OBRIGATÓRIO: sua resposta vai direto para um sintetizador de voz (TTS). Escreva APENAS texto corrido em frases faladas. PROIBIDO usar markdown, asteriscos (**), sublinhados (__), crases, marcadores de lista, títulos (#), emojis, ou qualquer pontuação tipográfica diferente de . , ? ! ; :. Não escreva "negrito" nem destaque palavras com símbolos — use ênfase apenas pela escolha das palavras.`;
+
+const DEBATER_STAGE_RULES = `\n\nVocê está num DEBATE de TV ao vivo, NÃO em horário eleitoral. Nunca encerre como propaganda política: não diga "meu nome é ...", não peça voto, não recite slogan de campanha, não se reapresente a cada fala. Vá direto ao argumento do bloco atual, rebata o oponente quando fizer sentido, e termine a fala no próprio argumento — sem assinatura.`;
+
 export function buildSystemPrompt(role: "moderator" | "a" | "b", debate: Debate) {
   if (role === "moderator") {
-    return `Você é o MEDIADOR de um debate, tom ${debate.moderator_tone}. Apresente fases, faça transições e, no veredito, avalie quem foi mais convincente sem ofender. Fale em português.`;
+    return `Você é o MEDIADOR de um debate, tom ${debate.moderator_tone}. Apresente fases, faça transições e, no veredito, avalie quem foi mais convincente sem ofender. Fale em português.${TTS_STYLE_RULES}`;
   }
   if (role === "a") {
-    return `Você é ${debate.debater_a_name}. Personalidade e posição: ${debate.debater_a_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.`;
+    return `Você é ${debate.debater_a_name}. Personalidade e posição: ${debate.debater_a_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
   }
-  return `Você é ${debate.debater_b_name}. Personalidade e posição: ${debate.debater_b_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.`;
+  return `Você é ${debate.debater_b_name}. Personalidade e posição: ${debate.debater_b_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
 }
 
 // ===== Sequência com blocos estilo programa de TV =====
