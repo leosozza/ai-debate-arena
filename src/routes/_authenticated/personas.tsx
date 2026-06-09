@@ -253,14 +253,29 @@ function PersonasPage() {
             />
             <p className="text-xs text-muted-foreground">{form.persona_prompt.length}/12000 — quanto mais específico (bordões, posições, estilo), mais fiel a encarnação.</p>
           </div>
-          <div className="pt-2 border-t">
+          <div className="pt-2 border-t space-y-3">
             <VoicePicker
               label="Voz padrão da persona"
               provider={form.voice_provider}
               voiceId={form.voice_id}
               onChange={(p, v) => setForm({ ...form, voice_provider: p, voice_id: v })}
             />
-            <p className="text-[11px] text-muted-foreground mt-1">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
+            <p className="text-[11px] text-muted-foreground">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
+
+            <VoiceClonePanel
+              defaultName={form.name || undefined}
+              onCloned={async ({ provider, voiceId, source, cloneName }) => {
+                setForm((f) => ({ ...f, voice_provider: provider, voice_id: voiceId }));
+                if (editingId) {
+                  try {
+                    await attachVoice({ data: { personaId: editingId, provider, voiceId, source, cloneName } });
+                    qc.invalidateQueries({ queryKey: ["personas"] });
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Falha ao salvar voz na persona");
+                  }
+                }
+              }}
+            />
           </div>
           <div className="flex items-center gap-3 pt-2 border-t">
             <Switch
