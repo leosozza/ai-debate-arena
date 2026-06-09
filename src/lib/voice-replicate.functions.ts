@@ -28,10 +28,13 @@ export const replicateTts = createServerFn({ method: "POST" })
     const isCloned = /^https?:\/\//i.test(data.voiceId);
     const model = isCloned ? REPLICATE_CLONE_TTS_MODEL : REPLICATE_TTS_MODEL;
     const input: Record<string, unknown> = isCloned
-      ? { text: data.text, speaker: data.voiceId, language: "pt", cleanup_voice: true }
+      ? { text: data.text, speaker: data.voiceId, language: "pt" }
       : { text: data.text, voice_id: data.voiceId, speed: 1, language_boost: "Portuguese" };
 
-    const output = await runPrediction(model, input, { maxMs: 90_000 });
+    const output = await runPrediction(model, input, {
+      maxMs: 180_000,
+      useVersion: isCloned, // xtts-v2 é community → precisa de version hash
+    });
     const url = pickUrl(output);
     if (!url) throw new Error("Replicate TTS: resposta sem áudio.");
     const { base64, mime } = await fetchAsBase64(url);
