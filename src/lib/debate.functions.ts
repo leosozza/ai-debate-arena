@@ -11,9 +11,11 @@ const NewDebateSchema = z.object({
   debaterAName: z.string().trim().min(1).max(60),
   debaterAPersona: z.string().trim().min(1).max(20000),
   debaterAModel: ModelSchema.default("google/gemini-3-flash-preview"),
+  debaterAImageUrl: z.string().trim().max(2048).nullable().optional(),
   debaterBName: z.string().trim().min(1).max(60),
   debaterBPersona: z.string().trim().min(1).max(20000),
   debaterBModel: ModelSchema.default("google/gemini-3-flash-preview"),
+  debaterBImageUrl: z.string().trim().max(2048).nullable().optional(),
   moderatorModel: ModelSchema.default("google/gemini-3-flash-preview"),
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]),
   rounds: z.number().int().min(2).max(6),
@@ -26,6 +28,7 @@ const NewDebateSchema = z.object({
   voiceProviderB: VoiceProviderSchema,
   voiceIdB: VoiceIdSchema,
 });
+
 
 export const createDebate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
