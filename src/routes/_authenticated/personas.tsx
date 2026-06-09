@@ -310,10 +310,18 @@ function PersonasPage() {
                     <p className="text-sm text-muted-foreground line-clamp-2">{p.description}</p>
                   )}
                 </div>
-                <Badge variant={p.is_public ? "default" : "secondary"} className="shrink-0">
-                  {p.is_public ? <Globe className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
-                  {p.is_public ? "Pública" : "Privada"}
-                </Badge>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <Badge variant={p.is_public ? "default" : "secondary"}>
+                    {p.is_public ? <Globe className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
+                    {p.is_public ? "Pública" : "Privada"}
+                  </Badge>
+                  {p.voice_clone_source && (
+                    <Badge variant="outline" className="text-[10px]" title={p.voice_clone_name ?? ""}>
+                      <Mic className="h-3 w-3 mr-1" />
+                      {p.voice_clone_source === "manual" ? "Voz manual" : p.voice_clone_source === "upload-eleven" ? "Voz ElevenLabs" : "Voz MiniMax"}
+                    </Badge>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <Button size="sm" variant="outline" onClick={() => loadIntoForm(p)}>
