@@ -9,7 +9,7 @@ import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil } fro
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/debates/$id/")({
+export const Route = createFileRoute("/_authenticated/debates/$id")({
   component: DebateDetail,
 });
 
