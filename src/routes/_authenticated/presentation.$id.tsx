@@ -463,6 +463,7 @@ function PresentMode() {
                 <CatalogPicker label={data.debate.debater_b_name} options={MINIMAX_VOICES} value={mmB} onChange={setMmB} onPreview={(id) => previewVoice("minimax", id, "mm-b")} preview={previewing === "mm-b" ? "playing" : previewLoading === "mm-b" ? "loading" : "idle"} />
                 <p className="text-[10px] text-muted-foreground leading-snug">MiniMax sintetiza no servidor; cada fala consome créditos da sua chave.</p>
               </>
+            )}
             {provider === "replicate" && (
               <>
                 <CatalogPicker label="Mediador" options={REPLICATE_VOICES} value={rpMod} onChange={setRpMod} onPreview={(id) => previewVoice("replicate", id, "rp-mod")} preview={previewing === "rp-mod" ? "playing" : previewLoading === "rp-mod" ? "loading" : "idle"} />
@@ -470,7 +471,6 @@ function PresentMode() {
                 <CatalogPicker label={data.debate.debater_b_name} options={REPLICATE_VOICES} value={rpB} onChange={setRpB} onPreview={(id) => previewVoice("replicate", id, "rp-b")} preview={previewing === "rp-b" ? "playing" : previewLoading === "rp-b" ? "loading" : "idle"} />
                 <p className="text-[10px] text-muted-foreground leading-snug">Replicate: vozes do minimax/speech-02-hd ou voz clonada (XTTS-v2).</p>
               </>
-            )}
             )}
           </div>
 
