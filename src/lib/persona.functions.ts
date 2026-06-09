@@ -2,6 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+const VoiceSettingsSchema = z
+  .object({
+    speed: z.number().min(0.5).max(2),
+    pitch: z.number().min(-12).max(12),
+    volume: z.number().min(0).max(2),
+  })
+  .nullable()
+  .optional();
+
 const PersonaInput = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(400).default(""),
@@ -10,6 +19,7 @@ const PersonaInput = z.object({
   voice_provider: z.enum(["browser", "eleven", "minimax", "replicate"]).nullable().optional(),
   voice_id: z.string().trim().max(120).nullable().optional(),
   image_url: z.string().trim().max(2048).nullable().optional(),
+  voice_settings: VoiceSettingsSchema,
 });
 
 export const listPersonas = createServerFn({ method: "GET" })
@@ -17,7 +27,7 @@ export const listPersonas = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("personas")
-      .select("id, name, description, persona_prompt, is_public, voice_provider, voice_id, voice_clone_source, voice_clone_name, image_url, user_id, created_at")
+      .select("id, name, description, persona_prompt, is_public, voice_provider, voice_id, voice_clone_source, voice_clone_name, image_url, voice_settings, user_id, created_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
