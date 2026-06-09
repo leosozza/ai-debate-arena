@@ -113,11 +113,21 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
         <Button
           type="button"
           size="sm"
+          onClick={() => run("replicate")}
+          disabled={busy !== null || files.length === 0}
+        >
+          {busy === "replicate" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+          Clonar com Replicate (XTTS-v2)
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
           onClick={() => run("eleven")}
           disabled={busy !== null || files.length === 0}
         >
           {busy === "eleven" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-          Clonar com ElevenLabs
+          ElevenLabs
         </Button>
         <Button
           type="button"
@@ -127,9 +137,12 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
           disabled={busy !== null || files.length === 0}
         >
           {busy === "minimax" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-          Tentar MiniMax
+          MiniMax
         </Button>
       </div>
+      <p className="text-[11px] text-muted-foreground">
+        Replicate é zero-shot e funciona com 10–60s de áudio limpo — recomendado quando você não tem plano pago dos outros.
+      </p>
 
       {lastError && (
         <div className="flex items-start gap-2 rounded border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
@@ -141,9 +154,10 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
       <div className="border-t border-border/60 pt-3 space-y-2">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">Ou cole um Voice ID existente</Label>
         <div className="flex gap-2">
-          <Select value={manualProvider} onValueChange={(v) => setManualProvider(v as "eleven" | "minimax")}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+          <Select value={manualProvider} onValueChange={(v) => setManualProvider(v as "eleven" | "minimax" | "replicate")}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="replicate">Replicate</SelectItem>
               <SelectItem value="eleven">ElevenLabs</SelectItem>
               <SelectItem value="minimax">MiniMax</SelectItem>
             </SelectContent>
