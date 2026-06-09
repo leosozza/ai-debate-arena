@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Sparkles, Trash2, Plus, Globe, Lock, Mic, User } from "lucide-react";
-import { VoicePicker } from "@/components/VoicePicker";
+import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { VoiceClonePanel } from "@/components/VoiceClonePanel";
 import { PersonaImagePanel } from "@/components/PersonaImagePanel";
 import { attachVoiceToPersona } from "@/lib/voice-clone.functions";
@@ -36,6 +36,7 @@ type FormState = {
   voice_provider: VoiceProvider | null;
   voice_id: string | null;
   image_url: string | null;
+  voice_settings: VoiceSettings;
 };
 
 const EMPTY_FORM: FormState = {
@@ -46,6 +47,7 @@ const EMPTY_FORM: FormState = {
   voice_provider: null,
   voice_id: null,
   image_url: null,
+  voice_settings: DEFAULT_VOICE_SETTINGS,
 };
 
 function PersonasPage() {
