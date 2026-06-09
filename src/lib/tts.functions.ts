@@ -41,8 +41,8 @@ export const minimaxTts = createServerFn({ method: "POST" })
           voice_setting: {
             voice_id: data.voiceId,
             speed: data.speed,
-            vol: 1,
-            pitch: 0,
+            vol: data.vol,
+            pitch: data.pitch,
           },
           audio_setting: {
             sample_rate: 32000,
