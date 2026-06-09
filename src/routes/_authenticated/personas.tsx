@@ -169,6 +169,7 @@ function PersonasPage() {
       voice_provider: (p.voice_provider as VoiceProvider | null) ?? null,
       voice_id: p.voice_id ?? null,
       image_url: p.image_url ?? null,
+      voice_settings: (p.voice_settings as VoiceSettings | null) ?? DEFAULT_VOICE_SETTINGS,
     });
     setSources([]);
     setShowForm(true);
