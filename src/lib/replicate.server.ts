@@ -35,6 +35,40 @@ export async function createPrediction(
   return (await res.json()) as ReplicatePrediction;
 }
 
+/** Community models need an explicit version hash via /v1/predictions. */
+export async function createPredictionByVersion(
+  version: string,
+  input: Record<string, unknown>,
+): Promise<ReplicatePrediction> {
+  const res = await fetch(`${GATEWAY}/predictions`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ version, input }),
+  });
+  if (!res.ok) {
+    const b = await res.text();
+    throw new Error(`Replicate create falhou (${res.status}): ${b.slice(0, 200)}`);
+  }
+  return (await res.json()) as ReplicatePrediction;
+}
+
+/** Resolve the latest version hash of a community model (cached in-process). */
+const versionCache = new Map<string, { v: string; at: number }>();
+export async function getLatestVersion(model: string): Promise<string> {
+  const cached = versionCache.get(model);
+  if (cached && Date.now() - cached.at < 60 * 60 * 1000) return cached.v;
+  const res = await fetch(`${GATEWAY}/models/${model}`, { headers: authHeaders() });
+  if (!res.ok) {
+    const b = await res.text();
+    throw new Error(`Replicate get model falhou (${res.status}): ${b.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { latest_version?: { id?: string } };
+  const v = json.latest_version?.id;
+  if (!v) throw new Error(`Modelo ${model} sem versão publicada.`);
+  versionCache.set(model, { v, at: Date.now() });
+  return v;
+}
+
 export async function pollPrediction(
   id: string,
   opts: { maxMs?: number } = {},
@@ -62,9 +96,11 @@ export async function pollPrediction(
 export async function runPrediction(
   model: string,
   input: Record<string, unknown>,
-  opts?: { maxMs?: number },
+  opts?: { maxMs?: number; useVersion?: boolean },
 ): Promise<unknown> {
-  const created = await createPrediction(model, input);
+  const created = opts?.useVersion
+    ? await createPredictionByVersion(await getLatestVersion(model), input)
+    : await createPrediction(model, input);
   if (created.status === "succeeded") return created.output;
   const done = await pollPrediction(created.id, opts);
   return done.output;
