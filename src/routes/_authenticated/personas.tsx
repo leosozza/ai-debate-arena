@@ -17,8 +17,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Sparkles, Trash2, Plus, Globe, Lock } from "lucide-react";
+import { Sparkles, Trash2, Plus, Globe, Lock, Mic } from "lucide-react";
 import { VoicePicker } from "@/components/VoicePicker";
+import { VoiceClonePanel } from "@/components/VoiceClonePanel";
+import { attachVoiceToPersona } from "@/lib/voice-clone.functions";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 
 export const Route = createFileRoute("/_authenticated/personas")({
