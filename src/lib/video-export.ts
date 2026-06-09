@@ -20,6 +20,8 @@ export interface ExportInput {
   bName: string;
   aImageUrl?: string | null;
   bImageUrl?: string | null;
+  aDescription?: string | null;
+  bDescription?: string | null;
   messages: ExportMessage[];
   onProgress?: (stage: string, pct: number) => void;
 }
