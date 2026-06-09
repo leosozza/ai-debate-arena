@@ -105,7 +105,17 @@ export function VoicePicker({ label, provider, voiceId, onChange, sampleText }: 
       {label && <Label className="text-xs uppercase tracking-wide text-muted-foreground">{label}</Label>}
       <div className="flex gap-2">
         <div className="grid grid-cols-2 gap-2 flex-1">
-          <Select value={p} onValueChange={(v) => { stop(); onChange(v as VoiceProvider, null); }}>
+          <Select
+            value={p}
+            onValueChange={(v) => {
+              stop();
+              const np = v as VoiceProvider;
+              // Ao escolher ElevenLabs/MiniMax já aplica a 1ª voz do catálogo,
+              // pra não salvar provider sem voiceId (que ignorava a escolha).
+              if (np === "browser") onChange(np, null);
+              else onChange(np, VOICE_CATALOG[np][0].id);
+            }}
+          >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {(["browser", "eleven", "minimax"] as const).map((k) => (
