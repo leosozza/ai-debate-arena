@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2 } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/debates/$id/present")({
   component: PresentMode,
@@ -54,8 +54,9 @@ function PresentMode() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
-  const cancelledRef = useRef(false);
+  const playTokenRef = useRef(0);
   const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasStartedRef = useRef(false);
 
   useEffect(() => {
     function load() {
@@ -114,33 +115,36 @@ function PresentMode() {
   }
 
   function stopAll() {
-    cancelledRef.current = true;
+    // Invalida qualquer reprodução em curso — eventos atrasados não vão mais avançar.
+    playTokenRef.current += 1;
     clearKeepAlive();
-    window.speechSynthesis.cancel();
+    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
     if (audioRef.current) {
-      audioRef.current.pause();
+      try { audioRef.current.pause(); } catch { /* ignore */ }
       audioRef.current.src = "";
       audioRef.current = null;
     }
   }
 
-  function browserSpeak(text: string, role: Side, onEnd: () => void) {
+  function browserSpeak(text: string, role: Side, token: number, onEnd: () => void) {
     const voiceName = role === "moderator" ? voiceMod : role === "a" ? voiceA : voiceB;
-    window.speechSynthesis.cancel();
+    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
     const u = new SpeechSynthesisUtterance(text);
     const v = voices.find((x) => x.name === voiceName);
     if (v) u.voice = v;
     u.lang = v?.lang ?? "pt-BR";
     u.rate = 1.0;
-    // Chrome corta falas longas (~15s); resume periódico mantém viva.
+    u.onend = () => {
+      clearKeepAlive();
+      if (token === playTokenRef.current) setTimeout(onEnd, 0);
+    };
+    u.onerror = () => { clearKeepAlive(); };
     clearKeepAlive();
     keepAliveRef.current = setInterval(() => {
       if (!window.speechSynthesis.speaking) { clearKeepAlive(); return; }
       window.speechSynthesis.pause();
       window.speechSynthesis.resume();
     }, 10000);
-    u.onend = () => { clearKeepAlive(); if (!cancelledRef.current) onEnd(); };
-    u.onerror = () => { clearKeepAlive(); };
     window.speechSynthesis.speak(u);
   }
 
@@ -165,57 +169,72 @@ function PresentMode() {
   }
 
   async function speak(msgId: string, text: string, role: Side, onEnd: () => void) {
-    cancelledRef.current = false;
+    playTokenRef.current += 1;
+    const token = playTokenRef.current;
     if (provider === "browser") {
-      browserSpeak(text, role, onEnd);
+      browserSpeak(text, role, token, onEnd);
       return;
     }
     try {
       setLoading(true);
       const url = await fetchAudioUrl(provider, msgId, text, role);
-      if (cancelledRef.current) return;
+      if (token !== playTokenRef.current) return;
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => { if (!cancelledRef.current) onEnd(); };
+      audio.onended = () => { if (token === playTokenRef.current) onEnd(); };
       await audio.play();
     } catch {
-      if (cancelledRef.current) return;
+      if (token !== playTokenRef.current) return;
       toast.error(`${provider === "eleven" ? "ElevenLabs" : "MiniMax"} indisponível — usando voz do navegador.`);
-      browserSpeak(text, role, onEnd);
+      browserSpeak(text, role, token, onEnd);
     } finally {
       setLoading(false);
     }
   }
 
-  // Detecta entrada num novo bloco e dispara a vinheta antes de tocar a fala.
+  // Cartela do bloco só aparece DEPOIS que o usuário começa (não bloqueia o botão Tocar).
   const lastBlockShownRef = useRef<number>(-1);
   const subtopicsList = (data?.debate?.block_subtopics as Array<{ title: string; focus: string }> | null) ?? [];
   const blocksTotal = data?.debate?.blocks_count ?? subtopicsList.length ?? 1;
   useEffect(() => {
-    if (!current) return;
+    if (!playing || !current) return;
     const b = current.block_index ?? 0;
-    // Só mostra vinheta se houver mais de 1 bloco e ainda não mostramos para este bloco nesta sessão.
     if (blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
       lastBlockShownRef.current = b;
-      setIntroBlock(b);
       stopAll();
+      setIntroBlock(b);
     }
-  }, [current?.id, blocksTotal]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playing, current?.id, blocksTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!playing || !current || introBlock !== null) return;
     const advance = () => {
-      if (cancelledRef.current) return;
       if (index + 1 < slideCount) setIndex((i) => i + 1);
       else setPlaying(false);
     };
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, provider, introBlock]);
+  }, [playing, index, current?.id, introBlock, provider]);
+
+  function handlePlayToggle() {
+    if (!playing) hasStartedRef.current = true;
+    setPlaying((p) => !p);
+  }
+
+  function goToBlock(delta: -1 | 1) {
+    if (!messages.length) return;
+    const currentBlock = current?.block_index ?? 0;
+    const target = Math.max(0, Math.min(blocksTotal - 1, currentBlock + delta));
+    if (target === currentBlock) return;
+    const firstIdx = messages.findIndex((m) => (m.block_index ?? 0) === target);
+    if (firstIdx === -1) return;
+    stopAll();
+    lastBlockShownRef.current = -1; // permite a cartela aparecer de novo
+    setIndex(firstIdx);
+  }
 
   function go(delta: number) {
-    setPlaying(false);
     stopAll();
     setIndex((i) => Math.min(slideCount - 1, Math.max(0, i + delta)));
   }
@@ -418,18 +437,28 @@ function PresentMode() {
           )}
         </div>
 
-        <div className="mx-auto flex max-w-3xl items-center justify-center gap-3 rounded-2xl border border-border/60 glass px-4 py-3">
-          <Button size="icon" variant="ghost" onClick={() => go(-1)} disabled={index === 0}>
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-2 rounded-2xl border border-border/60 glass px-3 py-3 md:gap-3 md:px-4">
+          {blocksTotal > 1 && (
+            <Button size="icon" variant="ghost" onClick={() => goToBlock(-1)} disabled={(current?.block_index ?? 0) === 0} title="Bloco anterior">
+              <ChevronsLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" onClick={() => go(-1)} disabled={index === 0} title="Fala anterior">
             <SkipBack className="h-5 w-5" />
           </Button>
-          <Button size="lg" className="gap-2 px-8 shadow-lg shadow-primary/20" onClick={() => setPlaying((p) => !p)}>
+          <Button size="lg" className="gap-2 px-6 shadow-lg shadow-primary/20 md:px-8" onClick={handlePlayToggle}>
             {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             {playing ? "Pausar" : "Tocar"}
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => go(1)} disabled={index >= slideCount - 1}>
+          <Button size="icon" variant="ghost" onClick={() => go(1)} disabled={index >= slideCount - 1} title="Próxima fala">
             <SkipForward className="h-5 w-5" />
           </Button>
-          <span className="ml-2 text-sm tabular-nums text-muted-foreground">{index + 1} / {slideCount}</span>
+          {blocksTotal > 1 && (
+            <Button size="icon" variant="ghost" onClick={() => goToBlock(1)} disabled={(current?.block_index ?? 0) >= blocksTotal - 1} title="Próximo bloco">
+              <ChevronsRight className="h-5 w-5" />
+            </Button>
+          )}
+          <span className="ml-1 text-xs tabular-nums text-muted-foreground md:ml-2 md:text-sm">{index + 1} / {slideCount}</span>
         </div>
       </div>
     </div>
