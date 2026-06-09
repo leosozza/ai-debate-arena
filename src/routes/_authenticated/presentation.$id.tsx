@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getDebate, ttsSpeak, updateDebate, type Verdict } from "@/lib/debate.functions";
+import { listPersonas } from "@/lib/persona.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
 import { useEffect, useRef, useState } from "react";
@@ -33,6 +34,8 @@ function PresentMode() {
   const rpTts = useServerFn(replicateTts);
   const updDebate = useServerFn(updateDebate);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
+  const lp = useServerFn(listPersonas);
+  const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
   const [savingVoices, setSavingVoices] = useState(false);
 
   const [index, setIndex] = useState(0);
@@ -71,17 +74,34 @@ function PresentMode() {
   useEffect(() => {
     if (hydratedRef.current || !data?.debate) return;
     const d = data.debate;
-    const apply = (provider: string | null | undefined, voiceId: string | null | undefined): VoiceSlot | null => {
+    const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+    const findPersona = (name: string | null | undefined) => {
+      const n = norm(name);
+      if (!n || !personas) return null;
+      return personas.find((p) => norm(p.name) === n) ?? null;
+    };
+    const apply = (
+      provider: string | null | undefined,
+      voiceId: string | null | undefined,
+      personaName?: string | null,
+    ): VoiceSlot | null => {
+      // Persona é a fonte de verdade quando tem voz definida (especialmente clonada).
+      const persona = findPersona(personaName);
+      const pp = persona?.voice_provider as VoiceProvider | null | undefined;
+      const pid = persona?.voice_id ?? null;
+      if (pp && (pp === "browser" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
+        return { provider: pp, voiceId: pid, settings: DEFAULT_VOICE_SETTINGS };
+      }
       if (!provider) return null;
       const p = provider as VoiceProvider;
       if (p !== "browser" && p !== "eleven" && p !== "minimax" && p !== "replicate") return null;
       return { provider: p, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
     };
     const m = apply(d.voice_provider_mod, d.voice_id_mod); if (m) setSlotMod(m);
-    const a = apply(d.voice_provider_a, d.voice_id_a); if (a) setSlotA(a);
-    const b = apply(d.voice_provider_b, d.voice_id_b); if (b) setSlotB(b);
-    hydratedRef.current = true;
-  }, [data]);
+    const a = apply(d.voice_provider_a, d.voice_id_a, d.debater_a_name); if (a) setSlotA(a);
+    const b = apply(d.voice_provider_b, d.voice_id_b, d.debater_b_name); if (b) setSlotB(b);
+    if (personas) hydratedRef.current = true;
+  }, [data, personas]);
 
 
   const messages = data?.messages ?? [];
