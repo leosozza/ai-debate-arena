@@ -160,23 +160,24 @@ function PresentMode() {
   async function fetchAudioUrl(slot: VoiceSlot, msgId: string, text: string): Promise<string> {
     const voiceId = slot.voiceId ?? "";
     if (!voiceId) throw new Error("Voz não selecionada.");
+    const clean = stripMarkdownForTts(text).slice(0, 5000);
     const cacheKey = `${slot.provider}:${msgId}:${voiceId}:${slot.settings.speed}:${slot.settings.pitch}:${slot.settings.volume}`;
     const cached = audioCache.current.get(cacheKey);
     if (cached) return cached;
     let url: string;
     if (slot.provider === "eleven") {
-      const res = await elTts({ data: { text: text.slice(0, 5000), voiceId } });
+      const res = await elTts({ data: { text: clean, voiceId } });
       url = `data:${res.mime};base64,${res.audio}`;
     } else if (slot.provider === "minimax") {
       const res = await mmTts({ data: {
-        text: text.slice(0, 5000), voiceId, model: "speech-02-hd",
+        text: clean, voiceId, model: "speech-02-hd",
         speed: slot.settings.speed,
         pitch: Math.round(slot.settings.pitch),
         vol: Math.max(0.1, Math.min(10, slot.settings.volume)),
       } });
       url = `data:${res.mime};base64,${res.audioBase64}`;
     } else {
-      const res = await rpTts({ data: { text: text.slice(0, 5000), voiceId } });
+      const res = await rpTts({ data: { text: clean, voiceId } });
       url = `data:${res.mime};base64,${res.audioBase64}`;
     }
     audioCache.current.set(cacheKey, url);
@@ -187,13 +188,14 @@ function PresentMode() {
     playTokenRef.current += 1;
     const token = playTokenRef.current;
     const slot = slotFor(role);
+    const clean = stripMarkdownForTts(text);
     if (slot.provider === "browser") {
-      browserSpeak(text, role, token, onEnd);
+      browserSpeak(clean, role, token, onEnd);
       return;
     }
     try {
       setLoading(true);
-      const url = await fetchAudioUrl(slot, msgId, text);
+      const url = await fetchAudioUrl(slot, msgId, clean);
       if (token !== playTokenRef.current) return;
       const audio = new Audio(url);
       audioRef.current = audio;
@@ -204,15 +206,55 @@ function PresentMode() {
       }
       audio.onended = () => { if (token === playTokenRef.current) onEnd(); };
       await audio.play();
+      // Prefetch das próximas 2 falas em background (não bloqueia).
+      void prefetchUpcoming(2);
     } catch {
       if (token !== playTokenRef.current) return;
       const label = slot.provider === "eleven" ? "ElevenLabs" : slot.provider === "minimax" ? "MiniMax" : "Replicate";
       toast.error(`${label} indisponível — usando voz do navegador.`);
-      browserSpeak(text, role, token, onEnd);
+      browserSpeak(clean, role, token, onEnd);
     } finally {
       setLoading(false);
     }
   }
+
+  async function prefetchUpcoming(count: number) {
+    for (let k = 1; k <= count; k++) {
+      const m = messages[index + k];
+      if (!m) return;
+      const slot = slotFor((m.role ?? "moderator") as Side);
+      if (slot.provider === "browser" || !slot.voiceId) continue;
+      try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* silencioso */ }
+    }
+  }
+
+  const [pregenProgress, setPregenProgress] = useState<{ done: number; total: number } | null>(null);
+  async function pregenerateAll() {
+    const todo = messages
+      .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
+      .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId);
+    if (todo.length === 0) {
+      toast.info("Nada para pré-gerar (todas as vozes são do navegador).");
+      return;
+    }
+    setPregenProgress({ done: 0, total: todo.length });
+    let done = 0;
+    const concurrency = 3;
+    let cursor = 0;
+    async function worker() {
+      while (cursor < todo.length) {
+        const i = cursor++;
+        const { m, slot } = todo[i];
+        try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* ignora falha individual */ }
+        done++;
+        setPregenProgress({ done, total: todo.length });
+      }
+    }
+    await Promise.all(Array.from({ length: concurrency }, worker));
+    setPregenProgress(null);
+    toast.success(`Vozes pré-geradas (${done}/${todo.length}). Reprodução agora é instantânea.`);
+  }
+
 
   // Cartela do bloco só aparece DEPOIS que o usuário começa (não bloqueia o botão Tocar).
   const lastBlockShownRef = useRef<number>(-1);
