@@ -12,6 +12,7 @@ import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/compo
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { toast } from "sonner";
 import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2 } from "lucide-react";
+import { VOICE_CATALOG } from "@/lib/voice-catalog";
 
 
 export const Route = createFileRoute("/_authenticated/presentation/$id")({
