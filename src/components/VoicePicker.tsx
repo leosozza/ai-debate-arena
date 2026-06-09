@@ -140,9 +140,20 @@ export function VoicePicker({ label, provider, voiceId, onChange, sampleText }: 
             </Select>
           ) : (
             (() => {
-              const catalog = VOICE_CATALOG[p];
-              const currentId = voiceId ?? catalog[0].id;
-              const isCustom = !catalog.some((v) => v.id === currentId);
+              const catalog = VOICE_CATALOG[p] ?? [];
+              const fallback = catalog[0]?.id ?? "";
+              const currentId = voiceId && voiceId.length > 0 ? voiceId : fallback;
+              const isCustom = currentId.length > 0 && !catalog.some((v) => v.id === currentId);
+              if (!currentId) {
+                return (
+                  <Select disabled value="__none">
+                    <SelectTrigger><SelectValue placeholder="Sem vozes" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">Sem vozes disponíveis</SelectItem>
+                    </SelectContent>
+                  </Select>
+                );
+              }
               return (
                 <Select value={currentId} onValueChange={(v) => { stop(); onChange(p, v); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
