@@ -420,10 +420,24 @@ function PresentMode() {
               {savingVoices ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
               💾 Salvar essas vozes no debate
             </Button>
+            <Button
+              onClick={pregenerateAll}
+              disabled={pregenProgress !== null}
+              variant="secondary"
+              className="w-full"
+              size="sm"
+            >
+              {pregenProgress !== null ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Gerando {pregenProgress.done}/{pregenProgress.total}…</>
+              ) : (
+                <><Download className="h-3.5 w-3.5 mr-1.5" /> Pré-gerar todas as vozes</>
+              )}
+            </Button>
             <p className="text-[10px] text-muted-foreground leading-snug">
-              Persiste a escolha — aplicada nas próximas reproduções e gravada para todos.
+              Gera todos os áudios agora — sem pausas durante a transmissão ao vivo.
             </p>
           </div>
+
         </div>
       )}
 
