@@ -35,7 +35,11 @@ export function PersonaImagePanel({ name, description, value, onChange }: Props)
     try {
       const out = await gen({ data: { name: name.trim(), description } });
       onChange(out.imageUrl);
-      toast.success("Imagem gerada");
+      toast.success(
+        out.referencesUsed > 0
+          ? `Imagem gerada com ${out.referencesUsed} referência(s) reais da web`
+          : "Imagem gerada (sem referências reais encontradas — avatar fictício)",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha");
     } finally {
