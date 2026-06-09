@@ -11,7 +11,7 @@ import { BlockIntroCard } from "@/components/BlockIntroCard";
 import { toast } from "sonner";
 import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2 } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/debates/$id/present")({
+export const Route = createFileRoute("/_authenticated/presentation/$id")({
   component: PresentMode,
 });
 
