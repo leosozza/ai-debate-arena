@@ -234,7 +234,7 @@ function PresentMode() {
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, introBlock, provider, voiceMod, voiceA, voiceB, elMod, elA, elB, mmMod, mmA, mmB]);
+  }, [playing, index, current?.id, introBlock, provider, voiceMod, voiceA, voiceB, elMod, elA, elB, mmMod, mmA, mmB, rpMod, rpA, rpB]);
 
   function handlePlayToggle() {
     if (!playing) hasStartedRef.current = true;
@@ -284,11 +284,18 @@ function PresentMode() {
               voiceProviderA: "eleven" as const, voiceIdA: elA,
               voiceProviderB: "eleven" as const, voiceIdB: elB,
             }
-          : {
+          : provider === "minimax"
+          ? {
               id,
               voiceProviderMod: "minimax" as const, voiceIdMod: mmMod,
               voiceProviderA: "minimax" as const, voiceIdA: mmA,
               voiceProviderB: "minimax" as const, voiceIdB: mmB,
+            }
+          : {
+              id,
+              voiceProviderMod: "replicate" as const, voiceIdMod: rpMod,
+              voiceProviderA: "replicate" as const, voiceIdA: rpA,
+              voiceProviderB: "replicate" as const, voiceIdB: rpB,
             };
       await updDebate({ data: payload });
       toast.success("Vozes salvas neste debate");
@@ -337,7 +344,9 @@ function PresentMode() {
       setPreviewLoading(key);
       const res = prov === "eleven"
         ? await elTts({ data: { text: sample, voiceId } })
-        : await mmTts({ data: { text: sample, voiceId, model: "speech-02-hd", speed: 1 } });
+        : prov === "minimax"
+        ? await mmTts({ data: { text: sample, voiceId, model: "speech-02-hd", speed: 1 } })
+        : await rpTts({ data: { text: sample, voiceId } });
       const url = `data:${res.mime};base64,${"audio" in res ? res.audio : res.audioBase64}`;
       const audio = new Audio(url);
       previewAudioRef.current = audio;
