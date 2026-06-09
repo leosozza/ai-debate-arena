@@ -20,6 +20,8 @@ export interface ExportInput {
   bName: string;
   aImageUrl?: string | null;
   bImageUrl?: string | null;
+  aDescription?: string | null;
+  bDescription?: string | null;
   messages: ExportMessage[];
   onProgress?: (stage: string, pct: number) => void;
 }
@@ -188,6 +190,148 @@ function drawStageFrame(
   }
 }
 
+/** Opening frame: two guests side-by-side with bios, Roda Viva style. */
+function drawIntroFrame(
+  ctx: CanvasRenderingContext2D,
+  opts: {
+    topic: string;
+    aName: string;
+    bName: string;
+    aImg: HTMLImageElement | null;
+    bImg: HTMLImageElement | null;
+    aDescription?: string | null;
+    bDescription?: string | null;
+  },
+) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#0b1020");
+  bg.addColorStop(1, "#05060d");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // diagonal accent stripe
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(-0.1);
+  const grad = ctx.createLinearGradient(-W, 0, W, 0);
+  grad.addColorStop(0, "rgba(124,58,237,0.0)");
+  grad.addColorStop(0.5, "rgba(124,58,237,0.35)");
+  grad.addColorStop(1, "rgba(124,58,237,0.0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(-W, -90, W * 2, 180);
+  ctx.restore();
+
+  // Header label
+  ctx.fillStyle = "#a78bfa";
+  ctx.font = "700 14px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("HOJE NO PROGRAMA", W / 2, 48);
+
+  // Topic
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = "800 34px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  const topicLines = wrapText(ctx, opts.topic, W - 160).slice(0, 2);
+  topicLines.forEach((ln, i) => ctx.fillText(ln, W / 2, 92 + i * 40));
+
+  // Guest columns
+  drawIntroGuest(ctx, {
+    cx: W * 0.25,
+    name: opts.aName,
+    img: opts.aImg,
+    color: "#06b6d4",
+    label: "CONVIDADO A",
+    description: opts.aDescription ?? "",
+  });
+  drawIntroGuest(ctx, {
+    cx: W * 0.75,
+    name: opts.bName,
+    img: opts.bImg,
+    color: "#f59e0b",
+    label: "CONVIDADO B",
+    description: opts.bDescription ?? "",
+  });
+
+  // VS badge center
+  ctx.fillStyle = "#0f172a";
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2 + 10, 36, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#334155";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "800 18px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("VS", W / 2, H / 2 + 17);
+
+  // Footer label
+  ctx.fillStyle = "#64748b";
+  ctx.font = "600 12px system-ui";
+  ctx.fillText("APRESENTAÇÃO DOS CONVIDADOS", W / 2, H - 24);
+}
+
+function drawIntroGuest(
+  ctx: CanvasRenderingContext2D,
+  o: {
+    cx: number;
+    name: string;
+    img: HTMLImageElement | null;
+    color: string;
+    label: string;
+    description: string;
+  },
+) {
+  const cy = 270;
+  const radius = 95;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(o.cx, cy, radius, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  if (o.img) {
+    const iw = o.img.naturalWidth;
+    const ih = o.img.naturalHeight;
+    const scale = Math.max((radius * 2) / iw, (radius * 2) / ih);
+    const dw = iw * scale;
+    const dh = ih * scale;
+    ctx.drawImage(o.img, o.cx - dw / 2, cy - dh / 2, dw, dh);
+  } else {
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(o.cx - radius, cy - radius, radius * 2, radius * 2);
+    ctx.fillStyle = "#64748b";
+    ctx.font = "700 70px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText((o.name?.[0] ?? "?").toUpperCase(), o.cx, cy);
+    ctx.textBaseline = "alphabetic";
+  }
+  ctx.restore();
+  ctx.strokeStyle = o.color;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(o.cx, cy, radius + 3, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Label
+  ctx.fillStyle = o.color;
+  ctx.font = "700 12px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(o.label, o.cx, cy + radius + 30);
+
+  // Name
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = "800 28px system-ui";
+  const name = o.name.length > 24 ? o.name.slice(0, 22) + "…" : o.name;
+  ctx.fillText(name, o.cx, cy + radius + 60);
+
+  // Description (wrap 3 lines)
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "500 15px system-ui";
+  const lines = wrapText(ctx, o.description, 460).slice(0, 3);
+  lines.forEach((ln, i) => ctx.fillText(ln, o.cx, cy + radius + 90 + i * 22));
+}
+
+
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -314,7 +458,7 @@ function getAudioDuration(url: string): Promise<number> {
 }
 
 export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
-  const { topic, aName, bName, aImageUrl, bImageUrl, messages, onProgress } = input;
+  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, onProgress } = input;
   const log = (stage: string, pct: number) => onProgress?.(stage, Math.max(0, Math.min(1, pct)));
 
   log("Carregando avatares", 0.02);
@@ -345,16 +489,22 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
   for (let i = 0; i < total; i++) {
     const m = messages[i];
     const caption = stripMarkdownForTts(m.content);
-    drawStageFrame(ctx, {
-      topic,
-      aName,
-      bName,
-      aImg,
-      bImg,
-      role: m.role,
-      phase: m.phase,
-      caption,
-    });
+    // O primeiro turno é a vinheta de abertura — usamos o frame de apresentação
+    // dos convidados (estilo Roda Viva) em vez do palco padrão.
+    if (i === 0) {
+      drawIntroFrame(ctx, { topic, aName, bName, aImg, bImg, aDescription, bDescription });
+    } else {
+      drawStageFrame(ctx, {
+        topic,
+        aName,
+        bName,
+        aImg,
+        bImg,
+        role: m.role,
+        phase: m.phase,
+        caption,
+      });
+    }
     // PNG bytes
     const pngBlob: Blob = await new Promise((res) =>
       canvas.toBlob((b) => res(b!), "image/png"),

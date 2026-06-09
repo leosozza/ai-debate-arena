@@ -644,13 +644,26 @@ export const generateNextTurn = createServerFn({ method: "POST" })
 
     let userPrompt: string;
     if (next.phase.startsWith("vinheta")) {
-      userPrompt = `Tema geral: ${debate.topic}
+      if (next.block_index === 0) {
+        userPrompt = `Você abre um debate de TV ao vivo no formato Roda Viva.
+Tema do programa: ${debate.topic}
+Convidado A: ${debate.debater_a_name} — ${(debate.debater_a_persona ?? "").slice(0, 400)}
+Convidado B: ${debate.debater_b_name} — ${(debate.debater_b_persona ?? "").slice(0, 400)}
+Primeiro bloco — "${block.title}". Foco do bloco: ${block.focus}.
+
+Sua tarefa, em até 140 palavras, em texto corrido (sem markdown, sem listas):
+1. Saúde a audiência e abra o programa com energia jornalística.
+2. Apresente cada convidado em UMA frase (nome + quem é, tom jornalístico — NÃO leia a biografia inteira).
+3. Anuncie explicitamente que "começamos com ${debate.debater_a_name}" e formule a PRIMEIRA PERGUNTA do bloco, derivada do foco acima, dirigida a ele(a).`;
+      } else {
+        userPrompt = `Tema geral: ${debate.topic}
 
 Você está apresentando o BLOCO ${next.block_index + 1} de ${blocksTotal} de um debate de TV.
 Título do bloco: "${block.title}"
 Foco: ${block.focus}
 
 Sua tarefa: dar a vinheta de abertura desse bloco em 2-3 frases, anunciando o sub-tema com energia de programa de TV. NÃO faça veredito. Português. Máximo 80 palavras.`;
+      }
     } else if (next.phase === "veredito") {
       userPrompt = `Tema: ${debate.topic}
 Regras:

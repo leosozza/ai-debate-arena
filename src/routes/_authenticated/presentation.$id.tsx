@@ -9,11 +9,13 @@ import { replicateTts } from "@/lib/voice-replicate.functions";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
+import { DebaterIntroCard } from "@/components/DebaterIntroCard";
+import { ClosingCard } from "@/components/ClosingCard";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2, Download, Film } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Loader2, Radio, Bot, Mic2, Download, Film } from "lucide-react";
 
 
 export const Route = createFileRoute("/_authenticated/presentation/$id")({
@@ -302,18 +304,18 @@ function PresentMode() {
 
       // 2) Importa o exporter (lazy) e gera o MP4
       const { exportDebateMp4 } = await import("@/lib/video-export");
+      const findP = (name: string | null | undefined) =>
+        personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (name ?? "").trim().toLowerCase()) ?? null;
+      const pA = findP(data.debate.debater_a_name);
+      const pB = findP(data.debate.debater_b_name);
       const blob = await exportDebateMp4({
         topic: data.debate.topic,
         aName: data.debate.debater_a_name,
         bName: data.debate.debater_b_name,
-        aImageUrl:
-          data.debate.debater_a_image_url ??
-          personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_a_name ?? "").trim().toLowerCase())?.image_url ??
-          null,
-        bImageUrl:
-          data.debate.debater_b_image_url ??
-          personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_b_name ?? "").trim().toLowerCase())?.image_url ??
-          null,
+        aImageUrl: data.debate.debater_a_image_url ?? pA?.image_url ?? null,
+        bImageUrl: data.debate.debater_b_image_url ?? pB?.image_url ?? null,
+        aDescription: pA?.description ?? null,
+        bDescription: pB?.description ?? null,
         messages: messages.map((m) => ({
           id: m.id,
           role: (m.role ?? "moderator") as Side,
@@ -349,7 +351,9 @@ function PresentMode() {
   useEffect(() => {
     if (!playing || !current) return;
     const b = current.block_index ?? 0;
-    if (blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
+    // O bloco 0 é coberto pelo card de apresentação dos convidados (DebaterIntroCard),
+    // então não exibimos o BlockIntroCard tradicional nesse caso.
+    if (b > 0 && blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
       lastBlockShownRef.current = b;
       stopAll();
       setIntroBlock(b);
@@ -429,6 +433,19 @@ function PresentMode() {
   const moderatorSpeaking = !isWinner && role === "moderator";
   const speakerContent = current?.content ?? "";
 
+  // Resolve persona description/image once for the intro / closing cards.
+  const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+  const personaA = personas?.find((p) => norm(p.name) === norm(data.debate.debater_a_name)) ?? null;
+  const personaB = personas?.find((p) => norm(p.name) === norm(data.debate.debater_b_name)) ?? null;
+  const aImageResolved = data.debate.debater_a_image_url ?? personaA?.image_url ?? null;
+  const bImageResolved = data.debate.debater_b_image_url ?? personaB?.image_url ?? null;
+  const aDescription = personaA?.description ?? null;
+  const bDescription = personaB?.description ?? null;
+
+  // Card de apresentação dos convidados: aparece em cima da tela enquanto a
+  // primeira vinheta do mediador é narrada (index 0). Some assim que avançamos.
+  const showDebaterIntro = playing && index === 0 && currentBlockIdx === 0 && role === "moderator";
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
       {introBlock !== null && subtopicsList[introBlock] && (
@@ -438,6 +455,14 @@ function PresentMode() {
           title={subtopicsList[introBlock].title}
           focus={subtopicsList[introBlock].focus}
           onDone={() => setIntroBlock(null)}
+        />
+      )}
+      {showDebaterIntro && (
+        <DebaterIntroCard
+          topic={data.debate.topic}
+          a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved, description: aDescription }}
+          b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, description: bDescription }}
+          onSkip={() => { stopAll(); setIndex((i) => Math.min(slideCount - 1, i + 1)); }}
         />
       )}
       <div className="pointer-events-none absolute inset-0 transition-all duration-700" style={{ background: theme.glow }} />
@@ -552,7 +577,12 @@ function PresentMode() {
       <div className="relative z-10 flex-1 min-h-0 px-4 pb-2 md:px-8">
         {isWinner && verdict ? (
           <div className="flex h-full items-center justify-center">
-            <WinnerStage verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />
+            <ClosingCard
+              topic={data.debate.topic}
+              verdict={verdict}
+              a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved }}
+              b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved }}
+            />
           </div>
         ) : (
           <div key={current?.id} className="mx-auto flex h-full w-full max-w-7xl flex-col gap-4 animate-in fade-in duration-500">
@@ -584,11 +614,7 @@ function PresentMode() {
               <StageDebaterPanel
                 side="a"
                 name={data.debate.debater_a_name}
-                imageUrl={
-                  data.debate.debater_a_image_url ??
-                  personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_a_name ?? "").trim().toLowerCase())?.image_url ??
-                  null
-                }
+                imageUrl={aImageResolved}
                 phase={current?.phase ?? ""}
                 content={role === "a" ? speakerContent : ""}
                 active={role === "a"}
@@ -606,11 +632,7 @@ function PresentMode() {
               <StageDebaterPanel
                 side="b"
                 name={data.debate.debater_b_name}
-                imageUrl={
-                  data.debate.debater_b_image_url ??
-                  personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (data.debate.debater_b_name ?? "").trim().toLowerCase())?.image_url ??
-                  null
-                }
+                imageUrl={bImageResolved}
                 phase={current?.phase ?? ""}
                 content={role === "b" ? speakerContent : ""}
                 active={role === "b"}
@@ -771,30 +793,3 @@ function StageDebaterPanel({
   );
 }
 
-function WinnerStage({ verdict, aName, bName }: { verdict: Verdict; aName: string; bName: string }) {
-  const winA = verdict.winner === "a";
-  const winB = verdict.winner === "b";
-  const winnerName = verdict.winner === "empate" ? "Empate técnico" : winA ? aName : bName;
-  const color = verdict.winner === "empate" ? "text-foreground" : winA ? "text-side-a" : "text-side-b";
-  return (
-    <div className="w-full max-w-3xl text-center animate-in fade-in zoom-in-95 duration-700">
-      <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
-        <Trophy className="h-8 w-8" />
-      </div>
-      <div className="text-sm uppercase tracking-[0.3em] text-muted-foreground mb-2">Veredito</div>
-      <h2 className={`font-display text-5xl md:text-7xl font-extrabold tracking-tight mb-6 ${color}`}>{winnerName}</h2>
-      <div className="flex items-center justify-center gap-6 mb-3">
-        <span className={`font-display text-4xl font-extrabold tabular-nums ${winA ? "text-side-a" : "text-muted-foreground"}`}>{verdict.scoreA}</span>
-        <span className="text-muted-foreground">×</span>
-        <span className={`font-display text-4xl font-extrabold tabular-nums ${winB ? "text-side-b" : "text-muted-foreground"}`}>{verdict.scoreB}</span>
-      </div>
-      <div className="flex justify-center gap-6 text-sm mb-6">
-        <span className="text-side-a">{aName}</span>
-        <span className="text-side-b">{bName}</span>
-      </div>
-      {verdict.summary && (
-        <p className="text-xl md:text-2xl leading-relaxed text-foreground/90 max-w-2xl mx-auto text-balance">{verdict.summary}</p>
-      )}
-    </div>
-  );
-}

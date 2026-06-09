@@ -1,53 +1,71 @@
-## Problemas e correções
+## O que muda
 
-### 1) IA fala "asterisco asterisco" (markdown no TTS)
-A IA está respondendo com `**negrito**` e o TTS lê os asteriscos. Vou:
-- Adicionar instrução explícita em `buildSystemPrompt` e nos `user prompts` de fala (`debate.functions.ts`): "responda em TEXTO PURO, sem markdown, sem asteriscos, sem listas, sem títulos — apenas frases faladas".
-- Criar um sanitizador `stripMarkdownForTts(text)` em `src/lib/text-utils.ts` que remove `**`, `*`, `_`, `` ` ``, `#`, `>`, bullets `- ` no início de linha, links `[x](y)` → `x`, e colapsa espaços.
-- Aplicar `stripMarkdownForTts` antes de enviar para `browserSpeak`/`fetchAudioUrl` em `presentation.$id.tsx` (e na arena, se aplicável).
+Hoje a apresentação começa direto na "vinheta do bloco 1" — um card preto com o título do bloco, e o mediador anuncia o sub-tema. Não há apresentação dos convidados, e o encerramento mostra só uma tela simples de vencedor.
 
-### 2) Voz do Enéas terminando com "meu nome é Enéas, propaganda eleitoral"
-A persona do usuário provavelmente foi escrita com base em vídeos de campanha. Vou:
-- Reforçar no system prompt do debatedor (`buildSystemPrompt`): "Você está num DEBATE de TV, não em horário eleitoral. Nunca faça encerramento de propaganda (não diga 'meu nome é X', 'vote', 'mudemos o Brasil', etc.). Foque em argumentar o ponto atual; não se reapresente a cada fala."
-- Adicionar a mesma instrução no user prompt das fases de réplica/abertura.
+Vamos transformar a abertura e o encerramento num formato de programa de TV (Roda Viva / debate de televisão):
 
-Isso resolve sem precisar editar a persona do usuário.
+### 1. Abertura — "Apresentação dos convidados"
 
-### 3) Pausas longas para gerar voz ao vivo + opção de gerar vídeo
-Dois caminhos complementares:
+Antes da vinheta do bloco 1, entra uma nova etapa: um card em tela cheia com os dois debatedores lado a lado:
+- Cada lado mostra a foto grande do persona, o nome em destaque, e a descrição/biografia curta (campo `description` da persona, já existente).
+- Um cabeçalho no topo: "Hoje no programa" + o tema do debate.
+- Animação de entrada (slide das duas colunas, faixa diagonal igual a vinheta atual).
 
-**3a. Pré-carregar áudio das próximas falas (prefetch)**
-Em `presentation.$id.tsx`:
-- Quando uma fala começar a tocar, disparar em background `fetchAudioUrl` para as próximas 2–3 mensagens (usando o `slot` correspondente ao role de cada uma). O resultado já cai no `audioCache.current`, então quando chegar a hora de tocar, é instantâneo.
-- Mostrar um indicador discreto "pré-carregando próximas vozes (n/total)".
+Enquanto o card está na tela, o mediador (TTS) narra a apresentação dos dois convidados e anuncia quem abre e qual é a primeira pergunta. O card só avança quando o áudio termina (ou ao toque, igual hoje).
 
-**3b. Botão "Pré-gerar todas as vozes do debate"**
-Novo botão no painel de Configurações:
-- Itera por todas as `messages`, chama `fetchAudioUrl` em paralelo limitado (concorrência 3) e popula o cache. Persiste contagem de progresso na UI.
-- Quando terminar, transmissão ao vivo no YouTube fica sem pausas.
+### 2. Vinheta do bloco 1 — passa a abrir o debate de fato
 
-**3c. Exportar vídeo MP4 do debate inteiro**
-Novo botão "🎬 Exportar vídeo (MP4)". Implementação:
-- Server function `exportDebateVideo` em `src/lib/debate-video.functions.ts` que:
-  1. Lê todas as mensagens do debate.
-  2. Gera TTS de cada fala usando o provider/voz salvo no `debates` (mod/a/b).
-  3. Concatena os MP3 em ordem com `ffmpeg.wasm` (ou, se inviável no Worker, usa o Replicate `xfade-audio`/um modelo de concatenação). **Alternativa preferida**: gerar localmente no cliente com `@ffmpeg/ffmpeg` (WASM no browser) — recebe os base64 do servidor, concatena, e cria um MP4 com um background estático + legendas simples (nome do falante + bloco) usando `Canvas`+`MediaRecorder`.
-  4. Download direto via blob URL.
-- Para v1, vídeo simples: fundo escuro com nome+avatar do falante atual (troca a cada fala) e legenda do bloco. Sem animações elaboradas — só algo postável no YouTube.
-- Pré-requisito: rodar 3b antes (ou o export faz isso internamente).
+A vinheta do bloco 1 deixa de ser uma simples chamada do sub-tema. Ela passa a:
+- Saudar a audiência ("Boa noite, começa agora mais um debate…").
+- Apresentar os dois debatedores, citando nome + 1 frase de quem é cada um (a partir do `debater_a_persona`/`debater_b_persona`).
+- Anunciar explicitamente quem abre ("Começamos com [Debatedor A]") e ler a primeira pergunta do bloco 1 (sub-tema/foco).
 
-## Arquivos afetados
-- `src/lib/text-utils.ts` (novo) — `stripMarkdownForTts`.
-- `src/lib/debate.functions.ts` — instruções de prompt anti-markdown e anti-propaganda.
-- `src/routes/_authenticated/presentation.$id.tsx` — sanitizar texto, prefetch das próximas falas, botão "pré-gerar todas as vozes", botão "exportar vídeo".
-- `src/lib/debate-video.functions.ts` (novo) — server fn que devolve todos os áudios base64 em ordem.
-- `src/components/VideoExportDialog.tsx` (novo) — UI + montagem do MP4 com ffmpeg.wasm + canvas no browser.
-- `package.json` — adicionar `@ffmpeg/ffmpeg` e `@ffmpeg/util`.
+As vinhetas dos blocos 2..N-1 continuam como hoje (chamada curta do sub-tema).
 
-## Não vou mexer
-- Lógica de seleção de voz por participante (já refatorada).
-- Catálogo de vozes Replicate/MiniMax/Eleven.
-- Geração de personas / avatares.
+### 3. Encerramento — card final estilo "fim de programa"
 
-## Pergunta antes de implementar
-A exportação de vídeo (item 3c) é o item mais pesado — quer que eu faça **tudo nesta rodada** (prefetch + pré-gerar tudo + exportar vídeo MP4) ou começo só por **1 + 2 + 3a/3b** (correções imediatas e prefetch) e o vídeo entra numa próxima rodada?
+Depois do veredito, em vez da tela atual de vencedor, entra um card final:
+- Dois debatedores lado a lado novamente (foto + nome).
+- Faixa central com o placar (vencedor destacado) e uma linha do veredito.
+- Botão para voltar ao estúdio.
+
+## Detalhes técnicos
+
+**Arquivos novos**
+- `src/components/DebaterIntroCard.tsx` — card duplo lado a lado (props: `topic`, `debaterA {name, image, description}`, `debaterB {...}`, `onDone`, opcional `audioUrl` para sincronizar com TTS). Reaproveita a estética da `BlockIntroCard` (faixa diagonal, faixa de progresso, "toque para pular").
+- `src/components/ClosingCard.tsx` — card final com placar e os dois personas. Recebe `winner`, `verdictSummary`, ambos os debaters.
+
+**Arquivos editados**
+- `src/routes/_authenticated/presentation.$id.tsx`:
+  - Antes do índice 0 (primeira vinheta), inserir uma "etapa virtual" de apresentação que renderiza `DebaterIntroCard` e dispara o TTS da vinheta do bloco 1 (já existente como mensagem do mediador). Quando termina, avança para a tela do estúdio.
+  - Buscar `description` + `image_url` de cada persona (lookup por nome igual ao já feito para avatares no `video-export.ts`).
+  - Depois da fase `veredito`, renderizar `ClosingCard` em vez (ou em cima) da tela atual de fim.
+- `src/lib/debate.functions.ts` — ajustar APENAS o prompt da vinheta quando `block_index === 0`:
+
+```
+Você abre um debate de TV ao vivo no formato Roda Viva.
+Tema: ${debate.topic}
+Convidado A: ${debate.debater_a_name} — ${debate.debater_a_persona.slice(0,400)}
+Convidado B: ${debate.debater_b_name} — ${debate.debater_b_persona.slice(0,400)}
+Bloco 1 — "${block.title}". Foco: ${block.focus}.
+
+Sua tarefa, em até 130 palavras:
+1. Saúde a audiência e abra o programa.
+2. Apresente os dois convidados em uma frase cada (nome + quem é, em tom jornalístico).
+3. Anuncie que começamos com ${debate.debater_a_name} e faça a primeira pergunta do bloco 1, derivada do foco acima.
+Texto corrido, sem markdown, sem listas.
+```
+
+Vinhetas dos blocos 2+ mantêm o prompt atual.
+
+- `src/lib/video-export.ts` — incluir um frame inicial de apresentação (mesmo layout do `DebaterIntroCard`) tocando junto com o áudio da primeira vinheta, e um frame de encerramento estilo `ClosingCard` no final, para o MP4 exportado ficar igual ao que o usuário vê no estúdio.
+
+**Sem mudanças** em: estrutura de blocos, contagem de turnos, modelo de IA, fluxo de aprovação/edição, integração de voz, autenticação.
+
+## Como o usuário vai ver
+
+1. Clica "Iniciar apresentação".
+2. Card de abertura: tema no topo, "A: foto+nome+bio" | "B: foto+nome+bio". Mediador narra a apresentação e a primeira pergunta.
+3. Estúdio entra, Debatedor A abre, debate segue normal.
+4. Ao final do veredito, card de encerramento com placar e os dois convidados.
+5. Vídeo MP4 exportado inclui as duas telas extras.
