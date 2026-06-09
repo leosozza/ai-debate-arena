@@ -138,9 +138,12 @@ export const updateDebate = createServerFn({ method: "POST" })
     if (d.debaterAName !== undefined) patch.debater_a_name = d.debaterAName;
     if (d.debaterAPersona !== undefined) patch.debater_a_persona = d.debaterAPersona;
     if (d.debaterAModel !== undefined) patch.debater_a_model = d.debaterAModel;
+    if (d.debaterAImageUrl !== undefined) patch.debater_a_image_url = d.debaterAImageUrl;
     if (d.debaterBName !== undefined) patch.debater_b_name = d.debaterBName;
     if (d.debaterBPersona !== undefined) patch.debater_b_persona = d.debaterBPersona;
     if (d.debaterBModel !== undefined) patch.debater_b_model = d.debaterBModel;
+    if (d.debaterBImageUrl !== undefined) patch.debater_b_image_url = d.debaterBImageUrl;
+
     if (d.moderatorModel !== undefined) patch.moderator_model = d.moderatorModel;
     if (d.moderatorTone !== undefined) patch.moderator_tone = d.moderatorTone;
     if (d.rounds !== undefined) patch.rounds = d.rounds;
