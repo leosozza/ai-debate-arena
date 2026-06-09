@@ -488,16 +488,22 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
   for (let i = 0; i < total; i++) {
     const m = messages[i];
     const caption = stripMarkdownForTts(m.content);
-    drawStageFrame(ctx, {
-      topic,
-      aName,
-      bName,
-      aImg,
-      bImg,
-      role: m.role,
-      phase: m.phase,
-      caption,
-    });
+    // O primeiro turno é a vinheta de abertura — usamos o frame de apresentação
+    // dos convidados (estilo Roda Viva) em vez do palco padrão.
+    if (i === 0) {
+      drawIntroFrame(ctx, { topic, aName, bName, aImg, bImg, aDescription, bDescription });
+    } else {
+      drawStageFrame(ctx, {
+        topic,
+        aName,
+        bName,
+        aImg,
+        bImg,
+        role: m.role,
+        phase: m.phase,
+        caption,
+      });
+    }
     // PNG bytes
     const pngBlob: Blob = await new Promise((res) =>
       canvas.toBlob((b) => res(b!), "image/png"),
