@@ -507,6 +507,7 @@ function sideTheme(role: Side) {
 function StageDebaterPanel({
   side,
   name,
+  imageUrl,
   phase,
   content,
   active,
@@ -515,6 +516,7 @@ function StageDebaterPanel({
 }: {
   side: "a" | "b";
   name: string;
+  imageUrl?: string | null;
   phase: string;
   content: string;
   active: boolean;
@@ -538,9 +540,13 @@ function StageDebaterPanel({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/70 to-transparent" aria-hidden />
       <div className={`relative z-10 flex h-full w-full flex-col justify-between gap-4 text-center ${align} ${avatarPosition}`}>
         <div className={`flex w-full flex-col items-center gap-3 ${avatarPosition}`}>
-          <div className={`relative flex h-24 w-24 items-center justify-center rounded-full border-2 md:h-32 md:w-32 ${active ? `${theme.text} border-current bg-background/70` : "border-border text-muted-foreground bg-secondary/50"}`}>
+          <div className={`relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 md:h-32 md:w-32 ${active ? `${theme.text} border-current bg-background/70` : "border-border text-muted-foreground bg-secondary/50"}`}>
             {active && <span className={`absolute inset-[-8px] rounded-full border ${theme.text} opacity-30 animate-ping`} />}
-            <Bot className="h-12 w-12 md:h-16 md:w-16" />
+            {imageUrl ? (
+              <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <Bot className="h-12 w-12 md:h-16 md:w-16" />
+            )}
           </div>
           <div className="min-w-0">
             <div className={`mb-1 text-xs font-semibold uppercase tracking-[0.28em] ${active ? theme.text : "text-muted-foreground"}`}>
