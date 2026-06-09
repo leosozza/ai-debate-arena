@@ -320,56 +320,32 @@ function PresentMode() {
 
 
       {showSettings && (
-        <div className="absolute right-6 top-16 z-20 w-80 rounded-xl border border-border/60 glass p-4 space-y-3 shadow-2xl">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Provedor de voz</p>
-            <div className="flex gap-1 rounded-md border border-border/60 bg-background/40 p-0.5">
-              {([["browser", "Navegador"], ["replicate", "Replicate"], ["eleven", "ElevenLabs"], ["minimax", "MiniMax"]] as const).map(([p, label]) => (
-                <button
-                  key={p}
-                  onClick={() => switchProvider(p)}
-                  className={`flex-1 rounded px-2 py-1 text-xs transition ${provider === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="border-t border-border/50 pt-3 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vozes</p>
-            {provider === "browser" && (
-              <>
-                <BrowserVoicePicker label="Mediador" voices={voices} value={voiceMod} onChange={setVoiceMod} onPreview={(id) => previewVoice("browser", id, "br-mod")} preview={previewing === "br-mod" ? "playing" : previewLoading === "br-mod" ? "loading" : "idle"} />
-                <BrowserVoicePicker label={data.debate.debater_a_name} voices={voices} value={voiceA} onChange={setVoiceA} onPreview={(id) => previewVoice("browser", id, "br-a")} preview={previewing === "br-a" ? "playing" : previewLoading === "br-a" ? "loading" : "idle"} />
-                <BrowserVoicePicker label={data.debate.debater_b_name} voices={voices} value={voiceB} onChange={setVoiceB} onPreview={(id) => previewVoice("browser", id, "br-b")} preview={previewing === "br-b" ? "playing" : previewLoading === "br-b" ? "loading" : "idle"} />
-              </>
-            )}
-            {provider === "eleven" && (
-              <>
-                <CatalogPicker label="Mediador" options={ELEVEN_VOICES} value={elMod} onChange={setElMod} onPreview={(id) => previewVoice("eleven", id, "el-mod")} preview={previewing === "el-mod" ? "playing" : previewLoading === "el-mod" ? "loading" : "idle"} />
-                <CatalogPicker label={data.debate.debater_a_name} options={ELEVEN_VOICES} value={elA} onChange={setElA} onPreview={(id) => previewVoice("eleven", id, "el-a")} preview={previewing === "el-a" ? "playing" : previewLoading === "el-a" ? "loading" : "idle"} />
-                <CatalogPicker label={data.debate.debater_b_name} options={ELEVEN_VOICES} value={elB} onChange={setElB} onPreview={(id) => previewVoice("eleven", id, "el-b")} preview={previewing === "el-b" ? "playing" : previewLoading === "el-b" ? "loading" : "idle"} />
-                <p className="text-[10px] text-muted-foreground leading-snug">ElevenLabs sintetiza no servidor; cada fala consome créditos da sua chave.</p>
-              </>
-            )}
-            {provider === "minimax" && (
-              <>
-                <CatalogPicker label="Mediador" options={MINIMAX_VOICES} value={mmMod} onChange={setMmMod} onPreview={(id) => previewVoice("minimax", id, "mm-mod")} preview={previewing === "mm-mod" ? "playing" : previewLoading === "mm-mod" ? "loading" : "idle"} />
-                <CatalogPicker label={data.debate.debater_a_name} options={MINIMAX_VOICES} value={mmA} onChange={setMmA} onPreview={(id) => previewVoice("minimax", id, "mm-a")} preview={previewing === "mm-a" ? "playing" : previewLoading === "mm-a" ? "loading" : "idle"} />
-                <CatalogPicker label={data.debate.debater_b_name} options={MINIMAX_VOICES} value={mmB} onChange={setMmB} onPreview={(id) => previewVoice("minimax", id, "mm-b")} preview={previewing === "mm-b" ? "playing" : previewLoading === "mm-b" ? "loading" : "idle"} />
-                <p className="text-[10px] text-muted-foreground leading-snug">MiniMax sintetiza no servidor; cada fala consome créditos da sua chave.</p>
-              </>
-            )}
-            {provider === "replicate" && (
-              <>
-                <CatalogPicker label="Mediador" options={REPLICATE_VOICES} value={rpMod} onChange={setRpMod} onPreview={(id) => previewVoice("replicate", id, "rp-mod")} preview={previewing === "rp-mod" ? "playing" : previewLoading === "rp-mod" ? "loading" : "idle"} />
-                <CatalogPicker label={data.debate.debater_a_name} options={REPLICATE_VOICES} value={rpA} onChange={setRpA} onPreview={(id) => previewVoice("replicate", id, "rp-a")} preview={previewing === "rp-a" ? "playing" : previewLoading === "rp-a" ? "loading" : "idle"} />
-                <CatalogPicker label={data.debate.debater_b_name} options={REPLICATE_VOICES} value={rpB} onChange={setRpB} onPreview={(id) => previewVoice("replicate", id, "rp-b")} preview={previewing === "rp-b" ? "playing" : previewLoading === "rp-b" ? "loading" : "idle"} />
-                <p className="text-[10px] text-muted-foreground leading-snug">Replicate: vozes do minimax/speech-02-hd ou voz clonada (XTTS-v2).</p>
-              </>
-            )}
-          </div>
+        <div className="absolute right-6 top-16 z-20 w-96 max-h-[80vh] overflow-y-auto rounded-xl border border-border/60 glass p-4 space-y-4 shadow-2xl">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vozes por participante</p>
+          <VoicePicker
+            label="Mediador"
+            provider={slotMod.provider}
+            voiceId={slotMod.voiceId}
+            onChange={(provider, voiceId) => setSlotMod((s) => ({ ...s, provider, voiceId }))}
+            settings={slotMod.settings}
+            onSettingsChange={(settings) => setSlotMod((s) => ({ ...s, settings }))}
+          />
+          <VoicePicker
+            label={data.debate.debater_a_name}
+            provider={slotA.provider}
+            voiceId={slotA.voiceId}
+            onChange={(provider, voiceId) => setSlotA((s) => ({ ...s, provider, voiceId }))}
+            settings={slotA.settings}
+            onSettingsChange={(settings) => setSlotA((s) => ({ ...s, settings }))}
+          />
+          <VoicePicker
+            label={data.debate.debater_b_name}
+            provider={slotB.provider}
+            voiceId={slotB.voiceId}
+            onChange={(provider, voiceId) => setSlotB((s) => ({ ...s, provider, voiceId }))}
+            settings={slotB.settings}
+            onSettingsChange={(settings) => setSlotB((s) => ({ ...s, settings }))}
+          />
 
           <div className="border-t border-border/50 pt-3 space-y-2">
             <Button
@@ -423,6 +399,7 @@ function PresentMode() {
               <StageDebaterPanel
                 side="a"
                 name={data.debate.debater_a_name}
+                imageUrl={data.debate.debater_a_image_url ?? null}
                 phase={current?.phase ?? ""}
                 content={role === "a" ? speakerContent : ""}
                 active={role === "a"}
@@ -440,6 +417,7 @@ function PresentMode() {
               <StageDebaterPanel
                 side="b"
                 name={data.debate.debater_b_name}
+                imageUrl={data.debate.debater_b_image_url ?? null}
                 phase={current?.phase ?? ""}
                 content={role === "b" ? speakerContent : ""}
                 active={role === "b"}
@@ -529,6 +507,7 @@ function sideTheme(role: Side) {
 function StageDebaterPanel({
   side,
   name,
+  imageUrl,
   phase,
   content,
   active,
@@ -537,6 +516,7 @@ function StageDebaterPanel({
 }: {
   side: "a" | "b";
   name: string;
+  imageUrl?: string | null;
   phase: string;
   content: string;
   active: boolean;
@@ -560,9 +540,13 @@ function StageDebaterPanel({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/70 to-transparent" aria-hidden />
       <div className={`relative z-10 flex h-full w-full flex-col justify-between gap-4 text-center ${align} ${avatarPosition}`}>
         <div className={`flex w-full flex-col items-center gap-3 ${avatarPosition}`}>
-          <div className={`relative flex h-24 w-24 items-center justify-center rounded-full border-2 md:h-32 md:w-32 ${active ? `${theme.text} border-current bg-background/70` : "border-border text-muted-foreground bg-secondary/50"}`}>
+          <div className={`relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 md:h-32 md:w-32 ${active ? `${theme.text} border-current bg-background/70` : "border-border text-muted-foreground bg-secondary/50"}`}>
             {active && <span className={`absolute inset-[-8px] rounded-full border ${theme.text} opacity-30 animate-ping`} />}
-            <Bot className="h-12 w-12 md:h-16 md:w-16" />
+            {imageUrl ? (
+              <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
+            ) : (
+              <Bot className="h-12 w-12 md:h-16 md:w-16" />
+            )}
           </div>
           <div className="min-w-0">
             <div className={`mb-1 text-xs font-semibold uppercase tracking-[0.28em] ${active ? theme.text : "text-muted-foreground"}`}>
@@ -618,52 +602,6 @@ function WinnerStage({ verdict, aName, bName }: { verdict: Verdict; aName: strin
       {verdict.summary && (
         <p className="text-xl md:text-2xl leading-relaxed text-foreground/90 max-w-2xl mx-auto text-balance">{verdict.summary}</p>
       )}
-    </div>
-  );
-}
-
-function PreviewBtn({ state, onClick }: { state: "idle" | "loading" | "playing"; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/60 bg-background/60 text-muted-foreground hover:text-foreground hover:bg-background"
-      aria-label={state === "playing" ? "Parar amostra" : "Ouvir amostra"}
-      title={state === "playing" ? "Parar" : "Ouvir amostra"}
-    >
-      {state === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state === "playing" ? <Square className="h-3 w-3" /> : <Volume2 className="h-3.5 w-3.5" />}
-    </button>
-  );
-}
-
-function BrowserVoicePicker({ label, voices, value, onChange, onPreview, preview }: { label: string; voices: SpeechSynthesisVoice[]; value: string; onChange: (v: string) => void; onPreview: (id: string) => void; preview: "idle" | "loading" | "playing" }) {
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-muted-foreground truncate w-[90px]">{label}</span>
-      <select
-        className="flex-1 min-w-0 rounded-md border border-border/60 bg-background/60 px-2 py-1 outline-none truncate"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {voices.map((v) => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
-      </select>
-      <PreviewBtn state={preview} onClick={() => onPreview(value)} />
-    </div>
-  );
-}
-
-function CatalogPicker({ label, options, value, onChange, onPreview, preview }: { label: string; options: ReadonlyArray<{ id: string; label: string }>; value: string; onChange: (v: string) => void; onPreview: (id: string) => void; preview: "idle" | "loading" | "playing" }) {
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-muted-foreground truncate w-[90px]">{label}</span>
-      <select
-        className="flex-1 min-w-0 rounded-md border border-border/60 bg-background/60 px-2 py-1 outline-none truncate"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {options.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-      </select>
-      <PreviewBtn state={preview} onClick={() => onPreview(value)} />
     </div>
   );
 }
