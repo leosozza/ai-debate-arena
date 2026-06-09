@@ -43,9 +43,16 @@ export function BlockIntroCard({ blockIndex, total, title, focus, onDone, durati
         )}
       </div>
 
-      <div className="absolute bottom-8 text-xs text-muted-foreground/70 uppercase tracking-widest">
-        toque para pular
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+        <div className="h-1 w-48 overflow-hidden rounded-full bg-foreground/10">
+          <div
+            className="h-full bg-primary"
+            style={{ animation: `bic-progress ${durationMs}ms linear forwards` }}
+          />
+        </div>
+        <span className="text-xs text-muted-foreground/70 uppercase tracking-widest">toque para pular</span>
       </div>
+      <style>{`@keyframes bic-progress { from { width: 0%; } to { width: 100%; } }`}</style>
     </button>
   );
 }
