@@ -97,16 +97,19 @@ function PresentMode() {
     if (d.voice_id_mod) {
       if (d.voice_provider_mod === "eleven") setElMod(d.voice_id_mod);
       else if (d.voice_provider_mod === "minimax") setMmMod(d.voice_id_mod);
+      else if (d.voice_provider_mod === "replicate") setRpMod(d.voice_id_mod);
       else setVoiceMod(d.voice_id_mod);
     }
     if (d.voice_id_a) {
       if (d.voice_provider_a === "eleven") setElA(d.voice_id_a);
       else if (d.voice_provider_a === "minimax") setMmA(d.voice_id_a);
+      else if (d.voice_provider_a === "replicate") setRpA(d.voice_id_a);
       else setVoiceA(d.voice_id_a);
     }
     if (d.voice_id_b) {
       if (d.voice_provider_b === "eleven") setElB(d.voice_id_b);
       else if (d.voice_provider_b === "minimax") setMmB(d.voice_id_b);
+      else if (d.voice_provider_b === "replicate") setRpB(d.voice_id_b);
       else setVoiceB(d.voice_id_b);
     }
     hydratedRef.current = true;
@@ -158,11 +161,13 @@ function PresentMode() {
     window.speechSynthesis.speak(u);
   }
 
-  async function fetchAudioUrl(prov: "eleven" | "minimax", msgId: string, text: string, role: Side): Promise<string> {
+  async function fetchAudioUrl(prov: "eleven" | "minimax" | "replicate", msgId: string, text: string, role: Side): Promise<string> {
     const voiceId =
       prov === "eleven"
         ? (role === "moderator" ? elMod : role === "a" ? elA : elB)
-        : (role === "moderator" ? mmMod : role === "a" ? mmA : mmB);
+        : prov === "minimax"
+        ? (role === "moderator" ? mmMod : role === "a" ? mmA : mmB)
+        : (role === "moderator" ? rpMod : role === "a" ? rpA : rpB);
     const cacheKey = `${prov}:${msgId}:${voiceId}`;
     const cached = audioCache.current.get(cacheKey);
     if (cached) return cached;
@@ -170,8 +175,11 @@ function PresentMode() {
     if (prov === "eleven") {
       const res = await elTts({ data: { text: text.slice(0, 5000), voiceId } });
       url = `data:${res.mime};base64,${res.audio}`;
-    } else {
+    } else if (prov === "minimax") {
       const res = await mmTts({ data: { text: text.slice(0, 5000), voiceId, model: "speech-02-hd", speed: 1 } });
+      url = `data:${res.mime};base64,${res.audioBase64}`;
+    } else {
+      const res = await rpTts({ data: { text: text.slice(0, 5000), voiceId } });
       url = `data:${res.mime};base64,${res.audioBase64}`;
     }
     audioCache.current.set(cacheKey, url);
@@ -195,7 +203,8 @@ function PresentMode() {
       await audio.play();
     } catch {
       if (token !== playTokenRef.current) return;
-      toast.error(`${provider === "eleven" ? "ElevenLabs" : "MiniMax"} indisponível — usando voz do navegador.`);
+      const label = provider === "eleven" ? "ElevenLabs" : provider === "minimax" ? "MiniMax" : "Replicate";
+      toast.error(`${label} indisponível — usando voz do navegador.`);
       browserSpeak(text, role, token, onEnd);
     } finally {
       setLoading(false);
