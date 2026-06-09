@@ -793,30 +793,3 @@ function StageDebaterPanel({
   );
 }
 
-function WinnerStage({ verdict, aName, bName }: { verdict: Verdict; aName: string; bName: string }) {
-  const winA = verdict.winner === "a";
-  const winB = verdict.winner === "b";
-  const winnerName = verdict.winner === "empate" ? "Empate técnico" : winA ? aName : bName;
-  const color = verdict.winner === "empate" ? "text-foreground" : winA ? "text-side-a" : "text-side-b";
-  return (
-    <div className="w-full max-w-3xl text-center animate-in fade-in zoom-in-95 duration-700">
-      <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
-        <Trophy className="h-8 w-8" />
-      </div>
-      <div className="text-sm uppercase tracking-[0.3em] text-muted-foreground mb-2">Veredito</div>
-      <h2 className={`font-display text-5xl md:text-7xl font-extrabold tracking-tight mb-6 ${color}`}>{winnerName}</h2>
-      <div className="flex items-center justify-center gap-6 mb-3">
-        <span className={`font-display text-4xl font-extrabold tabular-nums ${winA ? "text-side-a" : "text-muted-foreground"}`}>{verdict.scoreA}</span>
-        <span className="text-muted-foreground">×</span>
-        <span className={`font-display text-4xl font-extrabold tabular-nums ${winB ? "text-side-b" : "text-muted-foreground"}`}>{verdict.scoreB}</span>
-      </div>
-      <div className="flex justify-center gap-6 text-sm mb-6">
-        <span className="text-side-a">{aName}</span>
-        <span className="text-side-b">{bName}</span>
-      </div>
-      {verdict.summary && (
-        <p className="text-xl md:text-2xl leading-relaxed text-foreground/90 max-w-2xl mx-auto text-balance">{verdict.summary}</p>
-      )}
-    </div>
-  );
-}
