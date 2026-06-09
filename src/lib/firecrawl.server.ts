@@ -63,3 +63,34 @@ export async function firecrawlSearch(
     clearTimeout(timer);
   }
 }
+
+/** Image search via Firecrawl v2 (`sources: ["images"]`). Returns direct image URLs. */
+export async function firecrawlImageSearch(
+  query: string,
+  opts: { limit?: number; timeoutMs?: number } = {},
+): Promise<Array<{ url: string; title: string }>> {
+  const { limit = 6, timeoutMs = 20000 } = opts;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey()}` },
+      body: JSON.stringify({ query, limit, sources: ["images"] }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Firecrawl images (${res.status}): ${body.slice(0, 200)}`);
+    }
+    const data = (await res.json()) as {
+      data?: { images?: Array<{ url?: string; imageUrl?: string; title?: string }> };
+    };
+    const arr = data.data?.images ?? [];
+    return arr
+      .map((r) => ({ url: (r.imageUrl ?? r.url ?? "").trim(), title: (r.title ?? "").slice(0, 200) }))
+      .filter((r) => /^https?:\/\//i.test(r.url));
+  } finally {
+    clearTimeout(timer);
+  }
+}
