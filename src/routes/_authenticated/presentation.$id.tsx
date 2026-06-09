@@ -241,46 +241,15 @@ function PresentMode() {
     setIndex((i) => Math.min(slideCount - 1, Math.max(0, i + delta)));
   }
 
-  function switchProvider(p: Provider) {
-    stopAll();
-    stopPreview();
-    setPlaying(false);
-    setProvider(p);
-    try { localStorage.setItem("arena-tts-provider", p); } catch { /* ignore */ }
-  }
-
   async function saveVoicesToDebate() {
     setSavingVoices(true);
     try {
-      const payload =
-        provider === "browser"
-          ? {
-              id,
-              voiceProviderMod: "browser" as const, voiceIdMod: voiceMod || null,
-              voiceProviderA: "browser" as const, voiceIdA: voiceA || null,
-              voiceProviderB: "browser" as const, voiceIdB: voiceB || null,
-            }
-          : provider === "eleven"
-          ? {
-              id,
-              voiceProviderMod: "eleven" as const, voiceIdMod: elMod,
-              voiceProviderA: "eleven" as const, voiceIdA: elA,
-              voiceProviderB: "eleven" as const, voiceIdB: elB,
-            }
-          : provider === "minimax"
-          ? {
-              id,
-              voiceProviderMod: "minimax" as const, voiceIdMod: mmMod,
-              voiceProviderA: "minimax" as const, voiceIdA: mmA,
-              voiceProviderB: "minimax" as const, voiceIdB: mmB,
-            }
-          : {
-              id,
-              voiceProviderMod: "replicate" as const, voiceIdMod: rpMod,
-              voiceProviderA: "replicate" as const, voiceIdA: rpA,
-              voiceProviderB: "replicate" as const, voiceIdB: rpB,
-            };
-      await updDebate({ data: payload });
+      await updDebate({ data: {
+        id,
+        voiceProviderMod: slotMod.provider, voiceIdMod: slotMod.voiceId,
+        voiceProviderA: slotA.provider, voiceIdA: slotA.voiceId,
+        voiceProviderB: slotB.provider, voiceIdB: slotB.voiceId,
+      } });
       toast.success("Vozes salvas neste debate");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar vozes");
@@ -289,61 +258,6 @@ function PresentMode() {
     }
   }
 
-  const [previewing, setPreviewing] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
-  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  function stopPreview() {
-    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
-    if (previewAudioRef.current) {
-      try { previewAudioRef.current.pause(); } catch { /* ignore */ }
-      previewAudioRef.current = null;
-    }
-    setPreviewing(null);
-    setPreviewLoading(null);
-  }
-
-  async function previewVoice(prov: Provider, voiceId: string, key: string) {
-    if (previewing === key || previewLoading === key) { stopPreview(); return; }
-    stopPreview();
-    setPlaying(false);
-    stopAll();
-    const sample = "Olá! Esta é uma amostra da minha voz para o debate.";
-    // Pre-create utterance now to preserve user gesture for speechSynthesis on iOS.
-    const utter = prov === "browser" ? new SpeechSynthesisUtterance(sample) : null;
-    if (utter) {
-      utter.lang = "pt-BR";
-      const v = voices.find((x) => x.name === voiceId);
-      if (v) { utter.voice = v; utter.lang = v.lang; }
-      utter.onend = () => setPreviewing((p) => (p === key ? null : p));
-      utter.onerror = () => setPreviewing((p) => (p === key ? null : p));
-    }
-    try {
-      if (prov === "browser" && utter) {
-        setPreviewing(key);
-        window.speechSynthesis.speak(utter);
-        return;
-      }
-      setPreviewLoading(key);
-      const res = prov === "eleven"
-        ? await elTts({ data: { text: sample, voiceId } })
-        : prov === "minimax"
-        ? await mmTts({ data: { text: sample, voiceId, model: "speech-02-hd", speed: 1 } })
-        : await rpTts({ data: { text: sample, voiceId } });
-      const url = `data:${res.mime};base64,${"audio" in res ? res.audio : res.audioBase64}`;
-      const audio = new Audio(url);
-      previewAudioRef.current = audio;
-      audio.onended = () => setPreviewing((p) => (p === key ? null : p));
-      audio.onerror = () => setPreviewing((p) => (p === key ? null : p));
-      setPreviewLoading(null);
-      setPreviewing(key);
-      await audio.play();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha na amostra");
-      setPreviewing(null);
-      setPreviewLoading(null);
-    }
-  }
 
   if (!data) {
     return <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">Carregando…</div>;
