@@ -330,7 +330,7 @@ function drawIntroGuest(
   const lines = wrapText(ctx, o.description, 460).slice(0, 3);
   lines.forEach((ln, i) => ctx.fillText(ln, o.cx, cy + radius + 90 + i * 22));
 }
-}
+
 
 function roundRect(
   ctx: CanvasRenderingContext2D,
