@@ -63,9 +63,11 @@ export type Database = {
           block_subtopics: Json | null
           blocks_count: number
           created_at: string
+          debater_a_image_url: string | null
           debater_a_model: string
           debater_a_name: string
           debater_a_persona: string
+          debater_b_image_url: string | null
           debater_b_model: string
           debater_b_name: string
           debater_b_persona: string
@@ -92,9 +94,11 @@ export type Database = {
           block_subtopics?: Json | null
           blocks_count?: number
           created_at?: string
+          debater_a_image_url?: string | null
           debater_a_model?: string
           debater_a_name: string
           debater_a_persona: string
+          debater_b_image_url?: string | null
           debater_b_model?: string
           debater_b_name: string
           debater_b_persona: string
@@ -121,9 +125,11 @@ export type Database = {
           block_subtopics?: Json | null
           blocks_count?: number
           created_at?: string
+          debater_a_image_url?: string | null
           debater_a_model?: string
           debater_a_name?: string
           debater_a_persona?: string
+          debater_b_image_url?: string | null
           debater_b_model?: string
           debater_b_name?: string
           debater_b_persona?: string

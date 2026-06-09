@@ -11,9 +11,11 @@ const NewDebateSchema = z.object({
   debaterAName: z.string().trim().min(1).max(60),
   debaterAPersona: z.string().trim().min(1).max(20000),
   debaterAModel: ModelSchema.default("google/gemini-3-flash-preview"),
+  debaterAImageUrl: z.string().trim().max(2048).nullable().optional(),
   debaterBName: z.string().trim().min(1).max(60),
   debaterBPersona: z.string().trim().min(1).max(20000),
   debaterBModel: ModelSchema.default("google/gemini-3-flash-preview"),
+  debaterBImageUrl: z.string().trim().max(2048).nullable().optional(),
   moderatorModel: ModelSchema.default("google/gemini-3-flash-preview"),
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]),
   rounds: z.number().int().min(2).max(6),
@@ -26,6 +28,7 @@ const NewDebateSchema = z.object({
   voiceProviderB: VoiceProviderSchema,
   voiceIdB: VoiceIdSchema,
 });
+
 
 export const createDebate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -64,10 +67,13 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
         debater_a_name: data.debaterAName,
         debater_a_persona: data.debaterAPersona,
         debater_a_model: data.debaterAModel,
+        debater_a_image_url: data.debaterAImageUrl ?? null,
         debater_b_name: data.debaterBName,
         debater_b_persona: data.debaterBPersona,
         debater_b_model: data.debaterBModel,
+        debater_b_image_url: data.debaterBImageUrl ?? null,
         moderator_model: data.moderatorModel,
+
         moderator_tone: data.moderatorTone,
         rounds: data.rounds,
         blocks_count: data.blocksCount,
@@ -93,9 +99,11 @@ const UpdateDebateSchema = z.object({
   debaterAName: z.string().trim().min(1).max(60).optional(),
   debaterAPersona: z.string().trim().min(1).max(20000).optional(),
   debaterAModel: ModelSchema.optional(),
+  debaterAImageUrl: z.string().trim().max(2048).nullable().optional(),
   debaterBName: z.string().trim().min(1).max(60).optional(),
   debaterBPersona: z.string().trim().min(1).max(20000).optional(),
   debaterBModel: ModelSchema.optional(),
+  debaterBImageUrl: z.string().trim().max(2048).nullable().optional(),
   moderatorModel: ModelSchema.optional(),
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]).optional(),
   rounds: z.number().int().min(2).max(6).optional(),
@@ -108,6 +116,7 @@ const UpdateDebateSchema = z.object({
   voiceProviderB: VoiceProviderSchema,
   voiceIdB: VoiceIdSchema,
 });
+
 
 export const updateDebate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -129,9 +138,12 @@ export const updateDebate = createServerFn({ method: "POST" })
     if (d.debaterAName !== undefined) patch.debater_a_name = d.debaterAName;
     if (d.debaterAPersona !== undefined) patch.debater_a_persona = d.debaterAPersona;
     if (d.debaterAModel !== undefined) patch.debater_a_model = d.debaterAModel;
+    if (d.debaterAImageUrl !== undefined) patch.debater_a_image_url = d.debaterAImageUrl;
     if (d.debaterBName !== undefined) patch.debater_b_name = d.debaterBName;
     if (d.debaterBPersona !== undefined) patch.debater_b_persona = d.debaterBPersona;
     if (d.debaterBModel !== undefined) patch.debater_b_model = d.debaterBModel;
+    if (d.debaterBImageUrl !== undefined) patch.debater_b_image_url = d.debaterBImageUrl;
+
     if (d.moderatorModel !== undefined) patch.moderator_model = d.moderatorModel;
     if (d.moderatorTone !== undefined) patch.moderator_tone = d.moderatorTone;
     if (d.rounds !== undefined) patch.rounds = d.rounds;

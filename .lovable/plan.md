@@ -1,90 +1,35 @@
-## Objetivo
+## O que vou mudar
 
-Usar **Replicate** como terceiro provedor de voz no app, com TTS + clonagem zero-shot, e deixar a infraestrutura pronta para gerar **imagens de avatar** e **vídeos do avatar falando** no futuro.
+### 1. Seleção de voz por participante (mix de provedores)
+Hoje o seletor escolhe **um provedor global** e depois lista vozes só dele. Vou inverter a lógica:
 
-Replicate é gateway-enabled → todas as chamadas passam por `https://connector-gateway.lovable.dev/replicate/v1/...` com headers `Authorization: Bearer $LOVABLE_API_KEY` + `X-Connection-Api-Key: $REPLICATE_API_KEY` (conector já conectado nesta sessão).
+- Remover o seletor de "Provedor de voz" global no topo.
+- Cada participante (Mediador, Debater A, Debater B) terá seu próprio bloco com:
+  - **Seletor de Provedor** (Navegador / Replicate / ElevenLabs / MiniMax)
+  - **Seletor de Voz** populado conforme o provedor escolhido
+  - Botão de preview
+  - Painel "Ajustes de voz" (speed/pitch/volume) já existente
+- O estado salvo no debate passa de `{ provider, voices: { mod, a, b } }` para `{ mod: { provider, voiceId, settings }, a: {...}, b: {...} }`.
+- Migração leve no `voice_settings` da `personas` + campo no `debates` para suportar a nova forma; manter compatibilidade lendo o formato antigo.
+- No playback (`presentation.$id.tsx` arena), escolher o caminho de síntese (browser/replicate/elevenlabs/minimax) por participante em vez de um provider único.
 
----
+### 2. Avatar da persona aparecer na apresentação
+- Em `presentation.$id.tsx` e na arena, quando o debater A/B vier de uma persona com `image_url`, mostrar o avatar (componente `Avatar`) ao lado do nome no card de fala e no header. Hoje só usa iniciais.
+- Carregar `image_url` no `getDebate`/`listPersonas` que alimenta a tela (verificar se já vem; se não, incluir no select).
 
-## Etapa 1 — Voz (foco agora)
+### 3. Mais vozes no Replicate
+- Trocar a lista hardcoded por **MiniMax `speech-2.5-hd` / `speech-02-turbo` no Replicate** com o catálogo completo de vozes (≈100 vozes em PT/EN/ES, com presets male/female por idioma) em vez das poucas opções atuais.
+- Agrupar no dropdown por idioma e gênero para ficar navegável.
+- Manter clonagem de voz Replicate como opção separada (já existe).
 
-### Backend (`src/lib/replicate.server.ts` + `src/lib/voice-replicate.functions.ts`)
+## Arquivos afetados
+- `src/components/VoicePicker.tsx` — refatorar para "por-participante".
+- `src/routes/_authenticated/presentation.$id.tsx` — usar novo formato + renderizar avatares.
+- `src/routes/_authenticated/debates.$id.arena.tsx` — idem (avatar + roteamento de provider por fala).
+- `src/lib/voice-replicate.functions.ts` / catálogo de vozes Replicate — expandir lista.
+- `src/lib/debate.functions.ts` (ou equivalente que salva voice config) — aceitar novo shape com fallback para o antigo.
+- Migração SQL: ampliar `debates.voice_config` (jsonb) se necessário.
 
-Helper `replicate.server.ts`:
-- `createPrediction(model, input)` — POST `/v1/models/<owner>/<name>/predictions`, retorna `id`.
-- `pollPrediction(id, { maxMs })` — GET `/v1/predictions/<id>` com backoff 2s→8s (TTS leva 5–60s), nunca usa `urls.get` direto.
-- `uploadFile(file: File)` — POST `/v1/files` multipart, retorna `urls.get` (usado para áudios de referência).
-
-Server functions (atrás de `requireSupabaseAuth`):
-- **`replicateTts({ text, voiceRef, model })`** — usa `minimax/speech-02-hd` (default, qualidade alta multilíngue + PT-BR ok) ou `lucataco/xtts-v2` quando `voiceRef` for áudio clonado (zero-shot). Retorna `{ audioBase64, mime: "audio/mpeg" }` no mesmo formato dos outros TTS para reaproveitar `<audio>` no front.
-- **`cloneVoiceReplicate({ formData })`** — recebe 1 áudio (≤12 MB, mp3/wav/m4a), faz upload via `/v1/files`, guarda a URL retornada como "voiceId" (XTTS-v2 é zero-shot: a URL do sample É a "voz"). Retorna `{ provider: "replicate", voiceId: <fileUrl>, source: "upload-replicate" }`.
-
-### Catálogo (`src/lib/voice-catalog.ts` + novo `src/lib/replicate-voices.ts`)
-
-- Adicionar `"replicate"` em `VoiceProvider`.
-- Catálogo curto de presets PT-BR via `minimax/speech-02-hd` (mesmas vozes do MiniMax direto, mas via Replicate — útil quando a conta MiniMax falhar): "Apresentador masc", "Apresentadora fem", "Audiobook masc/fem".
-- Vozes clonadas (XTTS-v2) aparecem como "🎙 Personalizada" via lógica já existente em `VoicePicker.tsx`.
-
-### Frontend
-
-- **`VoicePicker.tsx`** — adicionar `"replicate"` no Select de provedor + chamar `replicateTts` na preview.
-- **`VoiceClonePanel.tsx`** — adicionar 3º botão **"Clonar com Replicate (XTTS-v2)"** chamando `cloneVoiceReplicate`. Vantagem: zero-shot, funciona com 10–30s de áudio, sem precisar de plano pago.
-- **Personas + Apresentação** — nenhuma mudança extra; o fluxo de salvar voz já está pronto.
-
-### Migration (opcional, leve)
-
-Sem mudança de schema: `voice_provider='replicate'` + `voice_id=<file URL ou preset id>` cabe nas colunas existentes. Atualizar apenas o CHECK se existir (não existe hoje).
-
----
-
-## Etapa 2 — Avatar (imagem) — preparar base
-
-Adicionar coluna `avatar_url text` em `personas` e em `debates` (campos `avatar_url_a`, `avatar_url_b`, `avatar_url_mod`). Nenhuma UI ainda — só schema + tipos. Geração via `black-forest-labs/flux-schnell` ou `flux-1.1-pro` ficará para o próximo turno.
-
----
-
-## Etapa 3 — Vídeo do avatar falando — só anotar caminho
-
-Sem código agora. Direção técnica anotada no plano: usar `tencent/hunyuan-video-avatar` ou `bytedance/omnihuman` (image+audio → vídeo) consumindo `avatar_url` + áudio gerado pelo TTS. Persistência obrigatória (Replicate expira URLs em ~1h) → bucket `generated` no Storage. Implementar depois que avatar de imagem estiver pronto.
-
----
-
-## Segurança
-
-- Todas as server fns sob `requireSupabaseAuth`.
-- Chaves só no servidor (`process.env.LOVABLE_API_KEY` + `process.env.REPLICATE_API_KEY`).
-- Validar FormData: 1 arquivo, ≤12 MB, mime começa com `audio/`.
-- Timeout 90s no TTS, 180s no clone.
-
----
-
-## Verificação
-
-1. Personas → escolher "Replicate" no provedor → preview toca usando minimax via gateway.
-2. Personas → "Clonar com Replicate" com áudio curto → voz salva → debate usa essa voz clonada.
-3. Apresentação ⚙️ → trocar para Replicate → salvar voz → persiste.
-
----
-
-## Detalhes técnicos
-
-```
-GATEWAY = https://connector-gateway.lovable.dev/replicate/v1
-headers = {
-  Authorization: `Bearer ${LOVABLE_API_KEY}`,
-  "X-Connection-Api-Key": REPLICATE_API_KEY,
-}
-
-# TTS preset
-POST /models/minimax/speech-02-hd/predictions
-{ "input": { "text": "...", "voice_id": "Portuguese_Male_Anchor" } }
-
-# TTS com voz clonada (XTTS-v2)
-POST /models/lucataco/xtts-v2/predictions
-{ "input": { "text": "...", "speaker": "<fileUrl>", "language": "pt" } }
-
-# Upload de áudio de referência
-POST /files  (multipart: content=<File>)  → { urls: { get: "<persistent url>" } }
-```
-
-Output do TTS no Replicate vem como URL → server fn baixa, converte para base64 e devolve no mesmo shape de `minimaxTts`/`ttsSpeak` (`{ audioBase64, mime }`), para não mexer no player.
+## Não vou mexer
+- Lógica de criação de personas, geração de imagem por IA, ou TTS server-side de ElevenLabs/MiniMax (já funcionam).
+- Clonagem de voz Replicate.

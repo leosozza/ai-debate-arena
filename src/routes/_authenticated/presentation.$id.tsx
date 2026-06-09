@@ -3,22 +3,26 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getDebate, ttsSpeak, updateDebate, type Verdict } from "@/lib/debate.functions";
-import { minimaxTts, MINIMAX_VOICES } from "@/lib/tts.functions";
+import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
-import { REPLICATE_VOICES } from "@/lib/replicate-voices";
-import { ELEVEN_VOICES, DEFAULT_ELEVEN } from "@/lib/eleven-voices";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
+import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
+import { type VoiceProvider } from "@/lib/voice-catalog";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2, Volume2, Square } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2 } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/presentation/$id")({
   component: PresentMode,
 });
 
 type Side = "moderator" | "a" | "b";
-type Provider = "browser" | "eleven" | "minimax" | "replicate";
+
+type VoiceSlot = { provider: VoiceProvider; voiceId: string | null; settings: VoiceSettings };
+
+const DEFAULT_SLOT: VoiceSlot = { provider: "browser", voiceId: null, settings: DEFAULT_VOICE_SETTINGS };
 
 function PresentMode() {
   const { id } = Route.useParams();
@@ -37,30 +41,14 @@ function PresentMode() {
   const [loading, setLoading] = useState(false);
   // Vinheta de bloco: bloco a apresentar agora (ou null se não há vinheta pendente)
   const [introBlock, setIntroBlock] = useState<number | null>(null);
-  // Navegador é o padrão (sempre funciona, sem depender de chave/crédito).
-  // A escolha fica salva; troque para ElevenLabs/MiniMax no painel ⚙️.
-  const [provider, setProvider] = useState<Provider>("browser");
 
-  // Browser voices
+  // Voz por participante (cada um pode usar um provider diferente).
+  const [slotMod, setSlotMod] = useState<VoiceSlot>(DEFAULT_SLOT);
+  const [slotA, setSlotA] = useState<VoiceSlot>(DEFAULT_SLOT);
+  const [slotB, setSlotB] = useState<VoiceSlot>(DEFAULT_SLOT);
+
+  // Vozes do navegador (carregadas dinamicamente)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [voiceA, setVoiceA] = useState<string>("");
-  const [voiceB, setVoiceB] = useState<string>("");
-  const [voiceMod, setVoiceMod] = useState<string>("");
-
-  // ElevenLabs voices
-  const [elA, setElA] = useState<string>(DEFAULT_ELEVEN.a);
-  const [elB, setElB] = useState<string>(DEFAULT_ELEVEN.b);
-  const [elMod, setElMod] = useState<string>(DEFAULT_ELEVEN.moderator);
-
-  // MiniMax voices
-  const [mmA, setMmA] = useState<string>(MINIMAX_VOICES[0].id);
-  const [mmB, setMmB] = useState<string>(MINIMAX_VOICES[3].id);
-  const [mmMod, setMmMod] = useState<string>(MINIMAX_VOICES[7].id);
-
-  // Replicate voices
-  const [rpA, setRpA] = useState<string>(REPLICATE_VOICES[4].id);
-  const [rpB, setRpB] = useState<string>(REPLICATE_VOICES[3].id);
-  const [rpMod, setRpMod] = useState<string>(REPLICATE_VOICES[0].id);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
@@ -72,48 +60,29 @@ function PresentMode() {
     function load() {
       const v = window.speechSynthesis.getVoices();
       setVoices(v);
-      const pt = v.filter((x) => x.lang.startsWith("pt"));
-      const pool = pt.length > 0 ? pt : v;
-      if (pool.length > 0) {
-        setVoiceMod((p) => p || pool[0].name);
-        setVoiceA((p) => p || pool[1 % pool.length].name);
-        setVoiceB((p) => p || pool[2 % pool.length].name);
-      }
     }
     load();
     window.speechSynthesis.onvoiceschanged = load;
-    const saved = localStorage.getItem("arena-tts-provider");
-    if (saved === "browser" || saved === "eleven" || saved === "minimax" || saved === "replicate") setProvider(saved);
     return () => { window.speechSynthesis.cancel(); audioRef.current?.pause(); };
   }, []);
 
-  // Hidrata provedor/voz a partir do debate (uma vez quando carrega).
+  // Hidrata vozes salvas no debate (uma vez quando carrega).
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current || !data?.debate) return;
     const d = data.debate;
-    const dp = d.voice_provider_a ?? d.voice_provider_b ?? d.voice_provider_mod;
-    if (dp === "browser" || dp === "eleven" || dp === "minimax" || dp === "replicate") setProvider(dp);
-    if (d.voice_id_mod) {
-      if (d.voice_provider_mod === "eleven") setElMod(d.voice_id_mod);
-      else if (d.voice_provider_mod === "minimax") setMmMod(d.voice_id_mod);
-      else if (d.voice_provider_mod === "replicate") setRpMod(d.voice_id_mod);
-      else setVoiceMod(d.voice_id_mod);
-    }
-    if (d.voice_id_a) {
-      if (d.voice_provider_a === "eleven") setElA(d.voice_id_a);
-      else if (d.voice_provider_a === "minimax") setMmA(d.voice_id_a);
-      else if (d.voice_provider_a === "replicate") setRpA(d.voice_id_a);
-      else setVoiceA(d.voice_id_a);
-    }
-    if (d.voice_id_b) {
-      if (d.voice_provider_b === "eleven") setElB(d.voice_id_b);
-      else if (d.voice_provider_b === "minimax") setMmB(d.voice_id_b);
-      else if (d.voice_provider_b === "replicate") setRpB(d.voice_id_b);
-      else setVoiceB(d.voice_id_b);
-    }
+    const apply = (provider: string | null | undefined, voiceId: string | null | undefined): VoiceSlot | null => {
+      if (!provider) return null;
+      const p = provider as VoiceProvider;
+      if (p !== "browser" && p !== "eleven" && p !== "minimax" && p !== "replicate") return null;
+      return { provider: p, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
+    };
+    const m = apply(d.voice_provider_mod, d.voice_id_mod); if (m) setSlotMod(m);
+    const a = apply(d.voice_provider_a, d.voice_id_a); if (a) setSlotA(a);
+    const b = apply(d.voice_provider_b, d.voice_id_b); if (b) setSlotB(b);
     hydratedRef.current = true;
   }, [data]);
+
 
   const messages = data?.messages ?? [];
   const current = messages[index];
@@ -139,14 +108,20 @@ function PresentMode() {
     }
   }
 
+  function slotFor(role: Side): VoiceSlot {
+    return role === "moderator" ? slotMod : role === "a" ? slotA : slotB;
+  }
+
   function browserSpeak(text: string, role: Side, token: number, onEnd: () => void) {
-    const voiceName = role === "moderator" ? voiceMod : role === "a" ? voiceA : voiceB;
+    const slot = slotFor(role);
     try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
     const u = new SpeechSynthesisUtterance(text);
-    const v = voices.find((x) => x.name === voiceName);
+    const v = slot.voiceId ? voices.find((x) => x.name === slot.voiceId) : voices.find((x) => x.lang?.toLowerCase().startsWith("pt"));
     if (v) u.voice = v;
     u.lang = v?.lang ?? "pt-BR";
-    u.rate = 1.0;
+    u.rate = Math.max(0.1, Math.min(10, slot.settings.speed));
+    u.pitch = Math.max(0, Math.min(2, 1 + slot.settings.pitch / 12));
+    u.volume = Math.max(0, Math.min(1, slot.settings.volume));
     u.onend = () => {
       clearKeepAlive();
       if (token === playTokenRef.current) setTimeout(onEnd, 0);
@@ -161,22 +136,23 @@ function PresentMode() {
     window.speechSynthesis.speak(u);
   }
 
-  async function fetchAudioUrl(prov: "eleven" | "minimax" | "replicate", msgId: string, text: string, role: Side): Promise<string> {
-    const voiceId =
-      prov === "eleven"
-        ? (role === "moderator" ? elMod : role === "a" ? elA : elB)
-        : prov === "minimax"
-        ? (role === "moderator" ? mmMod : role === "a" ? mmA : mmB)
-        : (role === "moderator" ? rpMod : role === "a" ? rpA : rpB);
-    const cacheKey = `${prov}:${msgId}:${voiceId}`;
+  async function fetchAudioUrl(slot: VoiceSlot, msgId: string, text: string): Promise<string> {
+    const voiceId = slot.voiceId ?? "";
+    if (!voiceId) throw new Error("Voz não selecionada.");
+    const cacheKey = `${slot.provider}:${msgId}:${voiceId}:${slot.settings.speed}:${slot.settings.pitch}:${slot.settings.volume}`;
     const cached = audioCache.current.get(cacheKey);
     if (cached) return cached;
     let url: string;
-    if (prov === "eleven") {
+    if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: text.slice(0, 5000), voiceId } });
       url = `data:${res.mime};base64,${res.audio}`;
-    } else if (prov === "minimax") {
-      const res = await mmTts({ data: { text: text.slice(0, 5000), voiceId, model: "speech-02-hd", speed: 1 } });
+    } else if (slot.provider === "minimax") {
+      const res = await mmTts({ data: {
+        text: text.slice(0, 5000), voiceId, model: "speech-02-hd",
+        speed: slot.settings.speed,
+        pitch: Math.round(slot.settings.pitch),
+        vol: Math.max(0.1, Math.min(10, slot.settings.volume)),
+      } });
       url = `data:${res.mime};base64,${res.audioBase64}`;
     } else {
       const res = await rpTts({ data: { text: text.slice(0, 5000), voiceId } });
@@ -189,21 +165,27 @@ function PresentMode() {
   async function speak(msgId: string, text: string, role: Side, onEnd: () => void) {
     playTokenRef.current += 1;
     const token = playTokenRef.current;
-    if (provider === "browser") {
+    const slot = slotFor(role);
+    if (slot.provider === "browser") {
       browserSpeak(text, role, token, onEnd);
       return;
     }
     try {
       setLoading(true);
-      const url = await fetchAudioUrl(provider, msgId, text, role);
+      const url = await fetchAudioUrl(slot, msgId, text);
       if (token !== playTokenRef.current) return;
       const audio = new Audio(url);
       audioRef.current = audio;
+      // Para providers que não aceitam settings server-side, aplica no player.
+      if (slot.provider === "replicate" || slot.provider === "eleven") {
+        audio.playbackRate = Math.max(0.5, Math.min(2, slot.settings.speed));
+        audio.volume = Math.max(0, Math.min(1, slot.settings.volume));
+      }
       audio.onended = () => { if (token === playTokenRef.current) onEnd(); };
       await audio.play();
     } catch {
       if (token !== playTokenRef.current) return;
-      const label = provider === "eleven" ? "ElevenLabs" : provider === "minimax" ? "MiniMax" : "Replicate";
+      const label = slot.provider === "eleven" ? "ElevenLabs" : slot.provider === "minimax" ? "MiniMax" : "Replicate";
       toast.error(`${label} indisponível — usando voz do navegador.`);
       browserSpeak(text, role, token, onEnd);
     } finally {
@@ -234,7 +216,8 @@ function PresentMode() {
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, introBlock, provider, voiceMod, voiceA, voiceB, elMod, elA, elB, mmMod, mmA, mmB, rpMod, rpA, rpB]);
+  }, [playing, index, current?.id, introBlock, slotMod, slotA, slotB]);
+
 
   function handlePlayToggle() {
     if (!playing) hasStartedRef.current = true;
@@ -258,46 +241,15 @@ function PresentMode() {
     setIndex((i) => Math.min(slideCount - 1, Math.max(0, i + delta)));
   }
 
-  function switchProvider(p: Provider) {
-    stopAll();
-    stopPreview();
-    setPlaying(false);
-    setProvider(p);
-    try { localStorage.setItem("arena-tts-provider", p); } catch { /* ignore */ }
-  }
-
   async function saveVoicesToDebate() {
     setSavingVoices(true);
     try {
-      const payload =
-        provider === "browser"
-          ? {
-              id,
-              voiceProviderMod: "browser" as const, voiceIdMod: voiceMod || null,
-              voiceProviderA: "browser" as const, voiceIdA: voiceA || null,
-              voiceProviderB: "browser" as const, voiceIdB: voiceB || null,
-            }
-          : provider === "eleven"
-          ? {
-              id,
-              voiceProviderMod: "eleven" as const, voiceIdMod: elMod,
-              voiceProviderA: "eleven" as const, voiceIdA: elA,
-              voiceProviderB: "eleven" as const, voiceIdB: elB,
-            }
-          : provider === "minimax"
-          ? {
-              id,
-              voiceProviderMod: "minimax" as const, voiceIdMod: mmMod,
-              voiceProviderA: "minimax" as const, voiceIdA: mmA,
-              voiceProviderB: "minimax" as const, voiceIdB: mmB,
-            }
-          : {
-              id,
-              voiceProviderMod: "replicate" as const, voiceIdMod: rpMod,
-              voiceProviderA: "replicate" as const, voiceIdA: rpA,
-              voiceProviderB: "replicate" as const, voiceIdB: rpB,
-            };
-      await updDebate({ data: payload });
+      await updDebate({ data: {
+        id,
+        voiceProviderMod: slotMod.provider, voiceIdMod: slotMod.voiceId,
+        voiceProviderA: slotA.provider, voiceIdA: slotA.voiceId,
+        voiceProviderB: slotB.provider, voiceIdB: slotB.voiceId,
+      } });
       toast.success("Vozes salvas neste debate");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar vozes");
@@ -306,61 +258,6 @@ function PresentMode() {
     }
   }
 
-  const [previewing, setPreviewing] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
-  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  function stopPreview() {
-    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
-    if (previewAudioRef.current) {
-      try { previewAudioRef.current.pause(); } catch { /* ignore */ }
-      previewAudioRef.current = null;
-    }
-    setPreviewing(null);
-    setPreviewLoading(null);
-  }
-
-  async function previewVoice(prov: Provider, voiceId: string, key: string) {
-    if (previewing === key || previewLoading === key) { stopPreview(); return; }
-    stopPreview();
-    setPlaying(false);
-    stopAll();
-    const sample = "Olá! Esta é uma amostra da minha voz para o debate.";
-    // Pre-create utterance now to preserve user gesture for speechSynthesis on iOS.
-    const utter = prov === "browser" ? new SpeechSynthesisUtterance(sample) : null;
-    if (utter) {
-      utter.lang = "pt-BR";
-      const v = voices.find((x) => x.name === voiceId);
-      if (v) { utter.voice = v; utter.lang = v.lang; }
-      utter.onend = () => setPreviewing((p) => (p === key ? null : p));
-      utter.onerror = () => setPreviewing((p) => (p === key ? null : p));
-    }
-    try {
-      if (prov === "browser" && utter) {
-        setPreviewing(key);
-        window.speechSynthesis.speak(utter);
-        return;
-      }
-      setPreviewLoading(key);
-      const res = prov === "eleven"
-        ? await elTts({ data: { text: sample, voiceId } })
-        : prov === "minimax"
-        ? await mmTts({ data: { text: sample, voiceId, model: "speech-02-hd", speed: 1 } })
-        : await rpTts({ data: { text: sample, voiceId } });
-      const url = `data:${res.mime};base64,${"audio" in res ? res.audio : res.audioBase64}`;
-      const audio = new Audio(url);
-      previewAudioRef.current = audio;
-      audio.onended = () => setPreviewing((p) => (p === key ? null : p));
-      audio.onerror = () => setPreviewing((p) => (p === key ? null : p));
-      setPreviewLoading(null);
-      setPreviewing(key);
-      await audio.play();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha na amostra");
-      setPreviewing(null);
-      setPreviewLoading(null);
-    }
-  }
 
   if (!data) {
     return <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">Carregando…</div>;
