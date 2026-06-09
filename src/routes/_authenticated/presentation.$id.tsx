@@ -9,6 +9,8 @@ import { replicateTts } from "@/lib/voice-replicate.functions";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
+import { DebaterIntroCard } from "@/components/DebaterIntroCard";
+import { ClosingCard } from "@/components/ClosingCard";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
