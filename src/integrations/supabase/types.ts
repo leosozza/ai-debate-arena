@@ -153,6 +153,7 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          image_url: string | null
           is_public: boolean
           name: string
           persona_prompt: string
@@ -167,6 +168,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          image_url?: string | null
           is_public?: boolean
           name: string
           persona_prompt: string
@@ -181,6 +183,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          image_url?: string | null
           is_public?: boolean
           name?: string
           persona_prompt?: string
