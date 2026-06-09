@@ -33,6 +33,7 @@ function PersonasPage() {
   const update = useServerFn(updatePersona);
   const remove = useServerFn(deletePersona);
   const generate = useServerFn(generatePersonaWithAI);
+  const attachVoice = useServerFn(attachVoiceToPersona);
   const qc = useQueryClient();
 
   const { data: personas = [], isLoading } = useQuery({
