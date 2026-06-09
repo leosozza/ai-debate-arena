@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Sparkles, Trash2, Plus, Globe, Lock, Mic, User } from "lucide-react";
-import { VoicePicker } from "@/components/VoicePicker";
+import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { VoiceClonePanel } from "@/components/VoiceClonePanel";
 import { PersonaImagePanel } from "@/components/PersonaImagePanel";
 import { attachVoiceToPersona } from "@/lib/voice-clone.functions";
@@ -36,6 +36,7 @@ type FormState = {
   voice_provider: VoiceProvider | null;
   voice_id: string | null;
   image_url: string | null;
+  voice_settings: VoiceSettings;
 };
 
 const EMPTY_FORM: FormState = {
@@ -46,6 +47,7 @@ const EMPTY_FORM: FormState = {
   voice_provider: null,
   voice_id: null,
   image_url: null,
+  voice_settings: DEFAULT_VOICE_SETTINGS,
 };
 
 function PersonasPage() {
@@ -167,6 +169,7 @@ function PersonasPage() {
       voice_provider: (p.voice_provider as VoiceProvider | null) ?? null,
       voice_id: p.voice_id ?? null,
       image_url: p.image_url ?? null,
+      voice_settings: (p.voice_settings as VoiceSettings | null) ?? DEFAULT_VOICE_SETTINGS,
     });
     setSources([]);
     setShowForm(true);
@@ -298,7 +301,10 @@ function PersonasPage() {
                   provider={form.voice_provider}
                   voiceId={form.voice_id}
                   onChange={(p, v) => setForm({ ...form, voice_provider: p, voice_id: v })}
+                  settings={form.voice_settings}
+                  onSettingsChange={(vs) => setForm((f) => ({ ...f, voice_settings: vs }))}
                 />
+
                 <p className="text-[11px] text-muted-foreground">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
 
                 <VoiceClonePanel

@@ -7,6 +7,8 @@ const TtsInput = z.object({
   voiceId: z.string().trim().min(1).max(120),
   model: z.string().trim().min(1).max(60).default("speech-02-hd"),
   speed: z.number().min(0.5).max(2).default(1),
+  pitch: z.number().min(-12).max(12).default(0),
+  vol: z.number().min(0.1).max(10).default(1),
 });
 
 /** Synthesize speech via MiniMax T2A v2. Returns base64-encoded mp3. */
@@ -39,8 +41,8 @@ export const minimaxTts = createServerFn({ method: "POST" })
           voice_setting: {
             voice_id: data.voiceId,
             speed: data.speed,
-            vol: 1,
-            pitch: 0,
+            vol: data.vol,
+            pitch: data.pitch,
           },
           audio_setting: {
             sample_rate: 32000,
