@@ -318,7 +318,7 @@ function PersonasPage() {
                   {p.voice_clone_source && (
                     <Badge variant="outline" className="text-[10px]" title={p.voice_clone_name ?? ""}>
                       <Mic className="h-3 w-3 mr-1" />
-                      {p.voice_clone_source === "manual" ? "Voz manual" : p.voice_clone_source === "upload-eleven" ? "Voz ElevenLabs" : "Voz MiniMax"}
+                      {p.voice_clone_source === "manual" ? "Voz manual" : p.voice_clone_source === "upload-eleven" ? "Voz ElevenLabs" : p.voice_clone_source === "upload-replicate" ? "Voz Replicate" : "Voz MiniMax"}
                     </Badge>
                   )}
                 </div>
