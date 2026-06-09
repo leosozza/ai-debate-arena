@@ -99,9 +99,11 @@ const UpdateDebateSchema = z.object({
   debaterAName: z.string().trim().min(1).max(60).optional(),
   debaterAPersona: z.string().trim().min(1).max(20000).optional(),
   debaterAModel: ModelSchema.optional(),
+  debaterAImageUrl: z.string().trim().max(2048).nullable().optional(),
   debaterBName: z.string().trim().min(1).max(60).optional(),
   debaterBPersona: z.string().trim().min(1).max(20000).optional(),
   debaterBModel: ModelSchema.optional(),
+  debaterBImageUrl: z.string().trim().max(2048).nullable().optional(),
   moderatorModel: ModelSchema.optional(),
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]).optional(),
   rounds: z.number().int().min(2).max(6).optional(),
@@ -114,6 +116,7 @@ const UpdateDebateSchema = z.object({
   voiceProviderB: VoiceProviderSchema,
   voiceIdB: VoiceIdSchema,
 });
+
 
 export const updateDebate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
