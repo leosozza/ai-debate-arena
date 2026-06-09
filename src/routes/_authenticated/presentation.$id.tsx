@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getDebate, ttsSpeak, updateDebate, type Verdict } from "@/lib/debate.functions";
 import { minimaxTts, MINIMAX_VOICES } from "@/lib/tts.functions";
+import { replicateTts } from "@/lib/voice-replicate.functions";
+import { REPLICATE_VOICES } from "@/lib/replicate-voices";
 import { ELEVEN_VOICES, DEFAULT_ELEVEN } from "@/lib/eleven-voices";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
@@ -16,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/presentation/$id")({
 });
 
 type Side = "moderator" | "a" | "b";
-type Provider = "browser" | "eleven" | "minimax";
+type Provider = "browser" | "eleven" | "minimax" | "replicate";
 
 function PresentMode() {
   const { id } = Route.useParams();
@@ -24,6 +26,7 @@ function PresentMode() {
   const get = useServerFn(getDebate);
   const elTts = useServerFn(ttsSpeak);
   const mmTts = useServerFn(minimaxTts);
+  const rpTts = useServerFn(replicateTts);
   const updDebate = useServerFn(updateDebate);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
   const [savingVoices, setSavingVoices] = useState(false);
@@ -54,6 +57,11 @@ function PresentMode() {
   const [mmB, setMmB] = useState<string>(MINIMAX_VOICES[3].id);
   const [mmMod, setMmMod] = useState<string>(MINIMAX_VOICES[7].id);
 
+  // Replicate voices
+  const [rpA, setRpA] = useState<string>(REPLICATE_VOICES[4].id);
+  const [rpB, setRpB] = useState<string>(REPLICATE_VOICES[3].id);
+  const [rpMod, setRpMod] = useState<string>(REPLICATE_VOICES[0].id);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
   const playTokenRef = useRef(0);
@@ -75,7 +83,7 @@ function PresentMode() {
     load();
     window.speechSynthesis.onvoiceschanged = load;
     const saved = localStorage.getItem("arena-tts-provider");
-    if (saved === "browser" || saved === "eleven" || saved === "minimax") setProvider(saved);
+    if (saved === "browser" || saved === "eleven" || saved === "minimax" || saved === "replicate") setProvider(saved);
     return () => { window.speechSynthesis.cancel(); audioRef.current?.pause(); };
   }, []);
 
@@ -85,20 +93,23 @@ function PresentMode() {
     if (hydratedRef.current || !data?.debate) return;
     const d = data.debate;
     const dp = d.voice_provider_a ?? d.voice_provider_b ?? d.voice_provider_mod;
-    if (dp === "browser" || dp === "eleven" || dp === "minimax") setProvider(dp);
+    if (dp === "browser" || dp === "eleven" || dp === "minimax" || dp === "replicate") setProvider(dp);
     if (d.voice_id_mod) {
       if (d.voice_provider_mod === "eleven") setElMod(d.voice_id_mod);
       else if (d.voice_provider_mod === "minimax") setMmMod(d.voice_id_mod);
+      else if (d.voice_provider_mod === "replicate") setRpMod(d.voice_id_mod);
       else setVoiceMod(d.voice_id_mod);
     }
     if (d.voice_id_a) {
       if (d.voice_provider_a === "eleven") setElA(d.voice_id_a);
       else if (d.voice_provider_a === "minimax") setMmA(d.voice_id_a);
+      else if (d.voice_provider_a === "replicate") setRpA(d.voice_id_a);
       else setVoiceA(d.voice_id_a);
     }
     if (d.voice_id_b) {
       if (d.voice_provider_b === "eleven") setElB(d.voice_id_b);
       else if (d.voice_provider_b === "minimax") setMmB(d.voice_id_b);
+      else if (d.voice_provider_b === "replicate") setRpB(d.voice_id_b);
       else setVoiceB(d.voice_id_b);
     }
     hydratedRef.current = true;
@@ -150,11 +161,13 @@ function PresentMode() {
     window.speechSynthesis.speak(u);
   }
 
-  async function fetchAudioUrl(prov: "eleven" | "minimax", msgId: string, text: string, role: Side): Promise<string> {
+  async function fetchAudioUrl(prov: "eleven" | "minimax" | "replicate", msgId: string, text: string, role: Side): Promise<string> {
     const voiceId =
       prov === "eleven"
         ? (role === "moderator" ? elMod : role === "a" ? elA : elB)
-        : (role === "moderator" ? mmMod : role === "a" ? mmA : mmB);
+        : prov === "minimax"
+        ? (role === "moderator" ? mmMod : role === "a" ? mmA : mmB)
+        : (role === "moderator" ? rpMod : role === "a" ? rpA : rpB);
     const cacheKey = `${prov}:${msgId}:${voiceId}`;
     const cached = audioCache.current.get(cacheKey);
     if (cached) return cached;
@@ -162,8 +175,11 @@ function PresentMode() {
     if (prov === "eleven") {
       const res = await elTts({ data: { text: text.slice(0, 5000), voiceId } });
       url = `data:${res.mime};base64,${res.audio}`;
-    } else {
+    } else if (prov === "minimax") {
       const res = await mmTts({ data: { text: text.slice(0, 5000), voiceId, model: "speech-02-hd", speed: 1 } });
+      url = `data:${res.mime};base64,${res.audioBase64}`;
+    } else {
+      const res = await rpTts({ data: { text: text.slice(0, 5000), voiceId } });
       url = `data:${res.mime};base64,${res.audioBase64}`;
     }
     audioCache.current.set(cacheKey, url);
@@ -187,7 +203,8 @@ function PresentMode() {
       await audio.play();
     } catch {
       if (token !== playTokenRef.current) return;
-      toast.error(`${provider === "eleven" ? "ElevenLabs" : "MiniMax"} indisponível — usando voz do navegador.`);
+      const label = provider === "eleven" ? "ElevenLabs" : provider === "minimax" ? "MiniMax" : "Replicate";
+      toast.error(`${label} indisponível — usando voz do navegador.`);
       browserSpeak(text, role, token, onEnd);
     } finally {
       setLoading(false);
@@ -217,7 +234,7 @@ function PresentMode() {
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, introBlock, provider, voiceMod, voiceA, voiceB, elMod, elA, elB, mmMod, mmA, mmB]);
+  }, [playing, index, current?.id, introBlock, provider, voiceMod, voiceA, voiceB, elMod, elA, elB, mmMod, mmA, mmB, rpMod, rpA, rpB]);
 
   function handlePlayToggle() {
     if (!playing) hasStartedRef.current = true;
@@ -267,11 +284,18 @@ function PresentMode() {
               voiceProviderA: "eleven" as const, voiceIdA: elA,
               voiceProviderB: "eleven" as const, voiceIdB: elB,
             }
-          : {
+          : provider === "minimax"
+          ? {
               id,
               voiceProviderMod: "minimax" as const, voiceIdMod: mmMod,
               voiceProviderA: "minimax" as const, voiceIdA: mmA,
               voiceProviderB: "minimax" as const, voiceIdB: mmB,
+            }
+          : {
+              id,
+              voiceProviderMod: "replicate" as const, voiceIdMod: rpMod,
+              voiceProviderA: "replicate" as const, voiceIdA: rpA,
+              voiceProviderB: "replicate" as const, voiceIdB: rpB,
             };
       await updDebate({ data: payload });
       toast.success("Vozes salvas neste debate");
@@ -320,7 +344,9 @@ function PresentMode() {
       setPreviewLoading(key);
       const res = prov === "eleven"
         ? await elTts({ data: { text: sample, voiceId } })
-        : await mmTts({ data: { text: sample, voiceId, model: "speech-02-hd", speed: 1 } });
+        : prov === "minimax"
+        ? await mmTts({ data: { text: sample, voiceId, model: "speech-02-hd", speed: 1 } })
+        : await rpTts({ data: { text: sample, voiceId } });
       const url = `data:${res.mime};base64,${"audio" in res ? res.audio : res.audioBase64}`;
       const audio = new Audio(url);
       previewAudioRef.current = audio;
@@ -401,7 +427,7 @@ function PresentMode() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Provedor de voz</p>
             <div className="flex gap-1 rounded-md border border-border/60 bg-background/40 p-0.5">
-              {([["browser", "Navegador"], ["eleven", "ElevenLabs"], ["minimax", "MiniMax"]] as const).map(([p, label]) => (
+              {([["browser", "Navegador"], ["replicate", "Replicate"], ["eleven", "ElevenLabs"], ["minimax", "MiniMax"]] as const).map(([p, label]) => (
                 <button
                   key={p}
                   onClick={() => switchProvider(p)}
@@ -436,6 +462,14 @@ function PresentMode() {
                 <CatalogPicker label={data.debate.debater_a_name} options={MINIMAX_VOICES} value={mmA} onChange={setMmA} onPreview={(id) => previewVoice("minimax", id, "mm-a")} preview={previewing === "mm-a" ? "playing" : previewLoading === "mm-a" ? "loading" : "idle"} />
                 <CatalogPicker label={data.debate.debater_b_name} options={MINIMAX_VOICES} value={mmB} onChange={setMmB} onPreview={(id) => previewVoice("minimax", id, "mm-b")} preview={previewing === "mm-b" ? "playing" : previewLoading === "mm-b" ? "loading" : "idle"} />
                 <p className="text-[10px] text-muted-foreground leading-snug">MiniMax sintetiza no servidor; cada fala consome créditos da sua chave.</p>
+              </>
+            )}
+            {provider === "replicate" && (
+              <>
+                <CatalogPicker label="Mediador" options={REPLICATE_VOICES} value={rpMod} onChange={setRpMod} onPreview={(id) => previewVoice("replicate", id, "rp-mod")} preview={previewing === "rp-mod" ? "playing" : previewLoading === "rp-mod" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_a_name} options={REPLICATE_VOICES} value={rpA} onChange={setRpA} onPreview={(id) => previewVoice("replicate", id, "rp-a")} preview={previewing === "rp-a" ? "playing" : previewLoading === "rp-a" ? "loading" : "idle"} />
+                <CatalogPicker label={data.debate.debater_b_name} options={REPLICATE_VOICES} value={rpB} onChange={setRpB} onPreview={(id) => previewVoice("replicate", id, "rp-b")} preview={previewing === "rp-b" ? "playing" : previewLoading === "rp-b" ? "loading" : "idle"} />
+                <p className="text-[10px] text-muted-foreground leading-snug">Replicate: vozes do minimax/speech-02-hd ou voz clonada (XTTS-v2).</p>
               </>
             )}
           </div>

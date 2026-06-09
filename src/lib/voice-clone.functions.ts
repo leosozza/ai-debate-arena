@@ -133,9 +133,9 @@ export const attachVoiceToPersona = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
       personaId: z.string().uuid(),
-      provider: z.enum(["browser", "eleven", "minimax"]),
-      voiceId: z.string().trim().min(1).max(120),
-      source: z.enum(["upload-eleven", "upload-minimax", "manual"]),
+      provider: z.enum(["browser", "eleven", "minimax", "replicate"]),
+      voiceId: z.string().trim().min(1).max(2048),
+      source: z.enum(["upload-eleven", "upload-minimax", "upload-replicate", "manual"]),
       cloneName: z.string().trim().max(120).nullable().optional(),
     }).parse(d),
   )
