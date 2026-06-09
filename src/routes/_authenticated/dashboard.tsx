@@ -65,7 +65,7 @@ function Dashboard() {
                   : "Em rascunho"}
               </div>
             </button>
-            <Link to="/debates/$id/present" params={{ id: d.id }}>
+            <Link to="/presentation/$id" params={{ id: d.id }}>
               <Button size="sm" variant="outline"><Play className="h-4 w-4" /></Button>
             </Link>
             <Button size="sm" variant="ghost" onClick={() => handleDelete(d.id)}>

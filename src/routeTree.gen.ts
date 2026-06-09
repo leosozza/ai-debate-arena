@@ -16,9 +16,8 @@ import { Route as AuthenticatedPersonasRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/new'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as ApiDebateStreamRouteImport } from './routes/api/debate.stream'
+import { Route as AuthenticatedPresentationIdRouteImport } from './routes/_authenticated/presentation.$id'
 import { Route as AuthenticatedDebatesIdRouteImport } from './routes/_authenticated/debates.$id'
-import { Route as AuthenticatedDebatesIdIndexRouteImport } from './routes/_authenticated/debates.$id.index'
-import { Route as AuthenticatedDebatesIdPresentRouteImport } from './routes/_authenticated/debates.$id.present'
 import { Route as AuthenticatedDebatesIdEditRouteImport } from './routes/_authenticated/debates.$id.edit'
 import { Route as AuthenticatedDebatesIdArenaRouteImport } from './routes/_authenticated/debates.$id.arena'
 
@@ -56,23 +55,17 @@ const ApiDebateStreamRoute = ApiDebateStreamRouteImport.update({
   path: '/api/debate/stream',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedPresentationIdRoute =
+  AuthenticatedPresentationIdRouteImport.update({
+    id: '/presentation/$id',
+    path: '/presentation/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDebatesIdRoute = AuthenticatedDebatesIdRouteImport.update({
   id: '/debates/$id',
   path: '/debates/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedDebatesIdIndexRoute =
-  AuthenticatedDebatesIdIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDebatesIdRoute,
-  } as any)
-const AuthenticatedDebatesIdPresentRoute =
-  AuthenticatedDebatesIdPresentRouteImport.update({
-    id: '/present',
-    path: '/present',
-    getParentRoute: () => AuthenticatedDebatesIdRoute,
-  } as any)
 const AuthenticatedDebatesIdEditRoute =
   AuthenticatedDebatesIdEditRouteImport.update({
     id: '/edit',
@@ -93,11 +86,10 @@ export interface FileRoutesByFullPath {
   '/new': typeof AuthenticatedNewRoute
   '/personas': typeof AuthenticatedPersonasRoute
   '/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
+  '/presentation/$id': typeof AuthenticatedPresentationIdRoute
   '/api/debate/stream': typeof ApiDebateStreamRoute
   '/debates/$id/arena': typeof AuthenticatedDebatesIdArenaRoute
   '/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
-  '/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
-  '/debates/$id/': typeof AuthenticatedDebatesIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -105,11 +97,11 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/new': typeof AuthenticatedNewRoute
   '/personas': typeof AuthenticatedPersonasRoute
+  '/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
+  '/presentation/$id': typeof AuthenticatedPresentationIdRoute
   '/api/debate/stream': typeof ApiDebateStreamRoute
   '/debates/$id/arena': typeof AuthenticatedDebatesIdArenaRoute
   '/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
-  '/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
-  '/debates/$id': typeof AuthenticatedDebatesIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -120,11 +112,10 @@ export interface FileRoutesById {
   '/_authenticated/new': typeof AuthenticatedNewRoute
   '/_authenticated/personas': typeof AuthenticatedPersonasRoute
   '/_authenticated/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
+  '/_authenticated/presentation/$id': typeof AuthenticatedPresentationIdRoute
   '/api/debate/stream': typeof ApiDebateStreamRoute
   '/_authenticated/debates/$id/arena': typeof AuthenticatedDebatesIdArenaRoute
   '/_authenticated/debates/$id/edit': typeof AuthenticatedDebatesIdEditRoute
-  '/_authenticated/debates/$id/present': typeof AuthenticatedDebatesIdPresentRoute
-  '/_authenticated/debates/$id/': typeof AuthenticatedDebatesIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -135,11 +126,10 @@ export interface FileRouteTypes {
     | '/new'
     | '/personas'
     | '/debates/$id'
+    | '/presentation/$id'
     | '/api/debate/stream'
     | '/debates/$id/arena'
     | '/debates/$id/edit'
-    | '/debates/$id/present'
-    | '/debates/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -147,11 +137,11 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/new'
     | '/personas'
+    | '/debates/$id'
+    | '/presentation/$id'
     | '/api/debate/stream'
     | '/debates/$id/arena'
     | '/debates/$id/edit'
-    | '/debates/$id/present'
-    | '/debates/$id'
   id:
     | '__root__'
     | '/'
@@ -161,11 +151,10 @@ export interface FileRouteTypes {
     | '/_authenticated/new'
     | '/_authenticated/personas'
     | '/_authenticated/debates/$id'
+    | '/_authenticated/presentation/$id'
     | '/api/debate/stream'
     | '/_authenticated/debates/$id/arena'
     | '/_authenticated/debates/$id/edit'
-    | '/_authenticated/debates/$id/present'
-    | '/_authenticated/debates/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -226,26 +215,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDebateStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/presentation/$id': {
+      id: '/_authenticated/presentation/$id'
+      path: '/presentation/$id'
+      fullPath: '/presentation/$id'
+      preLoaderRoute: typeof AuthenticatedPresentationIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/debates/$id': {
       id: '/_authenticated/debates/$id'
       path: '/debates/$id'
       fullPath: '/debates/$id'
       preLoaderRoute: typeof AuthenticatedDebatesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/debates/$id/': {
-      id: '/_authenticated/debates/$id/'
-      path: '/'
-      fullPath: '/debates/$id/'
-      preLoaderRoute: typeof AuthenticatedDebatesIdIndexRouteImport
-      parentRoute: typeof AuthenticatedDebatesIdRoute
-    }
-    '/_authenticated/debates/$id/present': {
-      id: '/_authenticated/debates/$id/present'
-      path: '/present'
-      fullPath: '/debates/$id/present'
-      preLoaderRoute: typeof AuthenticatedDebatesIdPresentRouteImport
-      parentRoute: typeof AuthenticatedDebatesIdRoute
     }
     '/_authenticated/debates/$id/edit': {
       id: '/_authenticated/debates/$id/edit'
@@ -267,16 +249,12 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedDebatesIdRouteChildren {
   AuthenticatedDebatesIdArenaRoute: typeof AuthenticatedDebatesIdArenaRoute
   AuthenticatedDebatesIdEditRoute: typeof AuthenticatedDebatesIdEditRoute
-  AuthenticatedDebatesIdPresentRoute: typeof AuthenticatedDebatesIdPresentRoute
-  AuthenticatedDebatesIdIndexRoute: typeof AuthenticatedDebatesIdIndexRoute
 }
 
 const AuthenticatedDebatesIdRouteChildren: AuthenticatedDebatesIdRouteChildren =
   {
     AuthenticatedDebatesIdArenaRoute: AuthenticatedDebatesIdArenaRoute,
     AuthenticatedDebatesIdEditRoute: AuthenticatedDebatesIdEditRoute,
-    AuthenticatedDebatesIdPresentRoute: AuthenticatedDebatesIdPresentRoute,
-    AuthenticatedDebatesIdIndexRoute: AuthenticatedDebatesIdIndexRoute,
   }
 
 const AuthenticatedDebatesIdRouteWithChildren =
@@ -289,6 +267,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNewRoute: typeof AuthenticatedNewRoute
   AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
   AuthenticatedDebatesIdRoute: typeof AuthenticatedDebatesIdRouteWithChildren
+  AuthenticatedPresentationIdRoute: typeof AuthenticatedPresentationIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -296,6 +275,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNewRoute: AuthenticatedNewRoute,
   AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
   AuthenticatedDebatesIdRoute: AuthenticatedDebatesIdRouteWithChildren,
+  AuthenticatedPresentationIdRoute: AuthenticatedPresentationIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

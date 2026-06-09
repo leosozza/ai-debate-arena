@@ -11,7 +11,7 @@ import { BlockIntroCard } from "@/components/BlockIntroCard";
 import { toast } from "sonner";
 import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Trophy, Loader2, Radio, Bot, Mic2 } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/debates/$id/present")({
+export const Route = createFileRoute("/_authenticated/presentation/$id")({
   component: PresentMode,
 });
 
@@ -268,7 +268,7 @@ function PresentMode() {
   const speakerContent = current?.content ?? "";
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
       {introBlock !== null && subtopicsList[introBlock] && (
         <BlockIntroCard
           blockIndex={introBlock}
