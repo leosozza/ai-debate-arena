@@ -439,6 +439,21 @@ function PresentMode() {
               </>
             )}
           </div>
+
+          <div className="border-t border-border/50 pt-3 space-y-2">
+            <Button
+              onClick={saveVoicesToDebate}
+              disabled={savingVoices}
+              className="w-full"
+              size="sm"
+            >
+              {savingVoices ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+              💾 Salvar essas vozes no debate
+            </Button>
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              Persiste a escolha — aplicada nas próximas reproduções e gravada para todos.
+            </p>
+          </div>
         </div>
       )}
 
