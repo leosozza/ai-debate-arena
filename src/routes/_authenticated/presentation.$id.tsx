@@ -399,6 +399,7 @@ function PresentMode() {
               <StageDebaterPanel
                 side="a"
                 name={data.debate.debater_a_name}
+                imageUrl={data.debate.debater_a_image_url ?? null}
                 phase={current?.phase ?? ""}
                 content={role === "a" ? speakerContent : ""}
                 active={role === "a"}
@@ -416,6 +417,7 @@ function PresentMode() {
               <StageDebaterPanel
                 side="b"
                 name={data.debate.debater_b_name}
+                imageUrl={data.debate.debater_b_image_url ?? null}
                 phase={current?.phase ?? ""}
                 content={role === "b" ? speakerContent : ""}
                 active={role === "b"}
