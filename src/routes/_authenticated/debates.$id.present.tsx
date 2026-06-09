@@ -54,8 +54,9 @@ function PresentMode() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
-  const cancelledRef = useRef(false);
+  const playTokenRef = useRef(0);
   const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasStartedRef = useRef(false);
 
   useEffect(() => {
     function load() {
@@ -114,33 +115,36 @@ function PresentMode() {
   }
 
   function stopAll() {
-    cancelledRef.current = true;
+    // Invalida qualquer reprodução em curso — eventos atrasados não vão mais avançar.
+    playTokenRef.current += 1;
     clearKeepAlive();
-    window.speechSynthesis.cancel();
+    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
     if (audioRef.current) {
-      audioRef.current.pause();
+      try { audioRef.current.pause(); } catch { /* ignore */ }
       audioRef.current.src = "";
       audioRef.current = null;
     }
   }
 
-  function browserSpeak(text: string, role: Side, onEnd: () => void) {
+  function browserSpeak(text: string, role: Side, token: number, onEnd: () => void) {
     const voiceName = role === "moderator" ? voiceMod : role === "a" ? voiceA : voiceB;
-    window.speechSynthesis.cancel();
+    try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
     const u = new SpeechSynthesisUtterance(text);
     const v = voices.find((x) => x.name === voiceName);
     if (v) u.voice = v;
     u.lang = v?.lang ?? "pt-BR";
     u.rate = 1.0;
-    // Chrome corta falas longas (~15s); resume periódico mantém viva.
+    u.onend = () => {
+      clearKeepAlive();
+      if (token === playTokenRef.current) setTimeout(onEnd, 0);
+    };
+    u.onerror = () => { clearKeepAlive(); };
     clearKeepAlive();
     keepAliveRef.current = setInterval(() => {
       if (!window.speechSynthesis.speaking) { clearKeepAlive(); return; }
       window.speechSynthesis.pause();
       window.speechSynthesis.resume();
     }, 10000);
-    u.onend = () => { clearKeepAlive(); if (!cancelledRef.current) onEnd(); };
-    u.onerror = () => { clearKeepAlive(); };
     window.speechSynthesis.speak(u);
   }
 
@@ -165,54 +169,70 @@ function PresentMode() {
   }
 
   async function speak(msgId: string, text: string, role: Side, onEnd: () => void) {
-    cancelledRef.current = false;
+    playTokenRef.current += 1;
+    const token = playTokenRef.current;
     if (provider === "browser") {
-      browserSpeak(text, role, onEnd);
+      browserSpeak(text, role, token, onEnd);
       return;
     }
     try {
       setLoading(true);
       const url = await fetchAudioUrl(provider, msgId, text, role);
-      if (cancelledRef.current) return;
+      if (token !== playTokenRef.current) return;
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => { if (!cancelledRef.current) onEnd(); };
+      audio.onended = () => { if (token === playTokenRef.current) onEnd(); };
       await audio.play();
     } catch {
-      if (cancelledRef.current) return;
+      if (token !== playTokenRef.current) return;
       toast.error(`${provider === "eleven" ? "ElevenLabs" : "MiniMax"} indisponível — usando voz do navegador.`);
-      browserSpeak(text, role, onEnd);
+      browserSpeak(text, role, token, onEnd);
     } finally {
       setLoading(false);
     }
   }
 
-  // Detecta entrada num novo bloco e dispara a vinheta antes de tocar a fala.
+  // Cartela do bloco só aparece DEPOIS que o usuário começa (não bloqueia o botão Tocar).
   const lastBlockShownRef = useRef<number>(-1);
   const subtopicsList = (data?.debate?.block_subtopics as Array<{ title: string; focus: string }> | null) ?? [];
   const blocksTotal = data?.debate?.blocks_count ?? subtopicsList.length ?? 1;
   useEffect(() => {
-    if (!current) return;
+    if (!playing || !current) return;
     const b = current.block_index ?? 0;
-    // Só mostra vinheta se houver mais de 1 bloco e ainda não mostramos para este bloco nesta sessão.
     if (blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
       lastBlockShownRef.current = b;
-      setIntroBlock(b);
       stopAll();
+      setIntroBlock(b);
     }
-  }, [current?.id, blocksTotal]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playing, current?.id, blocksTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!playing || !current || introBlock !== null) return;
     const advance = () => {
-      if (cancelledRef.current) return;
       if (index + 1 < slideCount) setIndex((i) => i + 1);
       else setPlaying(false);
     };
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, provider, introBlock]);
+  }, [playing, index, current?.id, introBlock, provider]);
+
+  function handlePlayToggle() {
+    if (!playing) hasStartedRef.current = true;
+    setPlaying((p) => !p);
+  }
+
+  function goToBlock(delta: -1 | 1) {
+    if (!messages.length) return;
+    const currentBlock = current?.block_index ?? 0;
+    const target = Math.max(0, Math.min(blocksTotal - 1, currentBlock + delta));
+    if (target === currentBlock) return;
+    const firstIdx = messages.findIndex((m) => (m.block_index ?? 0) === target);
+    if (firstIdx === -1) return;
+    stopAll();
+    lastBlockShownRef.current = -1; // permite a cartela aparecer de novo
+    setIndex(firstIdx);
+  }
 
   function go(delta: number) {
     setPlaying(false);
