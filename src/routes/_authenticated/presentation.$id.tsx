@@ -215,7 +215,7 @@ function PresentMode() {
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, introBlock, provider]);
+  }, [playing, index, current?.id, introBlock, provider, voiceMod, voiceA, voiceB, elMod, elA, elB, mmMod, mmA, mmB]);
 
   function handlePlayToggle() {
     if (!playing) hasStartedRef.current = true;
