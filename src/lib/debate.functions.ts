@@ -18,6 +18,23 @@ const FormatSchema = z.enum([
   "century_problem",
 ]).default("duel");
 
+const ExtraParticipantSchema = z.object({
+  slot: z.number().int().min(2).max(20),
+  role: z.enum([
+    "debater", "moderator", "judge", "prosecutor", "defender",
+    "interviewer", "interviewee", "team_a", "team_b",
+  ]).default("debater"),
+  displayName: z.string().trim().min(1).max(120),
+  personaId: z.string().uuid().nullable().optional(),
+  personaPrompt: z.string().trim().max(20000).default(""),
+  imageUrl: z.string().trim().max(2048).nullable().optional(),
+  voiceProvider: VoiceProviderSchema,
+  voiceId: VoiceIdSchema,
+  model: ModelSchema.nullable().optional(),
+  team: z.string().trim().max(10).nullable().optional(),
+});
+export type ExtraParticipantInput = z.infer<typeof ExtraParticipantSchema>;
+
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
   format: FormatSchema,
@@ -40,7 +57,20 @@ const NewDebateSchema = z.object({
   voiceIdA: VoiceIdSchema,
   voiceProviderB: VoiceProviderSchema,
   voiceIdB: VoiceIdSchema,
+  extras: z.array(ExtraParticipantSchema).max(20).default([]),
 });
+
+const FORMAT_RULES_HINTS: Record<string, string> = {
+  duel: "Formato: DUELO 1×1 clássico. Alternância entre A e B com mediador.",
+  roundtable: "Formato: MESA REDONDA. Vários convidados (incluindo os extras listados). O mediador distribui falas, provoca contraposições e fecha cada bloco com síntese.",
+  presidential: "Formato: DEBATE PRESIDENCIAL. Vários candidatos respondem perguntas do mediador. Cada um tem tempo curto e cronometrado; réplicas e tréplicas curtas.",
+  tribunal: "Formato: TRIBUNAL DA HISTÓRIA. O réu é interrogado; promotores acusam, defensores defendem, jurados deliberam um veredito no fim.",
+  interview: "Formato: ENTREVISTA IMPOSSÍVEL. Sem mediador; o entrevistador faz perguntas curtas e provocativas, o entrevistado responde longo e pessoal.",
+  era_clash: "Formato: DEBATE ENTRE ERAS. Um vem do passado, outro do presente — explore choque de visões de mundo, vocabulário e prioridades.",
+  sages_council: "Formato: CONSELHO DOS SÁBIOS. Tom reflexivo, sem combate. Buscam síntese e novas perguntas, não vitória.",
+  ideas_war: "Formato: GUERRA DAS IDEIAS. Times A e B alternam aberturas e réplicas. Veredito é coletivo por time.",
+  century_problem: "Formato: PROBLEMA DO SÉCULO. Não é debate — é COLABORAÇÃO. Cada figura contribui com sua visão para resolver um desafio comum.",
+};
 
 
 export const createDebate = createServerFn({ method: "POST" })
