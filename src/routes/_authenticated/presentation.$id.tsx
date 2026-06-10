@@ -453,6 +453,13 @@ function PresentMode() {
   const aDescription = personaA?.description ?? null;
   const bDescription = personaB?.description ?? null;
 
+  // N-up extra speaker: when current role is `ex<slot>`, find matching participant.
+  const extraSpeaker = (() => {
+    if (!current || typeof current.role !== "string" || !current.role.startsWith("ex")) return null;
+    const slot = Number(current.role.slice(2));
+    return extras.find((e) => e.slot === slot) ?? null;
+  })();
+
   // Card de apresentação dos convidados: aparece em cima da tela enquanto a
   // primeira vinheta do mediador é narrada (index 0). Some assim que avançamos.
   const showDebaterIntro = playing && index === 0 && currentBlockIdx === 0 && role === "moderator";
@@ -486,6 +493,23 @@ function PresentMode() {
           b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, description: bDescription }}
           onSkip={() => { stopAll(); setIndex((i) => Math.min(slideCount - 1, i + 1)); }}
         />
+      )}
+      {extraSpeaker && !isWinner && (
+        <div className="absolute inset-x-0 top-20 z-30 mx-auto w-[min(92%,42rem)] rounded-2xl border border-primary/40 bg-card/90 p-4 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-top-2 duration-500">
+          <div className="flex items-center gap-3">
+            {extraSpeaker.image_url ? (
+              <img src={extraSpeaker.image_url} alt={extraSpeaker.display_name} className="h-14 w-14 rounded-full border-2 border-primary object-cover" />
+            ) : (
+              <div className="h-14 w-14 rounded-full bg-primary/15 flex items-center justify-center border-2 border-primary"><Bot className="h-7 w-7 text-primary" /></div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-primary font-semibold">{extraSpeaker.role.replace("_", " ")}</div>
+              <h3 className="font-display text-lg md:text-2xl font-extrabold text-foreground truncate">{extraSpeaker.display_name}</h3>
+            </div>
+            <VoiceWave active={playing && !loading} colorClass="bg-primary" bars={16} />
+          </div>
+          <p className="mt-3 text-sm md:text-base leading-relaxed text-foreground/90">{speakerContent}</p>
+        </div>
       )}
       <div className="pointer-events-none absolute inset-0 transition-all duration-700" style={{ background: theme.glow }} />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_120%,transparent_40%,oklch(0.08_0.02_264_/_0.8))]" />
