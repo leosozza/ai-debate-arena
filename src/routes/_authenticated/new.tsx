@@ -325,6 +325,15 @@ function NewDebate() {
           </Card>
         </div>
 
+        <ExtraParticipantsPanel
+          format={currentFormat}
+          extras={extras}
+          setExtras={setExtras}
+          personas={personas}
+        />
+
+
+
         <Card className="p-6 space-y-4">
           <div className="space-y-2">
             <Label>Modelo do mediador</Label>
