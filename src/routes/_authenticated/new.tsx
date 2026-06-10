@@ -69,6 +69,8 @@ function NewDebate() {
     voiceProviderB: "browser" as VoiceProvider,
     voiceIdB: null as string | null,
   });
+  const [extras, setExtras] = useState<ExtraParticipantDraft[]>([]);
+  const currentFormat = getFormat(form.format)!;
 
   function applyPersona(side: "A" | "B", personaId: string) {
     const p = personas.find((x) => x.id === personaId);
