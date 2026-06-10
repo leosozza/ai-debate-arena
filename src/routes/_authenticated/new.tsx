@@ -23,6 +23,7 @@ import { type VoiceProvider } from "@/lib/voice-catalog";
 import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-formats";
 import { Badge } from "@/components/ui/badge";
 import { ExtraParticipantsPanel, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
+import { AIDisclaimer } from "@/components/AIDisclaimer";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
