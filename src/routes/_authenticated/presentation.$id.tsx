@@ -329,7 +329,7 @@ function PresentMode() {
         bDescription: pB?.description ?? null,
         messages: messages.map((m) => ({
           id: m.id,
-          role: (m.role ?? "moderator") as Side,
+          role: ((m.role === "a" || m.role === "b") ? m.role : "moderator") as "moderator" | "a" | "b",
           phase: m.phase ?? "",
           content: m.content,
           audioUrl: audioByMsg.get(m.id)!,
