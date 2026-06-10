@@ -376,6 +376,31 @@ function PersonasPage() {
         )}
       </div>
 
+      {!showForm && personas.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          <button
+            onClick={() => setCategoryFilter(null)}
+            className={`text-xs px-2.5 py-1 rounded-full border transition ${categoryFilter === null ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary/50"}`}
+          >
+            Todas
+          </button>
+          {PERSONA_CATEGORIES.map((c) => {
+            const count = personas.filter((p) => p.category === c.id).length;
+            if (count === 0) return null;
+            const active = categoryFilter === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setCategoryFilter(active ? null : c.id)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition ${active ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary/50"}`}
+              >
+                {c.emoji} {c.label} <span className="opacity-60">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {isLoading ? (
         <p className="text-muted-foreground">Carregando…</p>
       ) : personas.length === 0 ? (
@@ -389,7 +414,9 @@ function PersonasPage() {
         </Card>
       ) : (
         <div className="grid md:grid-cols-2 gap-3">
-          {personas.map((p) => (
+          {personas
+            .filter((p) => (categoryFilter ? p.category === categoryFilter : true))
+            .map((p) => (
             <Card key={p.id} className="p-4 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex gap-3 min-w-0">
