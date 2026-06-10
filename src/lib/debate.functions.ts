@@ -931,7 +931,7 @@ const SEMANTIC_ROLE_HINT: Record<string, string> = {
 };
 
 export async function loadParticipants(
-  supabase: { from: (t: string) => { select: (s: string) => { eq: (k: string, v: string) => { order: (c: string) => Promise<{ data: unknown[] | null }> } } } },
+  supabase: unknown,
   debate: Debate & {
     debater_a_image_url?: string | null;
     debater_b_image_url?: string | null;
