@@ -20,8 +20,9 @@ import { toast } from "sonner";
 import { Sparkles, Users, Wand2, Swords, Dices } from "lucide-react";
 import { VoicePicker } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
-import { DEBATE_FORMATS, type DebateFormatId } from "@/lib/debate-formats";
+import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-formats";
 import { Badge } from "@/components/ui/badge";
+import { ExtraParticipantsPanel, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
@@ -68,6 +69,8 @@ function NewDebate() {
     voiceProviderB: "browser" as VoiceProvider,
     voiceIdB: null as string | null,
   });
+  const [extras, setExtras] = useState<ExtraParticipantDraft[]>([]);
+  const currentFormat = getFormat(form.format)!;
 
   function applyPersona(side: "A" | "B", personaId: string) {
     const p = personas.find((x) => x.id === personaId);
@@ -146,7 +149,7 @@ function NewDebate() {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await create({ data: form });
+      const result = await create({ data: { ...form, extras } });
       toast.success("Debate criado!");
       router.navigate({ to: "/debates/$id", params: { id: result.id } });
     } catch (e) {
@@ -191,7 +194,7 @@ function NewDebate() {
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setForm({ ...form, format: f.id })}
+                  onClick={() => { setForm({ ...form, format: f.id }); setExtras([]); }}
                   className={`group relative text-left rounded-lg border p-3 transition-all ${
                     active
                       ? "border-primary bg-primary/10 ring-2 ring-primary/40"
@@ -321,6 +324,15 @@ function NewDebate() {
             </div>
           </Card>
         </div>
+
+        <ExtraParticipantsPanel
+          format={currentFormat}
+          extras={extras}
+          setExtras={setExtras}
+          personas={personas}
+        />
+
+
 
         <Card className="p-6 space-y-4">
           <div className="space-y-2">

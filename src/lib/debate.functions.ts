@@ -18,6 +18,23 @@ const FormatSchema = z.enum([
   "century_problem",
 ]).default("duel");
 
+const ExtraParticipantSchema = z.object({
+  slot: z.number().int().min(2).max(20),
+  role: z.enum([
+    "debater", "moderator", "judge", "prosecutor", "defender",
+    "interviewer", "interviewee", "team_a", "team_b",
+  ]).default("debater"),
+  displayName: z.string().trim().min(1).max(120),
+  personaId: z.string().uuid().nullable().optional(),
+  personaPrompt: z.string().trim().max(20000).default(""),
+  imageUrl: z.string().trim().max(2048).nullable().optional(),
+  voiceProvider: VoiceProviderSchema,
+  voiceId: VoiceIdSchema,
+  model: ModelSchema.nullable().optional(),
+  team: z.string().trim().max(10).nullable().optional(),
+});
+export type ExtraParticipantInput = z.infer<typeof ExtraParticipantSchema>;
+
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
   format: FormatSchema,
@@ -40,7 +57,20 @@ const NewDebateSchema = z.object({
   voiceIdA: VoiceIdSchema,
   voiceProviderB: VoiceProviderSchema,
   voiceIdB: VoiceIdSchema,
+  extras: z.array(ExtraParticipantSchema).max(20).default([]),
 });
+
+const FORMAT_RULES_HINTS: Record<string, string> = {
+  duel: "Formato: DUELO 1×1 clássico. Alternância entre A e B com mediador.",
+  roundtable: "Formato: MESA REDONDA. Vários convidados (incluindo os extras listados). O mediador distribui falas, provoca contraposições e fecha cada bloco com síntese.",
+  presidential: "Formato: DEBATE PRESIDENCIAL. Vários candidatos respondem perguntas do mediador. Cada um tem tempo curto e cronometrado; réplicas e tréplicas curtas.",
+  tribunal: "Formato: TRIBUNAL DA HISTÓRIA. O réu é interrogado; promotores acusam, defensores defendem, jurados deliberam um veredito no fim.",
+  interview: "Formato: ENTREVISTA IMPOSSÍVEL. Sem mediador; o entrevistador faz perguntas curtas e provocativas, o entrevistado responde longo e pessoal.",
+  era_clash: "Formato: DEBATE ENTRE ERAS. Um vem do passado, outro do presente — explore choque de visões de mundo, vocabulário e prioridades.",
+  sages_council: "Formato: CONSELHO DOS SÁBIOS. Tom reflexivo, sem combate. Buscam síntese e novas perguntas, não vitória.",
+  ideas_war: "Formato: GUERRA DAS IDEIAS. Times A e B alternam aberturas e réplicas. Veredito é coletivo por time.",
+  century_problem: "Formato: PROBLEMA DO SÉCULO. Não é debate — é COLABORAÇÃO. Cada figura contribui com sua visão para resolver um desafio comum.",
+};
 
 
 export const createDebate = createServerFn({ method: "POST" })
@@ -48,25 +78,30 @@ export const createDebate = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => NewDebateSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { chatComplete } = await import("./ai-gateway.server");
-    const rulesPrompt = `Você é o MEDIADOR de um debate de IAs para um canal do YouTube.
+    const formatHint = FORMAT_RULES_HINTS[data.format] ?? FORMAT_RULES_HINTS.duel;
+    const extrasText = data.extras.length
+      ? `\nConvidados extras:\n${data.extras.map((e, i) => `- (slot ${e.slot}, papel ${e.role}) ${e.displayName} — ${e.personaPrompt.slice(0, 240)}`).join("\n")}\n`
+      : "";
+    const rulesPrompt = `Você é o MEDIADOR de um programa de IAs para um canal do YouTube.
+${formatHint}
 Tema: "${data.topic}"
 Debatedor A: ${data.debaterAName} — ${data.debaterAPersona}
-Debatedor B: ${data.debaterBName} — ${data.debaterBPersona}
+Debatedor B: ${data.debaterBName} — ${data.debaterBPersona}${extrasText}
 Tom: ${data.moderatorTone}
 Rodadas: ${data.rounds}
 Fluxo: ${data.dynamicFlow ? "dinâmico (mediador decide quem fala)" : "fixo (alternado A/B)"}
 
 Escreva em português um documento curto (~250 palavras) com:
-1. Apresentação do tema
-2. Regras claras do debate (tempo, respeito, formato)
+1. Apresentação do tema e do formato
+2. Regras claras (tempo, respeito, ordem das falas adequada ao formato)
 3. Critérios de avaliação
-4. Ordem das falas
+4. Como o programa termina (veredito, síntese ou conclusão colaborativa, conforme o formato)
 
 Use markdown com títulos curtos. Seja direto e envolvente.`;
 
     const rules = await chatComplete(
       [
-        { role: "system", content: "Você é um mediador profissional de debates." },
+        { role: "system", content: "Você é um mediador profissional de debates e programas de TV." },
         { role: "user", content: rulesPrompt },
       ],
       data.moderatorModel,
@@ -104,6 +139,32 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
       .select()
       .single();
     if (error) throw new Error(error.message);
+
+    // Persiste convidados extras (slot 2+) na tabela N-up — engine de geração
+    // ainda usa A/B; os extras aparecem no card de regras e no painel do
+    // programa para preparar os formatos futuros.
+    if (data.extras.length > 0) {
+      const rows = data.extras.map((e) => ({
+        debate_id: debate.id,
+        user_id: context.userId,
+        slot: e.slot,
+        role: e.role,
+        display_name: e.displayName,
+        persona_id: e.personaId ?? null,
+        persona_prompt: e.personaPrompt,
+        image_url: e.imageUrl ?? null,
+        voice_provider: e.voiceProvider ?? null,
+        voice_id: e.voiceId ?? null,
+        model: e.model ?? null,
+        team: e.team ?? null,
+      }));
+      const { error: pErr } = await context.supabase.from("debate_participants").insert(rows);
+      if (pErr) {
+        // Não derruba o debate por falha nos extras — só loga em dev.
+        console.warn("[createDebate] falha ao inserir extras:", pErr.message);
+      }
+    }
+
     return { id: debate.id, rules };
   });
 
