@@ -467,6 +467,7 @@ function PresentMode() {
           <AIDisclaimer variant="card" />
         </button>
       )}
+      {introBlock !== null && subtopicsList[introBlock] && (
         <BlockIntroCard
           blockIndex={introBlock}
           total={blocksTotal}
