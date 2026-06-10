@@ -191,6 +191,45 @@ function drawStageFrame(
   }
 }
 
+
+/** Opening disclaimer card: full-screen AI simulation warning. */
+function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#05060d");
+  bg.addColorStop(1, "#0b1020");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Warning triangle (simple)
+  ctx.fillStyle = "#a78bfa";
+  ctx.beginPath();
+  ctx.moveTo(W / 2, 130);
+  ctx.lineTo(W / 2 - 40, 200);
+  ctx.lineTo(W / 2 + 40, 200);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#0b1020";
+  ctx.font = "800 36px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("!", W / 2, 195);
+
+  ctx.fillStyle = "#a78bfa";
+  ctx.font = "700 14px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("AVISO", W / 2, 240);
+
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = "800 34px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  const titleLines = wrapText(ctx, "Este programa é uma simulação por inteligência artificial", W - 200).slice(0, 2);
+  titleLines.forEach((ln, i) => ctx.fillText(ln, W / 2, 290 + i * 42));
+
+  ctx.fillStyle = "#cbd5e1";
+  ctx.font = "400 18px system-ui";
+  const bodyLines = wrapText(ctx, AI_DISCLAIMER_TEXT, W - 280).slice(0, 6);
+  const startY = 290 + titleLines.length * 42 + 30;
+  bodyLines.forEach((ln, i) => ctx.fillText(ln, W / 2, startY + i * 26));
+}
+
 /** Opening frame: two guests side-by-side with bios, Roda Viva style. */
 function drawIntroFrame(
   ctx: CanvasRenderingContext2D,
