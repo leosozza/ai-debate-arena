@@ -959,7 +959,8 @@ export async function loadParticipants(
       imageUrl: debate.debater_b_image_url ?? null,
     },
   ];
-  const res = await supabase.from("debate_participants").select("*").eq("debate_id", debate.id).order("slot");
+  const sb = supabase as { from: (t: string) => { select: (s: string) => { eq: (k: string, v: string) => { order: (c: string) => Promise<{ data: unknown[] | null }> } } } };
+  const res = await sb.from("debate_participants").select("*").eq("debate_id", debate.id).order("slot");
   const rows = (res.data ?? []) as Array<{
     slot: number; role: string; display_name: string; persona_prompt: string | null;
     model: string | null; voice_provider: string | null; voice_id: string | null; image_url: string | null;
