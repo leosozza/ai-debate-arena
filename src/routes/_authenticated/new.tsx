@@ -175,7 +175,8 @@ function NewDebate() {
     <main className="container mx-auto px-4 py-10 max-w-3xl">
       <Reveal>
         <h1 className="font-display text-3xl md:text-4xl font-bold mb-2">Novo debate</h1>
-        <p className="text-muted-foreground mb-8">O mediador (IA) escreve as regras a partir desta configuração.</p>
+        <p className="text-muted-foreground mb-4">O mediador (IA) escreve as regras a partir desta configuração.</p>
+        <AIDisclaimer variant="inline" className="mb-6" />
       </Reveal>
 
       <form onSubmit={handleSubmit} className="space-y-6">
