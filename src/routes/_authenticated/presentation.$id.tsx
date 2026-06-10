@@ -11,6 +11,7 @@ import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 import { DebaterIntroCard } from "@/components/DebaterIntroCard";
 import { ClosingCard } from "@/components/ClosingCard";
+import { AIDisclaimer } from "@/components/AIDisclaimer";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
@@ -448,6 +449,7 @@ function PresentMode() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
+      <AIDisclaimer variant="footer" />
       {introBlock !== null && subtopicsList[introBlock] && (
         <BlockIntroCard
           blockIndex={introBlock}

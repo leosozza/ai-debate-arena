@@ -25,6 +25,7 @@ import { attachVoiceToPersona } from "@/lib/voice-clone.functions";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { seedHistoricalPersonas } from "@/lib/persona-seed.functions";
 import { PERSONA_CATEGORIES } from "@/lib/persona-seed-data";
+import { PERSONA_ANCHOR_IMAGES } from "@/lib/persona-anchor-images";
 
 export const Route = createFileRoute("/_authenticated/personas")({
   component: PersonasPage,
@@ -204,7 +205,7 @@ function PersonasPage() {
                 if (!confirm("Popular catálogo com ~60 personas históricas públicas? Personas existentes com o mesmo nome serão atualizadas (a foto é preservada).")) return;
                 setSeeding(true);
                 try {
-                  const out = await seed();
+                  const out = await seed({ data: { imageUrls: PERSONA_ANCHOR_IMAGES } });
                   toast.success(`Catálogo pronto: ${out.created} criadas, ${out.updated} atualizadas.`);
                   qc.invalidateQueries({ queryKey: ["personas"] });
                 } catch (e) {

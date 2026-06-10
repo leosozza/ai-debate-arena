@@ -1,6 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SEED_PERSONAS } from "./persona-seed-data";
+
+const SeedInput = z
+  .object({
+    /** Mapa opcional nome-da-persona → URL da imagem-âncora.
+     *  Aplicado apenas quando a persona ainda não tem image_url. */
+    imageUrls: z.record(z.string().min(1), z.string().min(1).max(2048)).optional(),
+  })
+  .optional()
+  .default({});
 
 /**
  * Popula (ou atualiza) o catálogo de personas históricas como personas
@@ -9,18 +19,22 @@ import { SEED_PERSONAS } from "./persona-seed-data";
  */
 export const seedHistoricalPersonas = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: unknown) => SeedInput.parse(d))
+  .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const imageUrls = data?.imageUrls ?? {};
 
     const names = SEED_PERSONAS.map((p) => p.name);
     const { data: existing, error: exErr } = await supabase
       .from("personas")
-      .select("id, name")
+      .select("id, name, image_url")
       .eq("user_id", userId)
       .in("name", names);
     if (exErr) throw new Error(exErr.message);
 
-    const existingByName = new Map((existing ?? []).map((p) => [p.name, p.id]));
+    const existingByName = new Map(
+      (existing ?? []).map((p) => [p.name, { id: p.id, image_url: p.image_url as string | null }]),
+    );
 
     type InsertRow = {
       user_id: string;
@@ -29,6 +43,7 @@ export const seedHistoricalPersonas = createServerFn({ method: "POST" })
       persona_prompt: string;
       category: string;
       is_public: boolean;
+      image_url?: string | null;
     };
     type UpdatePatch = Omit<InsertRow, "user_id">;
 
@@ -36,6 +51,7 @@ export const seedHistoricalPersonas = createServerFn({ method: "POST" })
     const toUpdate: Array<{ id: string; patch: UpdatePatch }> = [];
 
     for (const p of SEED_PERSONAS) {
+      const anchorUrl = imageUrls[p.name];
       const base: UpdatePatch = {
         name: p.name,
         description: p.description,
@@ -43,21 +59,26 @@ export const seedHistoricalPersonas = createServerFn({ method: "POST" })
         category: p.category,
         is_public: true,
       };
-      const id = existingByName.get(p.name);
-      if (id) toUpdate.push({ id, patch: base });
-      else toInsert.push({ ...base, user_id: userId });
+      const ex = existingByName.get(p.name);
+      if (ex) {
+        // Só preenche image_url se ainda estiver vazia.
+        if (anchorUrl && !ex.image_url) base.image_url = anchorUrl;
+        toUpdate.push({ id: ex.id, patch: base });
+      } else {
+        toInsert.push({ ...base, user_id: userId, image_url: anchorUrl ?? null });
+      }
     }
 
     let created = 0;
     let updated = 0;
 
     if (toInsert.length) {
-      const { data, error } = await supabase
+      const { data: ins, error } = await supabase
         .from("personas")
         .insert(toInsert)
         .select("id");
       if (error) throw new Error(error.message);
-      created = data?.length ?? 0;
+      created = ins?.length ?? 0;
     }
 
     for (const u of toUpdate) {
