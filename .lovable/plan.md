@@ -1,71 +1,102 @@
-## O que muda
 
-Hoje a apresentação começa direto na "vinheta do bloco 1" — um card preto com o título do bloco, e o mediador anuncia o sub-tema. Não há apresentação dos convidados, e o encerramento mostra só uma tela simples de vencedor.
+# Plataforma de Debates Históricos — Plano Macro
 
-Vamos transformar a abertura e o encerramento num formato de programa de TV (Roda Viva / debate de televisão):
+Hoje o app só faz **Duelo 1×1** (`debates` tem `debater_a/b_*` fixos). Os 7 novos formatos exigem N participantes (até 8), papéis (defesa/acusação/juiz/entrevistador), e equipes. Isso é uma reformulação grande, então o plano é fatiado em 5 fases — cada uma é uma rodada de implementação aprovável separadamente.
 
-### 1. Abertura — "Apresentação dos convidados"
+---
 
-Antes da vinheta do bloco 1, entra uma nova etapa: um card em tela cheia com os dois debatedores lado a lado:
-- Cada lado mostra a foto grande do persona, o nome em destaque, e a descrição/biografia curta (campo `description` da persona, já existente).
-- Um cabeçalho no topo: "Hoje no programa" + o tema do debate.
-- Animação de entrada (slide das duas colunas, faixa diagonal igual a vinheta atual).
+## Fase 1 — Catálogo de personas (próxima rodada)
 
-Enquanto o card está na tela, o mediador (TTS) narra a apresentação dos dois convidados e anuncia quem abre e qual é a primeira pergunta. O card só avança quando o áudio termina (ou ao toque, igual hoje).
+**Objetivo:** popular o banco com as ~60 personas listadas, públicas, organizadas por categoria, com biografia e prompt de IA. Fotos: 8 personas-âncora geradas agora; resto fica lazy (botão "gerar avatar" já existe via `persona-image.functions.ts`).
 
-### 2. Vinheta do bloco 1 — passa a abrir o debate de fato
+**Mudanças de schema** (uma migração):
+- `personas.category` — text nullable, com índice (filtro na UI).
+- (mantém `is_public`, `user_id` — seed roda como o seu usuário e marca `is_public=true`).
 
-A vinheta do bloco 1 deixa de ser uma simples chamada do sub-tema. Ela passa a:
-- Saudar a audiência ("Boa noite, começa agora mais um debate…").
-- Apresentar os dois debatedores, citando nome + 1 frase de quem é cada um (a partir do `debater_a_persona`/`debater_b_persona`).
-- Anunciar explicitamente quem abre ("Começamos com [Debatedor A]") e ler a primeira pergunta do bloco 1 (sub-tema/foco).
+**Conteúdo do seed** (60 personas, agrupadas pelas 9 categorias que você listou). Para cada uma:
+- `name`, `description` (1–2 frases jornalísticas), `category`,
+- `persona_prompt` (~120–180 palavras: voz, tom, ideologia, época, vocabulário, "como debate" — derivado de obras/discursos reais),
+- `is_public: true`,
+- `image_url: null` por padrão.
 
-As vinhetas dos blocos 2..N-1 continuam como hoje (chamada curta do sub-tema).
+**Script de seed**: `scripts/seed-personas.ts` rodável via `bun run`, idempotente (upsert por `name + user_id`). Recebe seu `user_id` por env.
 
-### 3. Encerramento — card final estilo "fim de programa"
+**Fotos âncora (8)**: gerar com `imagegen` em `src/assets/personas/`, estilo retrato uniforme ("retrato pintura óleo, fundo escuro neutro, iluminação dramática, square 1024"). Sugestão de quem ganha foto pronta: Sócrates, Einstein, Marx, Adam Smith, Jesus, Pelé, Napoleão, Elon Musk (1 por categoria).
 
-Depois do veredito, em vez da tela atual de vencedor, entra um card final:
-- Dois debatedores lado a lado novamente (foto + nome).
-- Faixa central com o placar (vencedor destacado) e uma linha do veredito.
-- Botão para voltar ao estúdio.
+**UI**: tela `/personas` ganha filtro por categoria (chips no topo) e seção "Catálogo público" separada das "Minhas personas".
 
-## Detalhes técnicos
+---
 
-**Arquivos novos**
-- `src/components/DebaterIntroCard.tsx` — card duplo lado a lado (props: `topic`, `debaterA {name, image, description}`, `debaterB {...}`, `onDone`, opcional `audioUrl` para sincronizar com TTS). Reaproveita a estética da `BlockIntroCard` (faixa diagonal, faixa de progresso, "toque para pular").
-- `src/components/ClosingCard.tsx` — card final com placar e os dois personas. Recebe `winner`, `verdictSummary`, ambos os debaters.
+## Fase 2 — Schema multi-participante + Formatos novos (base)
 
-**Arquivos editados**
-- `src/routes/_authenticated/presentation.$id.tsx`:
-  - Antes do índice 0 (primeira vinheta), inserir uma "etapa virtual" de apresentação que renderiza `DebaterIntroCard` e dispara o TTS da vinheta do bloco 1 (já existente como mensagem do mediador). Quando termina, avança para a tela do estúdio.
-  - Buscar `description` + `image_url` de cada persona (lookup por nome igual ao já feito para avatares no `video-export.ts`).
-  - Depois da fase `veredito`, renderizar `ClosingCard` em vez (ou em cima) da tela atual de fim.
-- `src/lib/debate.functions.ts` — ajustar APENAS o prompt da vinheta quando `block_index === 0`:
+**Objetivo:** permitir que um debate tenha N participantes com papéis, sem quebrar os debates 1×1 existentes.
 
-```
-Você abre um debate de TV ao vivo no formato Roda Viva.
-Tema: ${debate.topic}
-Convidado A: ${debate.debater_a_name} — ${debate.debater_a_persona.slice(0,400)}
-Convidado B: ${debate.debater_b_name} — ${debate.debater_b_persona.slice(0,400)}
-Bloco 1 — "${block.title}". Foco: ${block.focus}.
+**Migração**:
+- Nova tabela `debate_participants` (`debate_id`, `persona_id`, `slot` int, `role` enum: `debater | moderator | judge | prosecutor | defender | interviewer | team_a | team_b`, `display_name`, `image_url`, `voice_provider`, `voice_id`).
+- `debates.format` enum: `duel | roundtable | presidential | tribunal | interview | era_clash | sages_council | ideas_war | century_problem` (default `duel` para retrocompat).
+- Campos `debater_a_*` / `debater_b_*` ficam como cache do formato `duel`; novos formatos só usam `debate_participants`.
 
-Sua tarefa, em até 130 palavras:
-1. Saúde a audiência e abra o programa.
-2. Apresente os dois convidados em uma frase cada (nome + quem é, em tom jornalístico).
-3. Anuncie que começamos com ${debate.debater_a_name} e faça a primeira pergunta do bloco 1, derivada do foco acima.
-Texto corrido, sem markdown, sem listas.
-```
+**Backend (`debate.functions.ts`)**:
+- `generateBlock` recebe `format` + lista de participantes e despacha para um prompt-builder por formato. Cada formato vira um pequeno módulo (`src/lib/formats/{duel,roundtable,tribunal,...}.ts`) que define: ordem de fala, número de blocos, regras de réplica, e o prompt do moderador.
 
-Vinhetas dos blocos 2+ mantêm o prompt atual.
+**Apresentação (`presentation.$id.tsx`)**:
+- Generaliza o stage atual (hoje fixo A/B) para grid dinâmico de N participantes destacando quem fala. Reaproveita `DebaterIntroCard` para o card de abertura (já side-by-side; vira layout N-up).
 
-- `src/lib/video-export.ts` — incluir um frame inicial de apresentação (mesmo layout do `DebaterIntroCard`) tocando junto com o áudio da primeira vinheta, e um frame de encerramento estilo `ClosingCard` no final, para o MP4 exportado ficar igual ao que o usuário vê no estúdio.
+**Fluxo de criação (`/new`)**:
+- Seletor de **Formato** vem antes da escolha de personas, e define quantos slots aparecem e quais papéis precisam ser preenchidos (ex.: Tribunal pede 1 réu + ≥1 acusador + ≥1 defensor + ≥1 juiz).
 
-**Sem mudanças** em: estrutura de blocos, contagem de turnos, modelo de IA, fluxo de aprovação/edição, integração de voz, autenticação.
+---
 
-## Como o usuário vai ver
+## Fase 3 — Implementação dos 7 formatos
 
-1. Clica "Iniciar apresentação".
-2. Card de abertura: tema no topo, "A: foto+nome+bio" | "B: foto+nome+bio". Mediador narra a apresentação e a primeira pergunta.
-3. Estúdio entra, Debatedor A abre, debate segue normal.
-4. Ao final do veredito, card de encerramento com placar e os dois convidados.
-5. Vídeo MP4 exportado inclui as duas telas extras.
+Um por vez, na ordem de menor → maior risco:
+
+1. **Mesa Redonda (3–6)** — extensão direta do 1×1: mais slots, mediador faz pergunta, cada um responde, depois "debate aberto" (2 rodadas livres).
+2. **Conselho dos Sábios** — variação reflexiva da mesa redonda, tom "respeitoso", sem ataques diretos.
+3. **Entrevista Impossível** — 1 entrevistador (pode ser o próprio mediador com persona customizável) + 1 entrevistado. Blocos = perguntas temáticas.
+4. **Debate Entre Eras** — 1×1 com flag "histórico vs contemporâneo" → afeta só os prompts (contextualização extra), reusa engine de duel.
+5. **Tribunal da História** — 1 réu + N acusadores + N defensores + N juízes. Estrutura fixa: acusação → defesa → perguntas dos juízes → veredito coletivo.
+6. **Debate Presidencial (4–8)** — tempo de fala, direito de resposta, réplica, tréplica. Engine de turnos com "interrupções controladas".
+7. **Guerra das Ideias (equipes)** — Time A vs Time B; cada bloco alterna qual time abre; veredito por equipe.
+
+Cada formato entrega: prompt-builder + tela de criação + render de stage + integração com export MP4 (Fase 5).
+
+---
+
+## Fase 4 — Disclaimer obrigatório
+
+- Componente `<AIDisclaimer />` com o texto exato que você passou.
+- **Card inicial do programa** (1ª tela do MP4 e da apresentação) — fundo escuro, logo do app, texto centralizado, dura ~4 s ou até toque. Adicionado no `presentation.$id.tsx` antes do `DebaterIntroCard` e em `video-export.ts` como primeiro frame.
+- **Rodapé fixo** discreto na apresentação ao vivo e na tela de criação ("Conteúdo gerado por IA — não são citações reais").
+- Também incluído por padrão no início dos textos exportados (roteiro, descrição YouTube/TikTok/Instagram).
+
+---
+
+## Fase 5 — Exportações estendidas
+
+Reaproveita o pipeline de `video-export.ts` e o roteiro já estruturado:
+
+- **Roteiro completo** — markdown/.txt, com timestamps por bloco.
+- **Narração por participante** — zip de mp3s separados (já temos TTS por persona; só agrupar).
+- **Shorts (9:16, ≤60 s)** — picker de "melhor trecho" (LLM seleciona 1 turno de impacto) + render vertical no `video-export`.
+- **Legendas (.srt / .vtt)** — gerar a partir dos timings dos áudios TTS já existentes.
+- **Texto para YouTube** — título + descrição com timestamps + tags + disclaimer.
+- **Texto para TikTok / Instagram** — caption curta + hashtags, gerada por LLM com base no tema/personas.
+
+Tudo numa tela única "Exportar" depois do veredito, com checkboxes do que quer.
+
+---
+
+## Detalhes técnicos resumidos
+
+**Stack:** TanStack Start + Supabase (Lovable Cloud). Tudo via `createServerFn` em `*.functions.ts`, RLS pra `debate_participants` espelhando a de `debates`. Catálogo de personas continua usando a policy pública existente.
+
+**Sem mudar agora:** sistema de TTS, modelos de IA, autenticação, integração de imagem de persona, fluxo de aprovação por turno.
+
+**Onde nada quebra:** debates antigos ficam com `format='duel'` e continuam usando `debater_a/b_*`. Renderização nova só ativa para `format != 'duel'`.
+
+---
+
+## Próximos passos
+
+Se aprovar o macro, começo pela **Fase 1** (migração `category` + script de seed das 60 personas + 8 fotos âncora + filtro por categoria em `/personas`). Cada fase seguinte volta com seu próprio plano enxuto antes de implementar.

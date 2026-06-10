@@ -156,6 +156,7 @@ export type Database = {
       }
       personas: {
         Row: {
+          category: string | null
           created_at: string
           description: string
           id: string
@@ -172,6 +173,7 @@ export type Database = {
           voice_settings: Json | null
         }
         Insert: {
+          category?: string | null
           created_at?: string
           description?: string
           id?: string
@@ -188,6 +190,7 @@ export type Database = {
           voice_settings?: Json | null
         }
         Update: {
+          category?: string | null
           created_at?: string
           description?: string
           id?: string
