@@ -17,12 +17,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Sparkles, Trash2, Plus, Globe, Lock, Mic, User } from "lucide-react";
+import { Sparkles, Trash2, Plus, Globe, Lock, Mic, User, Library } from "lucide-react";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { VoiceClonePanel } from "@/components/VoiceClonePanel";
 import { PersonaImagePanel } from "@/components/PersonaImagePanel";
 import { attachVoiceToPersona } from "@/lib/voice-clone.functions";
 import { type VoiceProvider } from "@/lib/voice-catalog";
+import { seedHistoricalPersonas } from "@/lib/persona-seed.functions";
+import { PERSONA_CATEGORIES } from "@/lib/persona-seed-data";
 
 export const Route = createFileRoute("/_authenticated/personas")({
   component: PersonasPage,
@@ -57,6 +59,9 @@ function PersonasPage() {
   const remove = useServerFn(deletePersona);
   const generate = useServerFn(generatePersonaWithAI);
   const attachVoice = useServerFn(attachVoiceToPersona);
+  const seed = useServerFn(seedHistoricalPersonas);
+  const [seeding, setSeeding] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data: personas = [], isLoading } = useQuery({
@@ -190,10 +195,33 @@ function PersonasPage() {
           </p>
         </div>
         {!showForm && (
-          <Button onClick={openNew} size="lg">
-            <Plus className="h-4 w-4 mr-2" />
-            Nova persona
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={seeding}
+              onClick={async () => {
+                if (!confirm("Popular catálogo com ~60 personas históricas públicas? Personas existentes com o mesmo nome serão atualizadas (a foto é preservada).")) return;
+                setSeeding(true);
+                try {
+                  const out = await seed();
+                  toast.success(`Catálogo pronto: ${out.created} criadas, ${out.updated} atualizadas.`);
+                  qc.invalidateQueries({ queryKey: ["personas"] });
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Falha ao popular");
+                } finally {
+                  setSeeding(false);
+                }
+              }}
+            >
+              <Library className="h-4 w-4 mr-2" />
+              {seeding ? "Populando…" : "Popular catálogo histórico"}
+            </Button>
+            <Button onClick={openNew} size="lg">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova persona
+            </Button>
+          </div>
         )}
       </header>
 
