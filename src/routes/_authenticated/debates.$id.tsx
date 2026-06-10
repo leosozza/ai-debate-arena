@@ -36,6 +36,13 @@ function DebateDetail() {
     queryFn: () => get({ data: { id } }),
   });
 
+  const listP = useServerFn(listParticipants);
+  const { data: extras = [] } = useQuery({
+    queryKey: ["debate-participants", id],
+    queryFn: () => listP({ data: { debateId: id } }),
+  });
+
+
   // Non-streaming generation: one robust request/response per turn (reliable on
   // serverless/Cloudflare, where SSE can stall). Returns whether the debate is
   // done and whether this turn was the final verdict.
