@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { Sparkles, Users, Wand2, Swords, Dices } from "lucide-react";
 import { VoicePicker } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
+import { DEBATE_FORMATS, type DebateFormatId } from "@/lib/debate-formats";
+import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
@@ -45,6 +47,7 @@ function NewDebate() {
   const [topicOptionsLoading, setTopicOptionsLoading] = useState(false);
   const [form, setForm] = useState({
     topic: "",
+    format: "duel" as DebateFormatId,
     debaterAName: "Aurora",
     debaterAPersona: "Defensora apaixonada da tecnologia, otimista quanto ao futuro da IA.",
     debaterAModel: DEFAULT_MODEL,
@@ -172,6 +175,48 @@ function NewDebate() {
       </Reveal>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <Card className="p-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <Label>Formato do programa</Label>
+            {form.format !== "duel" && (
+              <Badge variant="outline" className="text-[10px] uppercase tracking-widest">
+                Beta — usando engine de duelo por enquanto
+              </Badge>
+            )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {DEBATE_FORMATS.map((f) => {
+              const active = form.format === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setForm({ ...form, format: f.id })}
+                  className={`group relative text-left rounded-lg border p-3 transition-all ${
+                    active
+                      ? "border-primary bg-primary/10 ring-2 ring-primary/40"
+                      : "border-border/60 hover:border-border bg-card/40"
+                  }`}
+                >
+                  {f.isNew && (
+                    <span className="absolute top-1.5 right-1.5 text-[9px] uppercase tracking-widest font-bold text-primary">
+                      Novo
+                    </span>
+                  )}
+                  <div className="text-lg mb-1">{f.emoji}</div>
+                  <div className="font-display font-bold text-sm leading-tight">{f.label}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{f.tagline}</div>
+                </button>
+              );
+            })}
+          </div>
+          {form.format !== "duel" && (
+            <p className="text-xs text-muted-foreground">
+              Os formatos novos já podem ser criados e salvos. A engine de geração e o palco com múltiplos convidados entram nas próximas atualizações — por enquanto, o programa roda no padrão duelo 1×1.
+            </p>
+          )}
+        </Card>
+
         <Card className="p-6 space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">

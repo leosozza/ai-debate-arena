@@ -58,6 +58,75 @@ export type Database = {
           },
         ]
       }
+      debate_participants: {
+        Row: {
+          created_at: string
+          debate_id: string
+          display_name: string
+          id: string
+          image_url: string | null
+          model: string | null
+          persona_id: string | null
+          persona_prompt: string
+          role: string
+          slot: number
+          team: string | null
+          updated_at: string
+          user_id: string
+          voice_id: string | null
+          voice_provider: string | null
+        }
+        Insert: {
+          created_at?: string
+          debate_id: string
+          display_name: string
+          id?: string
+          image_url?: string | null
+          model?: string | null
+          persona_id?: string | null
+          persona_prompt?: string
+          role?: string
+          slot: number
+          team?: string | null
+          updated_at?: string
+          user_id: string
+          voice_id?: string | null
+          voice_provider?: string | null
+        }
+        Update: {
+          created_at?: string
+          debate_id?: string
+          display_name?: string
+          id?: string
+          image_url?: string | null
+          model?: string | null
+          persona_id?: string | null
+          persona_prompt?: string
+          role?: string
+          slot?: number
+          team?: string | null
+          updated_at?: string
+          user_id?: string
+          voice_id?: string | null
+          voice_provider?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debate_participants_debate_id_fkey"
+            columns: ["debate_id"]
+            isOneToOne: false
+            referencedRelation: "debates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debate_participants_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       debates: {
         Row: {
           block_subtopics: Json | null
@@ -72,6 +141,7 @@ export type Database = {
           debater_b_name: string
           debater_b_persona: string
           dynamic_flow: boolean
+          format: string
           id: string
           moderator_model: string
           moderator_tone: string
@@ -103,6 +173,7 @@ export type Database = {
           debater_b_name: string
           debater_b_persona: string
           dynamic_flow?: boolean
+          format?: string
           id?: string
           moderator_model?: string
           moderator_tone?: string
@@ -134,6 +205,7 @@ export type Database = {
           debater_b_name?: string
           debater_b_persona?: string
           dynamic_flow?: boolean
+          format?: string
           id?: string
           moderator_model?: string
           moderator_tone?: string

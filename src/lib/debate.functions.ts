@@ -6,8 +6,21 @@ const ModelSchema = z.string().min(3).max(80);
 const VoiceProviderSchema = z.enum(["browser", "eleven", "minimax", "replicate"]).nullable().optional();
 const VoiceIdSchema = z.string().trim().max(2048).nullable().optional();
 
+const FormatSchema = z.enum([
+  "duel",
+  "roundtable",
+  "presidential",
+  "tribunal",
+  "interview",
+  "era_clash",
+  "sages_council",
+  "ideas_war",
+  "century_problem",
+]).default("duel");
+
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
+  format: FormatSchema,
   debaterAName: z.string().trim().min(1).max(60),
   debaterAPersona: z.string().trim().min(1).max(20000),
   debaterAModel: ModelSchema.default("google/gemini-3-flash-preview"),
@@ -64,6 +77,7 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
       .insert({
         user_id: context.userId,
         topic: data.topic,
+        format: data.format,
         debater_a_name: data.debaterAName,
         debater_a_persona: data.debaterAPersona,
         debater_a_model: data.debaterAModel,
