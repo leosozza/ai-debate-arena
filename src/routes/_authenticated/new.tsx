@@ -20,8 +20,9 @@ import { toast } from "sonner";
 import { Sparkles, Users, Wand2, Swords, Dices } from "lucide-react";
 import { VoicePicker } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
-import { DEBATE_FORMATS, type DebateFormatId } from "@/lib/debate-formats";
+import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-formats";
 import { Badge } from "@/components/ui/badge";
+import { ExtraParticipantsPanel, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
