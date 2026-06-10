@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { Sparkles, Users, Wand2, Swords, Dices } from "lucide-react";
 import { VoicePicker } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
+import { DEBATE_FORMATS, type DebateFormatId } from "@/lib/debate-formats";
+import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_authenticated/new")({
   component: NewDebate,
@@ -45,6 +47,7 @@ function NewDebate() {
   const [topicOptionsLoading, setTopicOptionsLoading] = useState(false);
   const [form, setForm] = useState({
     topic: "",
+    format: "duel" as DebateFormatId,
     debaterAName: "Aurora",
     debaterAPersona: "Defensora apaixonada da tecnologia, otimista quanto ao futuro da IA.",
     debaterAModel: DEFAULT_MODEL,
