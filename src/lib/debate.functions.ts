@@ -695,16 +695,122 @@ export const generateNextTurn = createServerFn({ method: "POST" })
     const { data: debateRow, error: dErr } = await context.supabase
       .from("debates").select("*").eq("id", data.debateId).single();
     if (dErr || !debateRow) throw new Error(dErr?.message ?? "Debate não encontrado.");
-    const debate = debateRow as unknown as Debate;
+    const debate = debateRow as unknown as Debate & { format?: string };
+    const formatId = (debate.format ?? "duel") as string;
 
     const { data: messages, error: mErr } = await context.supabase
       .from("debate_messages").select("*").eq("debate_id", data.debateId).order("order_index");
     if (mErr) throw new Error(mErr.message);
 
     const existing = messages ?? [];
-
     const subtopics = await ensureBlockSubtopics(debate, context.supabase as never, chatComplete);
 
+    // ====== MULTI-PARTICIPANT BRANCH ======
+    if (formatId !== "duel") {
+      const parts = await loadParticipants(context.supabase, debate);
+      const seq = multiSeq(debate, parts);
+      const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
+      const next = seq[seqCount];
+      if (!next) return { done: true, message: null };
+
+      const transcript = existing
+        .map((m) => `[${labelForMulti(m.role, parts)}] (${m.phase}): ${m.content}`)
+        .join("\n\n");
+
+      const block = subtopics[next.block_index] ?? subtopics[0];
+      const blocksTotal = subtopics.length;
+      const sysPrompt = buildSystemPromptMulti(next.role, parts, debate, formatId);
+
+      const speakerLabel = labelForMulti(next.role, parts);
+      const castSummary = parts
+        .map((p) => `- ${p.displayName} (${p.participantRole})`)
+        .join("\n");
+
+      let userPrompt: string;
+      if (next.phase.startsWith("vinheta")) {
+        if (next.block_index === 0) {
+          userPrompt = `Você abre um programa de TV no formato ${formatId}.
+Tema: ${debate.topic}
+Elenco:
+${castSummary}
+
+Primeiro bloco — "${block.title}". Foco: ${block.focus}.
+
+Em até 140 palavras (texto corrido, sem markdown), saúde a audiência, apresente o formato em uma frase, apresente cada participante em UMA frase (nome + quem é), e anuncie quem começa formulando a primeira pergunta do bloco.`;
+        } else {
+          userPrompt = `Tema geral: ${debate.topic}
+Bloco ${next.block_index + 1}/${blocksTotal} — "${block.title}"
+Foco: ${block.focus}
+
+Faça a vinheta de abertura desse bloco em 2-3 frases, em tom de programa de TV. Sem veredito. Máximo 80 palavras.`;
+        }
+      } else if (next.phase === "veredito") {
+        userPrompt = `Tema: ${debate.topic}
+Regras:
+${debate.rules}
+
+Histórico:
+${transcript}
+
+Encerre o programa conforme o formato ${formatId}. ${
+  formatId === "century_problem"
+    ? "Síntese da SOLUÇÃO COLABORATIVA construída pelo elenco."
+    : formatId === "sages_council"
+    ? "Síntese reflexiva e novas perguntas levantadas pelos sábios."
+    : formatId === "tribunal"
+    ? "Anuncie o VEREDITO coletivo dos jurados com base nas deliberações."
+    : formatId === "interview"
+    ? "Encerramento curto agradecendo o entrevistado."
+    : "Avalie quem foi mais convincente."
+} Máximo 200 palavras.`;
+      } else if (next.phase === "deliberação") {
+        userPrompt = `Tema: ${debate.topic}
+Histórico:
+${transcript}
+
+Como JURADO, dê sua deliberação curta (3-5 frases): quem te convenceu mais e por quê. Sem decretar veredito final — só sua leitura. Português.`;
+      } else {
+        const semanticHint = SEMANTIC_ROLE_HINT[parts.find((p) => p.role === next.role)?.participantRole ?? ""] ?? "";
+        userPrompt = `Tema: ${debate.topic}
+Bloco ${next.block_index + 1}/${blocksTotal} — "${block.title}"
+Foco: ${block.focus}
+${semanticHint}
+
+Histórico:
+${transcript || "(início)"}
+
+Você é ${speakerLabel}. Produza sua fala da fase "${next.phase}". Em até 180 palavras, português, texto corrido, sem prefixo de nome.`;
+      }
+
+      const model = modelForMulti(next.role, parts, debate);
+      const content = await chatComplete(
+        [
+          { role: "system", content: sysPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        model,
+      );
+
+      const { data: inserted, error: iErr } = await context.supabase
+        .from("debate_messages").insert({
+          debate_id: data.debateId,
+          user_id: context.userId,
+          role: next.role,
+          phase: next.phase,
+          block_index: next.block_index,
+          content,
+          order_index: existing.length,
+        }).select().single();
+      if (iErr) throw new Error(iErr.message);
+
+      const willDone = next.phase === "veredito" || seqCount + 1 >= seq.length;
+      if (willDone) {
+        await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
+      }
+      return { done: false, message: inserted };
+    }
+
+    // ====== LEGACY DUEL PATH ======
     const next = await decideNextTurn(debate, existing, chatComplete);
     if (!next) return { done: true, message: null };
 
@@ -792,6 +898,137 @@ Sua tarefa: produzir a próxima fala da fase "${next.phase}" dentro deste bloco.
 
     return { done: false, message: inserted };
   });
+
+// ============================================================
+//                MULTI-PARTICIPANT HELPERS
+// ============================================================
+
+export type Participant = {
+  role: string;
+  slot: number;
+  participantRole: string;
+  displayName: string;
+  personaPrompt: string;
+  model: string;
+  voiceProvider: string | null;
+  voiceId: string | null;
+  imageUrl: string | null;
+};
+
+const SPEAKING_ROLES = new Set([
+  "debater", "prosecutor", "defender", "interviewer", "interviewee", "team_a", "team_b",
+]);
+
+const SEMANTIC_ROLE_HINT: Record<string, string> = {
+  debater: "Você é um debatedor: defenda sua posição com convicção e rebata os oponentes quando fizer sentido.",
+  prosecutor: "Você é da ACUSAÇÃO neste tribunal: estabeleça os fatos contra o réu de forma firme e precisa.",
+  defender: "Você é da DEFESA neste tribunal: rebata as acusações e proteja a posição do réu com argumentos.",
+  judge: "Você é JUIZ/JURADO: pondere as evidências de cada lado e dê seu parecer com equilíbrio.",
+  interviewer: "Você é o ENTREVISTADOR: faça perguntas curtas, certeiras e provocativas. Não disserte.",
+  interviewee: "Você é o ENTREVISTADO: responda com profundidade, sinceridade e detalhes pessoais.",
+  team_a: "Você representa o TIME A: alinhe-se com seus aliados, ataque os argumentos do time B.",
+  team_b: "Você representa o TIME B: alinhe-se com seus aliados, ataque os argumentos do time A.",
+};
+
+export async function loadParticipants(
+  supabase: { from: (t: string) => { select: (s: string) => { eq: (k: string, v: string) => { order: (c: string) => Promise<{ data: unknown[] | null }> } } } },
+  debate: Debate & {
+    debater_a_image_url?: string | null;
+    debater_b_image_url?: string | null;
+    voice_provider_a?: string | null; voice_id_a?: string | null;
+    voice_provider_b?: string | null; voice_id_b?: string | null;
+  },
+): Promise<Participant[]> {
+  const out: Participant[] = [
+    {
+      role: "a", slot: 0, participantRole: "debater",
+      displayName: debate.debater_a_name,
+      personaPrompt: debate.debater_a_persona,
+      model: debate.debater_a_model,
+      voiceProvider: debate.voice_provider_a ?? null,
+      voiceId: debate.voice_id_a ?? null,
+      imageUrl: debate.debater_a_image_url ?? null,
+    },
+    {
+      role: "b", slot: 1, participantRole: "debater",
+      displayName: debate.debater_b_name,
+      personaPrompt: debate.debater_b_persona,
+      model: debate.debater_b_model,
+      voiceProvider: debate.voice_provider_b ?? null,
+      voiceId: debate.voice_id_b ?? null,
+      imageUrl: debate.debater_b_image_url ?? null,
+    },
+  ];
+  const res = await supabase.from("debate_participants").select("*").eq("debate_id", debate.id).order("slot");
+  const rows = (res.data ?? []) as Array<{
+    slot: number; role: string; display_name: string; persona_prompt: string | null;
+    model: string | null; voice_provider: string | null; voice_id: string | null; image_url: string | null;
+  }>;
+  for (const r of rows) {
+    out.push({
+      role: `ex${r.slot}`,
+      slot: r.slot,
+      participantRole: r.role,
+      displayName: r.display_name,
+      personaPrompt: r.persona_prompt ?? "",
+      model: r.model ?? debate.moderator_model,
+      voiceProvider: r.voice_provider,
+      voiceId: r.voice_id,
+      imageUrl: r.image_url,
+    });
+  }
+  return out;
+}
+
+function multiSpeakers(parts: Participant[]): Participant[] {
+  return parts.filter((p) => SPEAKING_ROLES.has(p.participantRole));
+}
+
+function multiSeq(debate: Debate, parts: Participant[]) {
+  const speakers = multiSpeakers(parts);
+  const judges = parts.filter((p) => p.participantRole === "judge");
+  const n = debate.blocks_count ?? 4;
+  const seq: Array<{ role: string; phase: string; block_index: number }> = [];
+  for (let b = 0; b < n; b++) {
+    const isFinal = b === n - 1;
+    seq.push({ role: "moderator", phase: `vinheta ${b + 1}`, block_index: b });
+    if (isFinal) {
+      for (const s of speakers) seq.push({ role: s.role, phase: "considerações finais", block_index: b });
+      for (const j of judges) seq.push({ role: j.role, phase: "deliberação", block_index: b });
+      seq.push({ role: "moderator", phase: "veredito", block_index: b });
+    } else {
+      for (const s of speakers) seq.push({ role: s.role, phase: "abertura", block_index: b });
+      for (let r = 1; r <= debate.rounds; r++) {
+        for (const s of speakers) seq.push({ role: s.role, phase: `réplica ${r}`, block_index: b });
+      }
+    }
+  }
+  return seq;
+}
+
+export function labelForMulti(role: string, parts: Participant[]): string {
+  if (role === "moderator") return "Mediador";
+  const p = parts.find((x) => x.role === role);
+  return p?.displayName ?? role;
+}
+
+function modelForMulti(role: string, parts: Participant[], debate: Debate): string {
+  if (role === "moderator") return debate.moderator_model;
+  const p = parts.find((x) => x.role === role);
+  return p?.model ?? debate.moderator_model;
+}
+
+function buildSystemPromptMulti(role: string, parts: Participant[], debate: Debate, formatId: string): string {
+  if (role === "moderator") {
+    const fmt = FORMAT_RULES_HINTS[formatId] ?? "";
+    return `Você é o MEDIADOR de um programa de TV. ${fmt}\nTom: ${debate.moderator_tone}. Apresente fases, faça transições e, no encerramento, conduza o desfecho conforme o formato. Português.${TTS_STYLE_RULES}`;
+  }
+  const p = parts.find((x) => x.role === role);
+  if (!p) return `Você é um participante de um programa de TV. Português.${TTS_STYLE_RULES}`;
+  const hint = SEMANTIC_ROLE_HINT[p.participantRole] ?? "";
+  return `Você é ${p.displayName}. ${p.personaPrompt}\n\n${hint}\nFale em português.${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
+}
+
 
 
 
