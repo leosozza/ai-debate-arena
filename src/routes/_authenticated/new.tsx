@@ -149,7 +149,7 @@ function NewDebate() {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await create({ data: form });
+      const result = await create({ data: { ...form, extras } });
       toast.success("Debate criado!");
       router.navigate({ to: "/debates/$id", params: { id: result.id } });
     } catch (e) {
