@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
 import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil } from "lucide-react";
+import { ExportPackDialog } from "@/components/ExportPackDialog";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -219,6 +220,7 @@ function DebateDetail() {
         <Button onClick={exportMarkdown} variant="ghost" size="sm" disabled={data.messages.length === 0}>
           <Download className="h-4 w-4 mr-1" /> Exportar .md
         </Button>
+        <ExportPackDialog debateId={id} debateTopic={data.debate.topic} />
       </div>
 
       <div className="text-xs text-muted-foreground mb-4">Progresso: {progress}/{totalTurns} falas</div>
