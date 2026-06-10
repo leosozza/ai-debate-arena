@@ -526,6 +526,39 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
   const segments: string[] = [];
   const total = messages.length;
 
+  // ── Disclaimer segment (4s, silent audio) ──
+  log("Renderizando aviso de IA", 0.08);
+  drawDisclaimerFrame(ctx);
+  {
+    const pngBlob: Blob = await new Promise((res) =>
+      canvas.toBlob((b) => res(b!), "image/png"),
+    );
+    const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
+    await ffmpeg.writeFile("disclaimer.png", pngBytes);
+    await ffmpeg.exec([
+      "-loop", "1",
+      "-framerate", "2",
+      "-i", "disclaimer.png",
+      "-f", "lavfi",
+      "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+      "-t", "4",
+      "-c:v", "libx264",
+      "-tune", "stillimage",
+      "-pix_fmt", "yuv420p",
+      "-vf", "scale=1280:720",
+      "-r", "24",
+      "-c:a", "aac",
+      "-b:a", "160k",
+      "-ar", "44100",
+      "-shortest",
+      "-movflags", "+faststart",
+      "seg_disclaimer.mp4",
+    ]);
+    await ffmpeg.deleteFile("disclaimer.png").catch(() => {});
+    segments.push("seg_disclaimer.mp4");
+  }
+
+
   for (let i = 0; i < total; i++) {
     const m = messages[i];
     const caption = stripMarkdownForTts(m.content);
