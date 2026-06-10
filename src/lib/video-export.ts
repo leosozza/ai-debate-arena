@@ -2,6 +2,7 @@
 // Lazy-imported from the presentation page; never runs on the server.
 
 import { stripMarkdownForTts } from "./text-utils";
+import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 
 export type ExportSide = "moderator" | "a" | "b";
 
