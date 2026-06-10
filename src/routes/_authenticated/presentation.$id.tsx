@@ -48,6 +48,13 @@ function PresentMode() {
   const [loading, setLoading] = useState(false);
   // Vinheta de bloco: bloco a apresentar agora (ou null se não há vinheta pendente)
   const [introBlock, setIntroBlock] = useState<number | null>(null);
+  // Card de aviso de IA: 1ª tela do programa, ~4s ou até toque.
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
+  useEffect(() => {
+    if (!showDisclaimer) return;
+    const t = setTimeout(() => setShowDisclaimer(false), 4500);
+    return () => clearTimeout(t);
+  }, [showDisclaimer]);
 
   // Voz por participante (cada um pode usar um provider diferente).
   const [slotMod, setSlotMod] = useState<VoiceSlot>(DEFAULT_SLOT);
@@ -450,6 +457,16 @@ function PresentMode() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
       <AIDisclaimer variant="footer" />
+      {showDisclaimer && (
+        <button
+          type="button"
+          onClick={() => setShowDisclaimer(false)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/95 backdrop-blur-md cursor-pointer"
+          aria-label="Continuar"
+        >
+          <AIDisclaimer variant="card" />
+        </button>
+      )}
       {introBlock !== null && subtopicsList[introBlock] && (
         <BlockIntroCard
           blockIndex={introBlock}

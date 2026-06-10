@@ -2,6 +2,7 @@
 // Lazy-imported from the presentation page; never runs on the server.
 
 import { stripMarkdownForTts } from "./text-utils";
+import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 
 export type ExportSide = "moderator" | "a" | "b";
 
@@ -188,6 +189,45 @@ function drawStageFrame(
     ctx.arc(W / 2, 90, 6, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+
+/** Opening disclaimer card: full-screen AI simulation warning. */
+function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#05060d");
+  bg.addColorStop(1, "#0b1020");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Warning triangle (simple)
+  ctx.fillStyle = "#a78bfa";
+  ctx.beginPath();
+  ctx.moveTo(W / 2, 130);
+  ctx.lineTo(W / 2 - 40, 200);
+  ctx.lineTo(W / 2 + 40, 200);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#0b1020";
+  ctx.font = "800 36px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("!", W / 2, 195);
+
+  ctx.fillStyle = "#a78bfa";
+  ctx.font = "700 14px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("AVISO", W / 2, 240);
+
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = "800 34px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  const titleLines = wrapText(ctx, "Este programa é uma simulação por inteligência artificial", W - 200).slice(0, 2);
+  titleLines.forEach((ln, i) => ctx.fillText(ln, W / 2, 290 + i * 42));
+
+  ctx.fillStyle = "#cbd5e1";
+  ctx.font = "400 18px system-ui";
+  const bodyLines = wrapText(ctx, AI_DISCLAIMER_TEXT, W - 280).slice(0, 6);
+  const startY = 290 + titleLines.length * 42 + 30;
+  bodyLines.forEach((ln, i) => ctx.fillText(ln, W / 2, startY + i * 26));
 }
 
 /** Opening frame: two guests side-by-side with bios, Roda Viva style. */
@@ -485,6 +525,39 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
 
   const segments: string[] = [];
   const total = messages.length;
+
+  // ── Disclaimer segment (4s, silent audio) ──
+  log("Renderizando aviso de IA", 0.08);
+  drawDisclaimerFrame(ctx);
+  {
+    const pngBlob: Blob = await new Promise((res) =>
+      canvas.toBlob((b) => res(b!), "image/png"),
+    );
+    const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
+    await ffmpeg.writeFile("disclaimer.png", pngBytes);
+    await ffmpeg.exec([
+      "-loop", "1",
+      "-framerate", "2",
+      "-i", "disclaimer.png",
+      "-f", "lavfi",
+      "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+      "-t", "4",
+      "-c:v", "libx264",
+      "-tune", "stillimage",
+      "-pix_fmt", "yuv420p",
+      "-vf", "scale=1280:720",
+      "-r", "24",
+      "-c:a", "aac",
+      "-b:a", "160k",
+      "-ar", "44100",
+      "-shortest",
+      "-movflags", "+faststart",
+      "seg_disclaimer.mp4",
+    ]);
+    await ffmpeg.deleteFile("disclaimer.png").catch(() => {});
+    segments.push("seg_disclaimer.mp4");
+  }
+
 
   for (let i = 0; i < total; i++) {
     const m = messages[i];
