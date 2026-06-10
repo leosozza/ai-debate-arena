@@ -194,7 +194,7 @@ function NewDebate() {
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setForm({ ...form, format: f.id })}
+                  onClick={() => { setForm({ ...form, format: f.id }); setExtras([]); }}
                   className={`group relative text-left rounded-lg border p-3 transition-all ${
                     active
                       ? "border-primary bg-primary/10 ring-2 ring-primary/40"
