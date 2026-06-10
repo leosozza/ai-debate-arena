@@ -33,11 +33,14 @@ const ParticipantInput = z.object({
 export type ParticipantInput = z.infer<typeof ParticipantInput>;
 
 async function assertOwnsDebate(
-  supabase: { from: (t: string) => { select: (s: string) => { eq: (k: string, v: string) => { single: () => Promise<{ data: { user_id: string } | null; error: { message: string } | null }> } } } },
+  supabase: { from: (t: "debates") => unknown },
   debateId: string,
   userId: string,
 ) {
-  const { data, error } = await supabase.from("debates").select("user_id").eq("id", debateId).single();
+  const sb = supabase as unknown as {
+    from: (t: "debates") => { select: (s: string) => { eq: (k: string, v: string) => { single: () => Promise<{ data: { user_id: string } | null; error: { message: string } | null }> } } };
+  };
+  const { data, error } = await sb.from("debates").select("user_id").eq("id", debateId).single();
   if (error || !data) throw new Error("Debate não encontrado.");
   if (data.user_id !== userId) throw new Error("Sem permissão.");
 }
@@ -59,7 +62,7 @@ export const upsertParticipant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => ParticipantInput.parse(d))
   .handler(async ({ data, context }) => {
-    await assertOwnsDebate(context.supabase, data.debateId, context.userId);
+    await assertOwnsDebate(context.supabase as unknown as { from: (t: "debates") => unknown }, data.debateId, context.userId);
     const row = {
       debate_id: data.debateId,
       user_id: context.userId,
