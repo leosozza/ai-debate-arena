@@ -1,4 +1,5 @@
-import { Bot, Radio, X } from "lucide-react";
+import { Bot, Radio, X, AlertTriangle } from "lucide-react";
+import { AI_DISCLAIMER_TEXT } from "./AIDisclaimer";
 
 type Debater = {
   name: string;
@@ -66,8 +67,16 @@ export function DebaterIntroCard({ topic, a, b, onSkip }: Props) {
         <GuestColumn d={b} side="b" />
       </div>
 
-      <div className="relative z-10 pb-6 text-center text-xs uppercase tracking-[0.3em] text-muted-foreground/70">
+      <div className="relative z-10 pb-4 px-6 text-center text-xs uppercase tracking-[0.3em] text-muted-foreground/70">
         Apresentação dos convidados
+      </div>
+
+      {/* Rodapé obrigatório: aviso de simulação por IA */}
+      <div className="relative z-10 border-t border-border/40 bg-background/60 px-6 py-2 text-center">
+        <p className="mx-auto max-w-4xl text-[10px] md:text-xs text-muted-foreground/90 leading-snug flex items-center justify-center gap-1.5">
+          <AlertTriangle className="h-3 w-3 text-primary shrink-0" />
+          <span className="line-clamp-2">{AI_DISCLAIMER_TEXT}</span>
+        </p>
       </div>
     </div>
   );
