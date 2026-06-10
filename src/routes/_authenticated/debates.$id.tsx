@@ -2,6 +2,9 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, type Verdict } from "@/lib/debate.functions";
+import { listParticipants } from "@/lib/debate-participants.functions";
+import { getFormat } from "@/lib/debate-formats";
+import { CastStrip, roleLabel, type CastMember } from "@/components/CastStrip";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
@@ -32,6 +35,13 @@ function DebateDetail() {
     queryKey: ["debate", id],
     queryFn: () => get({ data: { id } }),
   });
+
+  const listP = useServerFn(listParticipants);
+  const { data: extras = [] } = useQuery({
+    queryKey: ["debate-participants", id],
+    queryFn: () => listP({ data: { debateId: id } }),
+  });
+
 
   // Non-streaming generation: one robust request/response per turn (reliable on
   // serverless/Cloudflare, where SSE can stall). Returns whether the debate is
@@ -213,7 +223,36 @@ function DebateDetail() {
 
       <div className="text-xs text-muted-foreground mb-4">Progresso: {progress}/{totalTurns} falas</div>
 
+      {(() => {
+        const fmt = getFormat(data.debate.format ?? "duel");
+        const cast: CastMember[] = [
+          {
+            key: "a",
+            name: data.debate.debater_a_name,
+            imageUrl: data.debate.debater_a_image_url ?? null,
+            roleLabel: fmt?.id === "interview" ? "Entrevistador" : fmt?.id === "tribunal" ? "Acusação" : "Lado A",
+            accent: "side-a",
+          },
+          {
+            key: "b",
+            name: data.debate.debater_b_name,
+            imageUrl: data.debate.debater_b_image_url ?? null,
+            roleLabel: fmt?.id === "interview" ? "Entrevistado" : fmt?.id === "tribunal" ? "Defesa" : "Lado B",
+            accent: "side-b",
+          },
+          ...extras.map((e) => ({
+            key: e.id,
+            name: e.display_name,
+            imageUrl: e.image_url ?? null,
+            roleLabel: roleLabel(e.role),
+            accent: "accent" as const,
+          })),
+        ];
+        return <CastStrip formatLabel={fmt ? `${fmt.emoji} ${fmt.label}` : undefined} members={cast} />;
+      })()}
+
       {verdict && <Scoreboard verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />}
+
 
       {data.debate.rules && (
         <Card className="p-5 mb-6 bg-card/60">
