@@ -22,11 +22,21 @@ export const seedHistoricalPersonas = createServerFn({ method: "POST" })
 
     const existingByName = new Map((existing ?? []).map((p) => [p.name, p.id]));
 
-    const toInsert: Array<Record<string, unknown>> = [];
-    const toUpdate: Array<{ id: string; patch: Record<string, unknown> }> = [];
+    type InsertRow = {
+      user_id: string;
+      name: string;
+      description: string;
+      persona_prompt: string;
+      category: string;
+      is_public: boolean;
+    };
+    type UpdatePatch = Omit<InsertRow, "user_id">;
+
+    const toInsert: InsertRow[] = [];
+    const toUpdate: Array<{ id: string; patch: UpdatePatch }> = [];
 
     for (const p of SEED_PERSONAS) {
-      const base = {
+      const base: UpdatePatch = {
         name: p.name,
         description: p.description,
         persona_prompt: p.persona_prompt,
