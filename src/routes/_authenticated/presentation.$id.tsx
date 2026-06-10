@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getDebate, ttsSpeak, updateDebate, type Verdict } from "@/lib/debate.functions";
+import { listParticipants } from "@/lib/debate-participants.functions";
 import { listPersonas } from "@/lib/persona.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/presentation/$id")({
   component: PresentMode,
 });
 
-type Side = "moderator" | "a" | "b";
+type Side = "moderator" | "a" | "b" | string;
 
 type VoiceSlot = { provider: VoiceProvider; voiceId: string | null; settings: VoiceSettings };
 
@@ -40,6 +41,8 @@ function PresentMode() {
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
   const lp = useServerFn(listPersonas);
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
+  const listExtrasFn = useServerFn(listParticipants);
+  const { data: extras = [] } = useQuery({ queryKey: ["debate-participants", id], queryFn: () => listExtrasFn({ data: { debateId: id } }) });
   const [savingVoices, setSavingVoices] = useState(false);
 
   const [index, setIndex] = useState(0);
