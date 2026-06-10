@@ -457,7 +457,16 @@ function PresentMode() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
       <AIDisclaimer variant="footer" />
-      {introBlock !== null && subtopicsList[introBlock] && (
+      {showDisclaimer && (
+        <button
+          type="button"
+          onClick={() => setShowDisclaimer(false)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-background/95 backdrop-blur-md cursor-pointer"
+          aria-label="Continuar"
+        >
+          <AIDisclaimer variant="card" />
+        </button>
+      )}
         <BlockIntroCard
           blockIndex={introBlock}
           total={blocksTotal}
