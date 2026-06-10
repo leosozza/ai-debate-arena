@@ -48,6 +48,13 @@ function PresentMode() {
   const [loading, setLoading] = useState(false);
   // Vinheta de bloco: bloco a apresentar agora (ou null se não há vinheta pendente)
   const [introBlock, setIntroBlock] = useState<number | null>(null);
+  // Card de aviso de IA: 1ª tela do programa, ~4s ou até toque.
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
+  useEffect(() => {
+    if (!showDisclaimer) return;
+    const t = setTimeout(() => setShowDisclaimer(false), 4500);
+    return () => clearTimeout(t);
+  }, [showDisclaimer]);
 
   // Voz por participante (cada um pode usar um provider diferente).
   const [slotMod, setSlotMod] = useState<VoiceSlot>(DEFAULT_SLOT);
