@@ -145,6 +145,8 @@ export const ensurePersonaVignette = createServerFn({ method: "POST" })
     if (persona.user_id !== context.userId) throw new Error("Sem permissão.");
     if (persona.vignette_url) return { vignetteUrl: persona.vignette_url, cached: true };
     if (!persona.image_url) return { vignetteUrl: null as string | null, cached: false };
+    // Skip auto-gen for bundle/relative paths (server can't fetch its own dev URL)
+    if (!/^https?:\/\//i.test(persona.image_url)) return { vignetteUrl: null as string | null, cached: false };
 
     const { runPrediction, uploadFile } = await import("./replicate.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
