@@ -11,6 +11,7 @@ import { ensurePersonaVignette } from "@/lib/persona-video.functions";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { HologramAvatar } from "@/components/HologramAvatar";
+import { kokoroSynthUrl } from "@/lib/kokoro-tts";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
@@ -118,12 +119,12 @@ function PresentMode() {
       const persona = findPersona(personaName);
       const pp = persona?.voice_provider as VoiceProvider | null | undefined;
       const pid = persona?.voice_id ?? null;
-      if (pp && (pp === "browser" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
+      if (pp && (pp === "browser" || pp === "kokoro" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
         return { provider: pp, voiceId: pid, settings: DEFAULT_VOICE_SETTINGS };
       }
       if (!provider) return null;
       const p = provider as VoiceProvider;
-      if (p !== "browser" && p !== "eleven" && p !== "minimax" && p !== "replicate") return null;
+      if (p !== "browser" && p !== "kokoro" && p !== "eleven" && p !== "minimax" && p !== "replicate") return null;
       return { provider: p, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
     };
     const m = apply(d.voice_provider_mod, d.voice_id_mod); if (m) setSlotMod(m);
@@ -215,7 +216,10 @@ function PresentMode() {
     const cached = audioCache.current.get(cacheKey);
     if (cached) return cached;
     let url: string;
-    if (slot.provider === "eleven") {
+    if (slot.provider === "kokoro") {
+      // Voz neural grátis, sintetizada no próprio navegador (sem custo).
+      url = await kokoroSynthUrl(clean, voiceId);
+    } else if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: clean, voiceId } });
       url = `data:${res.mime};base64,${res.audio}`;
     } else if (slot.provider === "minimax") {

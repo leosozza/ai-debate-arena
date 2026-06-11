@@ -2,24 +2,27 @@
 import { ELEVEN_VOICES } from "./eleven-voices";
 import { MINIMAX_VOICES } from "./tts.functions";
 import { REPLICATE_VOICES } from "./replicate-voices";
+import { KOKORO_VOICES } from "./kokoro-tts";
 
-export type VoiceProvider = "browser" | "eleven" | "minimax" | "replicate";
+export type VoiceProvider = "browser" | "kokoro" | "eleven" | "minimax" | "replicate";
 
 export const VOICE_CATALOG: Record<Exclude<VoiceProvider, "browser">, ReadonlyArray<{ id: string; label: string }>> = {
+  kokoro: KOKORO_VOICES,
   eleven: ELEVEN_VOICES,
   minimax: MINIMAX_VOICES,
   replicate: REPLICATE_VOICES,
 };
 
 export const PROVIDER_LABEL: Record<VoiceProvider, string> = {
-  browser: "Navegador",
+  browser: "Navegador (grátis)",
+  kokoro: "Kokoro · neural (grátis)",
   eleven: "ElevenLabs",
   minimax: "MiniMax",
   replicate: "Replicate",
 };
 
 export function isProvider(v: unknown): v is VoiceProvider {
-  return v === "browser" || v === "eleven" || v === "minimax" || v === "replicate";
+  return v === "browser" || v === "kokoro" || v === "eleven" || v === "minimax" || v === "replicate";
 }
 
 export function voiceLabel(provider: VoiceProvider | null | undefined, id: string | null | undefined): string {

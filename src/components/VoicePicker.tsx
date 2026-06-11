@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VOICE_CATALOG, PROVIDER_LABEL, type VoiceProvider } from "@/lib/voice-catalog";
+import { kokoroSynthUrl } from "@/lib/kokoro-tts";
 import { ttsSpeak } from "@/lib/debate.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
@@ -111,6 +112,19 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
         return;
       }
 
+      if (p === "kokoro") {
+        setLoading(true);
+        const kid = (voiceId && voiceId.length > 0 ? voiceId : VOICE_CATALOG.kokoro[0]?.id) ?? "pf_dora";
+        const url = await kokoroSynthUrl(text, kid);
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => setPlaying(false);
+        audio.onerror = () => setPlaying(false);
+        setPlaying(true);
+        await audio.play();
+        return;
+      }
+
       const id = (voiceId && voiceId.length > 0 ? voiceId : VOICE_CATALOG[p]?.[0]?.id) ?? "";
       if (!id) {
         toast.error("Selecione uma voz primeiro.");
@@ -171,7 +185,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {(["browser", "eleven", "minimax", "replicate"] as const).map((k) => (
+              {(["browser", "kokoro", "eleven", "minimax", "replicate"] as const).map((k) => (
                 <SelectItem key={k} value={k}>{PROVIDER_LABEL[k]}</SelectItem>
               ))}
             </SelectContent>
