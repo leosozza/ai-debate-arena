@@ -99,11 +99,11 @@
   --input: oklch(1 0 0 / 13%);
   --ring: oklch(0.62 0.205 277);
 
-  /* Duel palette */
-  --side-a: oklch(0.72 0.145 221);
-  --side-a-foreground: oklch(0.97 0.02 221);
-  --side-b: oklch(0.77 0.16 64);
-  --side-b-foreground: oklch(0.24 0.04 64);
+  /* Duel palette — azul (mente/ciência) vs dourado (filosofia/espírito), como o banner */
+  --side-a: oklch(0.73 0.15 228);
+  --side-a-foreground: oklch(0.97 0.02 228);
+  --side-b: oklch(0.80 0.15 82);
+  --side-b-foreground: oklch(0.24 0.05 82);
 
   --chart-1: oklch(0.62 0.205 277);
   --chart-2: oklch(0.72 0.145 221);

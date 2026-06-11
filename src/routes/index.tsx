@@ -5,7 +5,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { Mic, Clapperboard, BookOpen, Play, Sparkles, Swords, ArrowRight, Menu, X } from "lucide-react";
-import { LegendsLogo } from "@/components/LegendsLogo";
+import { LegendsLogo, LegendsWordmark } from "@/components/LegendsLogo";
 import logoAsset from "@/assets/legends-arena-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
@@ -61,15 +61,15 @@ function Landing() {
             </div>
           </Reveal>
 
-          <motion.h1
-            className="font-display text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.04] mt-7"
+          <motion.div
+            className="mt-7"
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            <span className="bg-gradient-to-r from-primary via-side-a to-primary bg-clip-text text-transparent">Legends</span>{" "}
-            <span className="text-foreground">Arena</span>
-          </motion.h1>
+            <h1 className="sr-only">Legends Arena</h1>
+            <LegendsWordmark className="text-6xl md:text-8xl" />
+          </motion.div>
 
           <Reveal delay={0.32}>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mt-6">
