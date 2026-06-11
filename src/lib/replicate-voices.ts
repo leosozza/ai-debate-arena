@@ -13,6 +13,8 @@ export const REPLICATE_MODELS = {
   "minimax-hd": "minimax/speech-2.8-hd", // #1 em benchmark (era speech-02-hd)
   "minimax-turbo": "minimax/speech-2.8-turbo",
   google: "google/gemini-3.1-flash-tts", // 70+ idiomas, 30 vozes, alta qualidade
+  "eleven-v3": "elevenlabs/v3", // ElevenLabs v3 via Replicate (tags de áudio)
+  inworld: "inworld/realtime-tts-2", // muito expressivo, 100+ idiomas
   chatterbox: "resemble-ai/chatterbox-multilingual",
   fish: "lucataco/fish-speech-1.5",
   xtts: "lucataco/xtts-v2",
@@ -33,6 +35,18 @@ const PT_BR_CURATED: ReadonlyArray<{ id: string; label: string }> = [
   { id: "g:Leda", label: "⭐ Google · Leda (F, jovem)" },
   { id: "g:Orus", label: "⭐ Google · Orus (M, firme)" },
   { id: "g:Zephyr", label: "⭐ Google · Zephyr (F, leve)" },
+  // 🎙️ ElevenLabs v3 (via Replicate) — IDs de voz ElevenLabs
+  { id: "el:21m00Tcm4TlvDq8ikWAM", label: "🎙️ ElevenLabs v3 · Rachel (F)" },
+  { id: "el:pNInz6obpgDQGcFmaJgB", label: "🎙️ ElevenLabs v3 · Adam (M)" },
+  { id: "el:ErXwobaYiN019PkySvjV", label: "🎙️ ElevenLabs v3 · Antoni (M)" },
+  { id: "el:EXAVITQu4vr4xnSDxMaL", label: "🎙️ ElevenLabs v3 · Bella (F)" },
+  // 🌀 Inworld (muito expressivo, multilíngue)
+  { id: "iw:Hades", label: "🌀 Inworld · Hades (M, grave)" },
+  { id: "iw:Marcus", label: "🌀 Inworld · Marcus (M)" },
+  { id: "iw:Theodore", label: "🌀 Inworld · Theodore (M, sábio)" },
+  { id: "iw:Olivia", label: "🌀 Inworld · Olivia (F)" },
+  { id: "iw:Serena", label: "🌀 Inworld · Serena (F)" },
+  { id: "iw:Luna", label: "🌀 Inworld · Luna (F, suave)" },
   // Apresentação / TV
   { id: "presenter_male", label: "🇧🇷 Apresentador de TV (M)" },
   { id: "presenter_female", label: "🇧🇷 Apresentadora de TV (F)" },
@@ -113,6 +127,8 @@ export function resolveReplicateVoice(voiceId: string): {
 } {
   const v = voiceId.trim();
   if (v.startsWith("g:")) return { model: "google", voiceParam: v.slice(2) };
+  if (v.startsWith("el:")) return { model: "eleven-v3", voiceParam: v.slice(3) };
+  if (v.startsWith("iw:")) return { model: "inworld", voiceParam: v.slice(3) };
   if (v.startsWith("mmt:")) return { model: "minimax-turbo", voiceParam: v.slice(4) };
   if (v.startsWith("cb:")) return { model: "chatterbox", voiceParam: v.slice(3) };
   if (v.startsWith("fish:")) return { model: "fish", voiceParam: v.slice(5) };

@@ -64,6 +64,20 @@ function buildInput(model: ReplicateModelKey, voiceParam: string, text: string):
         useVersion: false,
         maxMs: 120_000,
       };
+    case "eleven-v3":
+      // voiceParam = ID de voz ElevenLabs; language_code ISO 639-1.
+      return {
+        input: { text, voice_id: voiceParam, language_code: "pt" },
+        useVersion: false,
+        maxMs: 150_000,
+      };
+    case "inworld":
+      // voiceParam = nome da voz Inworld (multilíngue).
+      return {
+        input: { text, voice: voiceParam },
+        useVersion: false,
+        maxMs: 120_000,
+      };
   }
 }
 
