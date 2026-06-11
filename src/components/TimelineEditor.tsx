@@ -5,7 +5,19 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Play, Pause, Music2, Captions, Mic2, Film, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Play,
+  Pause,
+  Music2,
+  Captions,
+  Mic2,
+  Film,
+  Loader2,
+  Magnet,
+  GripHorizontal,
+  Eye,
+} from "lucide-react";
 
 export interface TimelineClip {
   id: string;
@@ -13,20 +25,16 @@ export interface TimelineClip {
   phase: string;
   content: string;
   audioUrl: string;
-  /** raw audio duration in seconds */
   duration: number;
-  /** seconds trimmed from start (0..duration) */
   trimStart: number;
-  /** seconds trimmed from end (0..duration) */
   trimEnd: number;
-  /** include subtitle in export */
   subtitle: boolean;
 }
 
 export interface TimelineMusic {
   enabled: boolean;
   url: string;
-  volume: number; // 0..1
+  volume: number;
 }
 
 interface Props {
@@ -35,12 +43,12 @@ interface Props {
   initialClips: TimelineClip[];
   musicUrl: string;
   onExport: (clips: TimelineClip[], music: TimelineMusic) => Promise<void>;
-  /** export progress (0..1) and label; null means idle */
   progress: { label: string; pct: number } | null;
 }
 
 const PX_PER_SEC = 40;
 const TRACK_H = 56;
+const PREVIEW_WINDOW = 1.2; // seconds played around a trim edit
 
 const COLORS: Record<TimelineClip["role"], string> = {
   moderator: "hsl(262 83% 65%)",
@@ -48,19 +56,31 @@ const COLORS: Record<TimelineClip["role"], string> = {
   b: "hsl(38 92% 55%)",
 };
 
+const SNAP_OPTIONS: { value: string; label: string; seconds: number }[] = [
+  { value: "off", label: "Sem snap", seconds: 0 },
+  { value: "frame30", label: "1 frame (30fps)", seconds: 1 / 30 },
+  { value: "frame24", label: "1 frame (24fps)", seconds: 1 / 24 },
+  { value: "0.1", label: "0,1s", seconds: 0.1 },
+  { value: "0.25", label: "0,25s", seconds: 0.25 },
+  { value: "0.5", label: "0,5s", seconds: 0.5 },
+  { value: "1", label: "1s", seconds: 1 },
+];
+
 export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onExport, progress }: Props) {
   const [clips, setClips] = useState<TimelineClip[]>(initialClips);
   const [music, setMusic] = useState<TimelineMusic>({ enabled: true, url: musicUrl, volume: 0.25 });
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [snapKey, setSnapKey] = useState<string>("0.25");
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const dragSrcIdxRef = useRef<number | null>(null);
+
+  const snap = SNAP_OPTIONS.find((o) => o.value === snapKey)?.seconds ?? 0;
 
   useEffect(() => {
-    if (open) {
-      setClips(initialClips);
-    }
+    if (open) setClips(initialClips);
   }, [open, initialClips]);
 
-  // cumulative effective duration
   const segs = useMemo(() => {
     let t = 0;
     return clips.map((c) => {
@@ -76,15 +96,21 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
     setClips((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   }
 
-  function play(c: TimelineClip) {
+  function quantize(v: number) {
+    if (snap <= 0) return v;
+    return Math.round(v / snap) * snap;
+  }
+
+  function play(c: TimelineClip, fromSec?: number, untilSec?: number) {
     if (audioRef.current) audioRef.current.pause();
     const a = new Audio(c.audioUrl);
-    a.currentTime = c.trimStart;
+    const start = fromSec ?? c.trimStart;
+    const stop = untilSec ?? c.duration - c.trimEnd;
+    a.currentTime = start;
     audioRef.current = a;
     setPlayingId(c.id);
-    const stopAt = c.duration - c.trimEnd;
     const tick = () => {
-      if (a.currentTime >= stopAt) {
+      if (a.currentTime >= stop) {
         a.pause();
         setPlayingId(null);
       }
@@ -100,12 +126,45 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
   }
   useEffect(() => () => audioRef.current?.pause(), []);
 
-  // ruler ticks every 5s
+  /** Preview a short window around the new trim edge. */
+  function previewEdge(c: TimelineClip, side: "left" | "right") {
+    const w = PREVIEW_WINDOW;
+    if (side === "left") {
+      const s = c.trimStart;
+      const e = Math.min(c.duration - c.trimEnd, s + w);
+      play(c, s, e);
+    } else {
+      const e = c.duration - c.trimEnd;
+      const s = Math.max(c.trimStart, e - w);
+      play(c, s, e);
+    }
+  }
+
+  function reorder(from: number, to: number) {
+    if (from === to || to < 0 || to >= clips.length) return;
+    setClips((cs) => {
+      const next = cs.slice();
+      const [m] = next.splice(from, 1);
+      next.splice(to, 0, m);
+      return next;
+    });
+  }
+
   const ticks = useMemo(() => {
     const arr: number[] = [];
-    for (let s = 0; s <= Math.ceil(totalSec); s += 5) arr.push(s);
+    const step = snap > 0 && snap <= 1 ? Math.max(1, Math.round(1 / Math.max(snap, 0.1))) : 5;
+    const interval = Math.max(1, Math.round(5 / Math.max(1, step)) || 5);
+    for (let s = 0; s <= Math.ceil(totalSec); s += Math.max(1, interval)) arr.push(s);
     return arr;
-  }, [totalSec]);
+  }, [totalSec, snap]);
+
+  // sub-grid lines aligned to snap
+  const gridLines = useMemo(() => {
+    if (snap <= 0 || snap > 1) return [];
+    const arr: number[] = [];
+    for (let s = 0; s <= totalSec + 0.0001; s += snap) arr.push(s);
+    return arr.slice(0, 2000);
+  }, [snap, totalSec]);
 
   const busy = progress !== null;
 
@@ -117,14 +176,30 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Music controls */}
+          {/* Top controls */}
           <div className="flex flex-wrap items-center gap-4 rounded-lg border p-3">
             <div className="flex items-center gap-2">
+              <Magnet className="h-4 w-4 text-primary" />
+              <Label className="text-xs">Snap</Label>
+              <Select value={snapKey} onValueChange={setSnapKey}>
+                <SelectTrigger className="h-8 w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SNAP_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
               <Music2 className="h-4 w-4 text-primary" />
-              <Label htmlFor="mus">Música de fundo</Label>
+              <Label htmlFor="mus" className="text-xs">Música</Label>
               <Switch id="mus" checked={music.enabled} onCheckedChange={(v) => setMusic((m) => ({ ...m, enabled: v }))} />
             </div>
-            <div className="flex items-center gap-2 min-w-[220px] flex-1">
+            <div className="flex items-center gap-2 min-w-[200px] flex-1">
               <span className="text-xs text-muted-foreground w-14">Volume</span>
               <Slider
                 value={[Math.round(music.volume * 100)]}
@@ -137,15 +212,28 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
               <span className="tabular-nums text-xs w-8 text-right">{Math.round(music.volume * 100)}%</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              Duração total: <span className="tabular-nums font-medium text-foreground">{fmt(totalSec)}</span>
+              Total: <span className="tabular-nums font-medium text-foreground">{fmt(totalSec)}</span>
             </div>
           </div>
 
           {/* Timeline */}
           <div className="rounded-lg border overflow-x-auto bg-muted/20">
-            <div className="min-w-full" style={{ width: Math.max(800, totalSec * PX_PER_SEC + 160) }}>
+            <div className="min-w-full relative" style={{ width: Math.max(800, totalSec * PX_PER_SEC + 160) }}>
+              {/* Grid overlay */}
+              {gridLines.length > 0 && (
+                <div className="pointer-events-none absolute left-0 right-0 top-6 bottom-0 z-0">
+                  {gridLines.map((s, i) => (
+                    <div
+                      key={i}
+                      className="absolute top-0 bottom-0 w-px bg-foreground/5"
+                      style={{ left: 120 + s * PX_PER_SEC }}
+                    />
+                  ))}
+                </div>
+              )}
+
               {/* Ruler */}
-              <div className="relative h-6 border-b bg-background/60">
+              <div className="relative h-6 border-b bg-background/60 z-10">
                 {ticks.map((s) => (
                   <div key={s} className="absolute top-0 h-full flex flex-col items-start" style={{ left: 120 + s * PX_PER_SEC }}>
                     <div className="w-px h-2 bg-border" />
@@ -158,6 +246,7 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
               <TrackRow icon={<Mic2 className="h-3.5 w-3.5" />} label="VOZ">
                 {clips.map((c, i) => {
                   const seg = segs[i];
+                  const isOver = dragOverIdx === i;
                   return (
                     <ClipBlock
                       key={c.id}
@@ -166,16 +255,31 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                       color={COLORS[c.role]}
                       label={`${labelFor(c.role)} · ${fmt(seg.eff)}`}
                       playing={playingId === c.id}
+                      isDropTarget={isOver}
                       onPlay={() => (playingId === c.id ? stop() : play(c))}
+                      onPreviewLeft={() => previewEdge(c, "left")}
+                      onPreviewRight={() => previewEdge(c, "right")}
                       onTrimLeft={(deltaPx) => {
-                        const delta = deltaPx / PX_PER_SEC;
-                        const newStart = clamp(c.trimStart + delta, 0, c.duration - c.trimEnd - 0.2);
-                        updateClip(c.id, { trimStart: newStart });
+                        const raw = c.trimStart + deltaPx / PX_PER_SEC;
+                        const q = quantize(raw);
+                        const newStart = clamp(q, 0, c.duration - c.trimEnd - 0.2);
+                        if (newStart !== c.trimStart) updateClip(c.id, { trimStart: newStart });
                       }}
                       onTrimRight={(deltaPx) => {
-                        const delta = -deltaPx / PX_PER_SEC;
-                        const newEnd = clamp(c.trimEnd + delta, 0, c.duration - c.trimStart - 0.2);
-                        updateClip(c.id, { trimEnd: newEnd });
+                        const raw = c.trimEnd + -deltaPx / PX_PER_SEC;
+                        const q = quantize(raw);
+                        const newEnd = clamp(q, 0, c.duration - c.trimStart - 0.2);
+                        if (newEnd !== c.trimEnd) updateClip(c.id, { trimEnd: newEnd });
+                      }}
+                      onTrimEndCommit={(side) => previewEdge(c, side)}
+                      onDragStart={() => (dragSrcIdxRef.current = i)}
+                      onDragOver={() => setDragOverIdx(i)}
+                      onDragEnd={() => {
+                        const from = dragSrcIdxRef.current;
+                        const to = dragOverIdx;
+                        dragSrcIdxRef.current = null;
+                        setDragOverIdx(null);
+                        if (from != null && to != null) reorder(from, to);
                       }}
                     />
                   );
@@ -222,8 +326,10 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Arraste as bordas dos blocos de voz para cortar início/fim. Clique no bloco da legenda para ligar/desligar.
-            Use ▶ para pré-ouvir só o trecho selecionado.
+            <Magnet className="inline h-3 w-3 mr-1" />Snap em <b>{SNAP_OPTIONS.find((o) => o.value === snapKey)?.label}</b>.
+            Arraste as bordas para cortar (pré-escuta automática do trecho ao soltar).
+            Use a alça <GripHorizontal className="inline h-3 w-3" /> no centro para reordenar falas.
+            Clique <Eye className="inline h-3 w-3" /> para pré-ouvir a borda novamente.
           </p>
 
           {progress && (
@@ -252,8 +358,8 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
 
 function TrackRow({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <div className="relative border-b last:border-b-0" style={{ height: TRACK_H }}>
-      <div className="absolute left-0 top-0 bottom-0 w-[120px] border-r bg-background/60 px-3 flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground">
+    <div className="relative border-b last:border-b-0 z-10" style={{ height: TRACK_H }}>
+      <div className="absolute left-0 top-0 bottom-0 w-[120px] border-r bg-background/80 px-3 flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground z-20">
         {icon}
         {label}
       </div>
@@ -268,24 +374,37 @@ function ClipBlock({
   color,
   label,
   playing,
+  isDropTarget,
   onPlay,
+  onPreviewLeft,
+  onPreviewRight,
   onTrimLeft,
   onTrimRight,
+  onTrimEndCommit,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
 }: {
   left: number;
   width: number;
   color: string;
   label: string;
   playing: boolean;
+  isDropTarget: boolean;
   onPlay: () => void;
+  onPreviewLeft: () => void;
+  onPreviewRight: () => void;
   onTrimLeft: (deltaPx: number) => void;
   onTrimRight: (deltaPx: number) => void;
+  onTrimEndCommit: (side: "left" | "right") => void;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDragEnd: () => void;
 }) {
-  function startDrag(e: React.PointerEvent, cb: (delta: number) => void) {
+  function startTrim(e: React.PointerEvent, side: "left" | "right", cb: (delta: number) => void) {
     e.stopPropagation();
     e.preventDefault();
-    const startX = e.clientX;
-    let lastX = startX;
+    let lastX = e.clientX;
     const move = (ev: PointerEvent) => {
       const dx = ev.clientX - lastX;
       lastX = ev.clientX;
@@ -294,6 +413,7 @@ function ClipBlock({
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      onTrimEndCommit(side);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -301,27 +421,69 @@ function ClipBlock({
 
   return (
     <div
-      className="absolute top-2 bottom-2 rounded-md flex items-center overflow-hidden select-none group shadow-sm"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        onDragOver();
+      }}
+      onDragEnd={onDragEnd}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDragEnd();
+      }}
+      className={`absolute top-2 bottom-2 rounded-md flex items-center overflow-hidden select-none group shadow-sm transition ${
+        isDropTarget ? "ring-2 ring-foreground/60" : ""
+      }`}
       style={{ left, width: Math.max(20, width), backgroundColor: color, opacity: 0.92 }}
     >
-      {/* left handle */}
       <div
         className="h-full w-2 cursor-ew-resize bg-black/30 hover:bg-black/50 transition"
-        onPointerDown={(e) => startDrag(e, onTrimLeft)}
-        title="Arraste para cortar início"
+        onPointerDown={(e) => startTrim(e, "left", onTrimLeft)}
+        title="Arraste para cortar início (snap ativo)"
       />
       <button
-        className="flex-1 h-full px-2 text-left text-[11px] font-semibold text-black/85 truncate hover:bg-black/10"
+        className="px-1 text-black/70 hover:text-black"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreviewLeft();
+        }}
+        title="Pré-ouvir início"
+      >
+        <Eye className="h-3 w-3" />
+      </button>
+      <button
+        className="flex-1 h-full px-1 text-left text-[11px] font-semibold text-black/85 truncate hover:bg-black/10"
         onClick={onPlay}
       >
         {playing ? <Pause className="inline h-3 w-3 mr-1" /> : <Play className="inline h-3 w-3 mr-1" />}
         {label}
       </button>
-      {/* right handle */}
+      <span
+        className="px-1 text-black/60 cursor-grab active:cursor-grabbing"
+        title="Arraste para reordenar"
+      >
+        <GripHorizontal className="h-3.5 w-3.5" />
+      </span>
+      <button
+        className="px-1 text-black/70 hover:text-black"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreviewRight();
+        }}
+        title="Pré-ouvir fim"
+      >
+        <Eye className="h-3 w-3" />
+      </button>
       <div
         className="h-full w-2 cursor-ew-resize bg-black/30 hover:bg-black/50 transition"
-        onPointerDown={(e) => startDrag(e, onTrimRight)}
-        title="Arraste para cortar fim"
+        onPointerDown={(e) => startTrim(e, "right", onTrimRight)}
+        title="Arraste para cortar fim (snap ativo)"
       />
     </div>
   );
