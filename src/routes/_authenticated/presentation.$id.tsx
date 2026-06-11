@@ -14,7 +14,7 @@ import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
 import { AIDisclaimer, AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
-import { OpeningSequence } from "@/components/OpeningSequence";
+// OpeningSequence removido: apresentação dos convidados agora é narrada pelo mediador no palco.
 import { OpeningVignette } from "@/components/OpeningVignette";
 import { PreparationScreen } from "@/components/PreparationScreen";
 import { Teleprompter } from "@/components/Teleprompter";
