@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { ensureBlockSubtopics, type Debate } from "./debate.functions";
+import { ensureBlockSubtopics, directionClause, type Debate } from "./debate.functions";
 
 // ===========================================================================
 // Motor de geração para formatos != "duel" (lê debate_participants).
@@ -152,7 +152,7 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     let userPrompt: string;
 
     if (isMod) {
-      sysPrompt = `Você é o MEDIADOR/APRESENTADOR de um programa de debate de TV. ${tone} Fale em português.${TTS_STYLE}`;
+      sysPrompt = `Você é o MEDIADOR/APRESENTADOR de um programa de debate de TV. ${tone} Fale em português.${directionClause(debate)}${TTS_STYLE}`;
       if (next.phase === "veredito") {
         userPrompt = `Tema: ${debate.topic}\n\nHistórico completo:\n${transcript}\n\nEncerre o programa com seu VEREDITO: quem se saiu melhor e por quê, citando momentos reais do debate. Máximo 180 palavras.`;
       } else if (next.phase === "abertura") {
@@ -165,7 +165,7 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
       const roleHint = next.role
         ? ({ interviewer: "Você é o ENTREVISTADOR: faça UMA pergunta instigante e direta ao convidado.", interviewee: "Você é o ENTREVISTADO: responda com profundidade e personalidade.", prosecutor: "Você é a ACUSAÇÃO: sustente a acusação com argumentos e evidências.", defender: "Você é a DEFESA: refute a acusação e defenda o réu.", judge: "Você é um JUIZ: questione os pontos fracos e pondere com imparcialidade." } as Record<string, string>)[next.role] ?? ""
         : "";
-      sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${roleHint}\nVocê está num programa de debate de TV ao vivo. ${tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${TTS_STYLE}`;
+      sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${roleHint}\nVocê está num programa de debate de TV ao vivo. ${tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
       userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}\n\nSua tarefa: produzir a fala da fase "${next.phase}". Máximo 170 palavras. NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     }
 

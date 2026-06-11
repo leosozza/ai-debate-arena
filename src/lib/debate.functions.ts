@@ -37,6 +37,7 @@ export type ExtraParticipantInput = z.infer<typeof ExtraParticipantSchema>;
 
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
+  direction: z.string().trim().max(2000).optional(),
   format: FormatSchema,
   debaterAName: z.string().trim().min(1).max(60),
   debaterAPersona: z.string().trim().min(1).max(20000),
@@ -112,6 +113,7 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
       .insert({
         user_id: context.userId,
         topic: data.topic,
+        direction: data.direction || null,
         format: data.format,
         debater_a_name: data.debaterAName,
         debater_a_persona: data.debaterAPersona,
@@ -171,6 +173,7 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
 const UpdateDebateSchema = z.object({
   id: z.string().uuid(),
   topic: z.string().trim().min(3).max(500).optional(),
+  direction: z.string().trim().max(2000).nullable().optional(),
   debaterAName: z.string().trim().min(1).max(60).optional(),
   debaterAPersona: z.string().trim().min(1).max(20000).optional(),
   debaterAModel: ModelSchema.optional(),
@@ -210,6 +213,7 @@ export const updateDebate = createServerFn({ method: "POST" })
     }
     const patch: Record<string, string | number | boolean | null> = {};
     if (d.topic !== undefined) patch.topic = d.topic;
+    if (d.direction !== undefined) patch.direction = d.direction || null;
     if (d.debaterAName !== undefined) patch.debater_a_name = d.debaterAName;
     if (d.debaterAPersona !== undefined) patch.debater_a_persona = d.debaterAPersona;
     if (d.debaterAModel !== undefined) patch.debater_a_model = d.debaterAModel;
@@ -632,6 +636,7 @@ export type Debate = {
   debater_b_name: string; debater_b_persona: string; debater_b_model: string;
   moderator_model: string; moderator_tone: string;
   dynamic_flow: boolean;
+  direction?: string | null;
 };
 type Msg = { role: string; phase: string; content: string };
 
@@ -1022,12 +1027,12 @@ function modelForMulti(role: string, parts: Participant[], debate: Debate): stri
 function buildSystemPromptMulti(role: string, parts: Participant[], debate: Debate, formatId: string): string {
   if (role === "moderator") {
     const fmt = FORMAT_RULES_HINTS[formatId] ?? "";
-    return `Você é o MEDIADOR de um programa de TV. ${fmt}\nTom: ${debate.moderator_tone}. Apresente fases, faça transições e, no encerramento, conduza o desfecho conforme o formato. Português.${TTS_STYLE_RULES}`;
+    return `Você é o MEDIADOR de um programa de TV. ${fmt}\nTom: ${debate.moderator_tone}. Apresente fases, faça transições e, no encerramento, conduza o desfecho conforme o formato. Português.${directionClause(debate)}${TTS_STYLE_RULES}`;
   }
   const p = parts.find((x) => x.role === role);
   if (!p) return `Você é um participante de um programa de TV. Português.${TTS_STYLE_RULES}`;
   const hint = SEMANTIC_ROLE_HINT[p.participantRole] ?? "";
-  return `Você é ${p.displayName}. ${p.personaPrompt}\n\n${hint}\nFale em português.${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
+  return `Você é ${p.displayName}. ${p.personaPrompt}\n\n${hint}\nFale em português.${directionClause(debate)}${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
 }
 
 
@@ -1050,14 +1055,21 @@ const TTS_STYLE_RULES = `\n\nFORMATO OBRIGATÓRIO: sua resposta vai direto para 
 
 const DEBATER_STAGE_RULES = `\n\nVocê está num DEBATE de TV ao vivo, NÃO em horário eleitoral. Nunca encerre como propaganda política: não diga "meu nome é ...", não peça voto, não recite slogan de campanha, não se reapresente a cada fala. Vá direto ao argumento do bloco atual, rebata o oponente quando fizer sentido, e termine a fala no próprio argumento — sem assinatura.`;
 
+/** Instrução de direcionamento opcional definida pelo criador do debate. */
+export function directionClause(debate: { direction?: string | null }): string {
+  return debate.direction && debate.direction.trim()
+    ? `\n\nDIRECIONAMENTO DO DEBATE (siga à risca no tom, na linguagem e no objetivo): ${debate.direction.trim()}`
+    : "";
+}
+
 export function buildSystemPrompt(role: "moderator" | "a" | "b", debate: Debate) {
   if (role === "moderator") {
-    return `Você é o MEDIADOR de um debate, tom ${debate.moderator_tone}. Apresente fases, faça transições e, no veredito, avalie quem foi mais convincente sem ofender. Fale em português.${TTS_STYLE_RULES}`;
+    return `Você é o MEDIADOR de um debate, tom ${debate.moderator_tone}. Apresente fases, faça transições e, no veredito, avalie quem foi mais convincente sem ofender. Fale em português.${directionClause(debate)}${TTS_STYLE_RULES}`;
   }
   if (role === "a") {
-    return `Você é ${debate.debater_a_name}. Personalidade e posição: ${debate.debater_a_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
+    return `Você é ${debate.debater_a_name}. Personalidade e posição: ${debate.debater_a_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.${directionClause(debate)}${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
   }
-  return `Você é ${debate.debater_b_name}. Personalidade e posição: ${debate.debater_b_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
+  return `Você é ${debate.debater_b_name}. Personalidade e posição: ${debate.debater_b_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.${directionClause(debate)}${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
 }
 
 // ===== Sequência com blocos estilo programa de TV =====

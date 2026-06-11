@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Reveal } from "@/components/Reveal";
@@ -30,6 +30,48 @@ export const Route = createFileRoute("/_authenticated/new")({
 });
 
 const DEFAULT_MODEL = "google/gemini-3-flash-preview";
+
+// Categorias do catálogo de personas (rótulo + ordem de exibição).
+const CAT_LABELS: Record<string, string> = {
+  filosofia: "Filosofia",
+  ciencia: "Ciência",
+  inventores: "Inventores",
+  religiao: "Religião & Espiritualidade",
+  "politica-mundo": "Política (Mundo)",
+  "politica-br": "Política (Brasil)",
+  economia: "Economia",
+  estrategia: "Estratégia & Guerra",
+  esporte: "Esporte",
+};
+const CAT_ORDER = ["filosofia", "ciencia", "inventores", "religiao", "politica-mundo", "politica-br", "economia", "estrategia", "esporte"];
+
+type PersonaLite = { id: string; name: string; category?: string | null };
+
+/** Itens do select de persona, agrupados por categoria. */
+function PersonaSelectItems({ personas }: { personas: PersonaLite[] }) {
+  const groups = new Map<string, PersonaLite[]>();
+  for (const p of personas) {
+    const cat = p.category || "outros";
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat)!.push(p);
+  }
+  const cats = [
+    ...CAT_ORDER.filter((c) => groups.has(c)),
+    ...[...groups.keys()].filter((c) => !CAT_ORDER.includes(c)),
+  ];
+  return (
+    <>
+      {cats.map((cat) => (
+        <SelectGroup key={cat}>
+          <SelectLabel>{CAT_LABELS[cat] ?? "Outros"}</SelectLabel>
+          {groups.get(cat)!.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
+            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+          ))}
+        </SelectGroup>
+      ))}
+    </>
+  );
+}
 
 function NewDebate() {
   const router = useRouter();
@@ -49,6 +91,7 @@ function NewDebate() {
   const [topicOptionsLoading, setTopicOptionsLoading] = useState(false);
   const [form, setForm] = useState({
     topic: "",
+    direction: "",
     format: "duel" as DebateFormatId,
     debaterAName: "Aurora",
     debaterAPersona: "Defensora apaixonada da tecnologia, otimista quanto ao futuro da IA.",
@@ -242,6 +285,19 @@ function NewDebate() {
               onChange={(e) => setForm({ ...form, topic: e.target.value })}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="direction">Direcionamento do debate <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+            <Textarea
+              id="direction" maxLength={2000} rows={3}
+              placeholder="Como o debate deve seguir? Ex: use linguagem simples e acessível; o objetivo é pregar a paz e o entendimento; evite tom agressivo; foque em soluções práticas…"
+              value={form.direction}
+              onChange={(e) => setForm({ ...form, direction: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Uma instrução que orienta o tom, a linguagem e o objetivo. Todos os participantes e o mediador seguem.
+            </p>
+          </div>
         </Card>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -270,9 +326,7 @@ function NewDebate() {
                 <Select value="" onValueChange={(v) => applyPersona("A", v)}>
                   <SelectTrigger><SelectValue placeholder="Escolher persona…" /></SelectTrigger>
                   <SelectContent>
-                    {personas.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
+                    <PersonaSelectItems personas={personas} />
                   </SelectContent>
                 </Select>
               </div>
@@ -305,9 +359,7 @@ function NewDebate() {
                 <Select value="" onValueChange={(v) => applyPersona("B", v)}>
                   <SelectTrigger><SelectValue placeholder="Escolher persona…" /></SelectTrigger>
                   <SelectContent>
-                    {personas.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
+                    <PersonaSelectItems personas={personas} />
                   </SelectContent>
                 </Select>
               </div>
