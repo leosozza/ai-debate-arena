@@ -238,6 +238,8 @@ export type Database = {
           persona_prompt: string
           updated_at: string
           user_id: string
+          vignette_model: string | null
+          vignette_url: string | null
           voice_clone_name: string | null
           voice_clone_source: string | null
           voice_id: string | null
@@ -255,6 +257,8 @@ export type Database = {
           persona_prompt: string
           updated_at?: string
           user_id: string
+          vignette_model?: string | null
+          vignette_url?: string | null
           voice_clone_name?: string | null
           voice_clone_source?: string | null
           voice_id?: string | null
@@ -272,6 +276,8 @@ export type Database = {
           persona_prompt?: string
           updated_at?: string
           user_id?: string
+          vignette_model?: string | null
+          vignette_url?: string | null
           voice_clone_name?: string | null
           voice_clone_source?: string | null
           voice_id?: string | null
