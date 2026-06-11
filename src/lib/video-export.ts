@@ -180,13 +180,18 @@ function drawStageFrame(
   ctx.textAlign = "left";
   ctx.fillText(speakerName.toUpperCase(), 60, 612);
 
-  // Caption text (wrap)
-  ctx.fillStyle = "#e2e8f0";
-  ctx.font = "500 20px system-ui";
+  // Caption text (wrap) — maior, negrito e com contorno pra leitura tipo CapCut
+  ctx.font = "700 22px system-ui";
   ctx.textAlign = "left";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(0,0,0,0.6)";
   const lines = wrapText(ctx, opts.caption, W - 120).slice(0, 3);
   lines.forEach((ln, i) => {
-    ctx.fillText(ln, 60, 642 + i * 26);
+    const y = 642 + i * 26;
+    ctx.strokeText(ln, 60, y);
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillText(ln, 60, y);
   });
   if (wrapText(ctx, opts.caption, W - 120).length > 3) {
     ctx.fillStyle = "#64748b";
