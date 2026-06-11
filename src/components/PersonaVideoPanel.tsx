@@ -13,6 +13,7 @@ import {
 import { Video, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { generatePersonaVignette } from "@/lib/persona-video.functions";
+import { PersonaVignettePlayer } from "@/components/PersonaVignettePlayer";
 
 interface Props {
   personaId: string | null; // null while creating
@@ -58,11 +59,7 @@ export function PersonaVideoPanel({ personaId, hasImage, vignetteUrl, onGenerate
       </div>
 
       {vignetteUrl ? (
-        <video
-          src={vignetteUrl}
-          controls
-          className="w-full max-w-sm rounded-md border border-border bg-black"
-        />
+        <PersonaVignettePlayer src={vignetteUrl} className="w-full max-w-sm aspect-video" />
       ) : (
         <p className="text-xs text-muted-foreground">
           Nenhuma vinheta gerada ainda. A imagem da persona será animada (~8s) e armazenada com segurança.
