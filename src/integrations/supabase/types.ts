@@ -145,6 +145,8 @@ export type Database = {
           format: string
           id: string
           moderator_model: string
+          moderator_name: string | null
+          moderator_style: string | null
           moderator_tone: string
           rounds: number
           rules: string | null
@@ -178,6 +180,8 @@ export type Database = {
           format?: string
           id?: string
           moderator_model?: string
+          moderator_name?: string | null
+          moderator_style?: string | null
           moderator_tone?: string
           rounds?: number
           rules?: string | null
@@ -211,6 +215,8 @@ export type Database = {
           format?: string
           id?: string
           moderator_model?: string
+          moderator_name?: string | null
+          moderator_style?: string | null
           moderator_tone?: string
           rounds?: number
           rules?: string | null

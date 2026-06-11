@@ -152,7 +152,8 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     let userPrompt: string;
 
     if (isMod) {
-      sysPrompt = `Você é o MEDIADOR/APRESENTADOR de um programa de debate de TV. ${tone} Fale em português.${directionClause(debate)}${TTS_STYLE}`;
+      const whoM = debate.moderator_name ? `Você é ${debate.moderator_name}, ${debate.moderator_style ?? "apresentador do programa"}.` : "Você é o MEDIADOR/APRESENTADOR de um programa de debate de TV.";
+      sysPrompt = `${whoM} ${tone} Fale em português.${directionClause(debate)}${TTS_STYLE}`;
       if (next.phase === "veredito") {
         userPrompt = `Tema: ${debate.topic}\n\nHistórico completo:\n${transcript}\n\nEncerre o programa com seu VEREDITO: quem se saiu melhor e por quê, citando momentos reais do debate. Máximo 180 palavras.`;
       } else if (next.phase === "abertura") {

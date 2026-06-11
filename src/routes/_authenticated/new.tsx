@@ -24,6 +24,7 @@ import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-for
 import { Badge } from "@/components/ui/badge";
 import { ExtraParticipantsPanel, makeEmptyExtra, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
 import { personaGender, defaultVoiceForGender } from "@/lib/persona-gender";
+import { MEDIATORS, type Mediator } from "@/lib/mediators";
 import { AIDisclaimer } from "@/components/AIDisclaimer";
 
 export const Route = createFileRoute("/_authenticated/new")({
@@ -104,6 +105,8 @@ function NewDebate() {
     debaterBImageUrl: null as string | null,
     moderatorModel: DEFAULT_MODEL,
     moderatorTone: "formal" as "formal" | "descontraído" | "acadêmico",
+    moderatorName: null as string | null,
+    moderatorStyle: null as string | null,
     rounds: 3,
     blocksCount: 4,
     dynamicFlow: false,
@@ -116,6 +119,19 @@ function NewDebate() {
   });
   const [extras, setExtras] = useState<ExtraParticipantDraft[]>([]);
   const currentFormat = getFormat(form.format)!;
+  const [mediatorId, setMediatorId] = useState<string | null>(null);
+
+  function pickMediator(m: Mediator) {
+    setMediatorId(m.id);
+    setForm((f) => ({
+      ...f,
+      moderatorName: m.name,
+      moderatorStyle: m.style,
+      moderatorTone: m.tone,
+      voiceProviderMod: m.voiceProvider,
+      voiceIdMod: m.voiceId,
+    }));
+  }
 
   function applyPersona(side: "A" | "B", personaId: string) {
     const p = personas.find((x) => x.id === personaId);
@@ -400,6 +416,30 @@ function NewDebate() {
 
 
         <Card className="p-6 space-y-4">
+          <div className="space-y-2">
+            <Label>Mediador do programa</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {MEDIATORS.map((m) => {
+                const active = mediatorId === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => pickMediator(m)}
+                    className={`text-left rounded-lg border p-2.5 transition ${active ? "border-primary bg-primary/10 ring-1 ring-primary/40" : "border-border/60 hover:border-border"}`}
+                  >
+                    <div className="flex items-center gap-1.5 text-sm font-semibold">
+                      <span>{m.gender === "f" ? "👩" : "👨"}</span> {m.name}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{m.tagline}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Define o estilo, o tom e a voz do apresentador. Você pode ajustar o tom e a voz abaixo.
+            </p>
+          </div>
           <div className="space-y-2">
             <Label>Modelo do mediador</Label>
             {modelSelect(form.moderatorModel, (v) => setForm({ ...form, moderatorModel: v }))}

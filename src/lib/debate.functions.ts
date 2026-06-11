@@ -49,6 +49,8 @@ const NewDebateSchema = z.object({
   debaterBImageUrl: z.string().trim().max(2048).nullable().optional(),
   moderatorModel: ModelSchema.default("google/gemini-3-flash-preview"),
   moderatorTone: z.enum(["formal", "descontraído", "acadêmico"]),
+  moderatorName: z.string().trim().max(120).nullable().optional(),
+  moderatorStyle: z.string().trim().max(2000).nullable().optional(),
   rounds: z.number().int().min(2).max(6),
   blocksCount: z.number().int().min(2).max(6).default(4),
   dynamicFlow: z.boolean().default(false),
@@ -124,7 +126,8 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
         debater_b_model: data.debaterBModel,
         debater_b_image_url: data.debaterBImageUrl ?? null,
         moderator_model: data.moderatorModel,
-
+        moderator_name: data.moderatorName ?? null,
+        moderator_style: data.moderatorStyle ?? null,
         moderator_tone: data.moderatorTone,
         rounds: data.rounds,
         blocks_count: data.blocksCount,
@@ -640,6 +643,7 @@ export type Debate = {
   debater_a_name: string; debater_a_persona: string; debater_a_model: string;
   debater_b_name: string; debater_b_persona: string; debater_b_model: string;
   moderator_model: string; moderator_tone: string;
+  moderator_name?: string | null; moderator_style?: string | null;
   dynamic_flow: boolean;
   direction?: string | null;
 };
@@ -1032,7 +1036,8 @@ function modelForMulti(role: string, parts: Participant[], debate: Debate): stri
 function buildSystemPromptMulti(role: string, parts: Participant[], debate: Debate, formatId: string): string {
   if (role === "moderator") {
     const fmt = FORMAT_RULES_HINTS[formatId] ?? "";
-    return `Você é o MEDIADOR de um programa de TV. ${fmt}\nTom: ${debate.moderator_tone}. Apresente fases, faça transições e, no encerramento, conduza o desfecho conforme o formato. Português.${directionClause(debate)}${TTS_STYLE_RULES}`;
+    const whoM = debate.moderator_name ? `Você é ${debate.moderator_name}, ${debate.moderator_style ?? "apresentador do programa"}.` : "Você é o MEDIADOR de um programa de TV.";
+    return `${whoM} ${fmt}\nTom: ${debate.moderator_tone}. Apresente fases, faça transições e, no encerramento, conduza o desfecho conforme o formato. Português.${directionClause(debate)}${TTS_STYLE_RULES}`;
   }
   const p = parts.find((x) => x.role === role);
   if (!p) return `Você é um participante de um programa de TV. Português.${TTS_STYLE_RULES}`;
@@ -1069,7 +1074,8 @@ export function directionClause(debate: { direction?: string | null }): string {
 
 export function buildSystemPrompt(role: "moderator" | "a" | "b", debate: Debate) {
   if (role === "moderator") {
-    return `Você é o MEDIADOR de um debate, tom ${debate.moderator_tone}. Apresente fases, faça transições e, no veredito, avalie quem foi mais convincente sem ofender. Fale em português.${directionClause(debate)}${TTS_STYLE_RULES}`;
+    const whoM = debate.moderator_name ? `Você é ${debate.moderator_name}, ${debate.moderator_style ?? "mediador do programa"}.` : "Você é o MEDIADOR de um debate.";
+    return `${whoM} Tom ${debate.moderator_tone}. Apresente fases, faça transições e, no veredito, avalie quem foi mais convincente sem ofender. Fale em português.${directionClause(debate)}${TTS_STYLE_RULES}`;
   }
   if (role === "a") {
     return `Você é ${debate.debater_a_name}. Personalidade e posição: ${debate.debater_a_persona}. Defenda sua posição com convicção, rebatendo o oponente quando fizer sentido. Fale em português.${directionClause(debate)}${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
