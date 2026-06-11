@@ -546,7 +546,7 @@ function PresentMode() {
     return <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">Carregando…</div>;
   }
 
-  if (messages.length === 0) {
+  if (rawMessages.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background flex-col gap-4">
         <p className="text-muted-foreground">Nenhuma fala ainda.</p>
