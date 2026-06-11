@@ -104,13 +104,13 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
       }
     }
 
-    const baseInstruction = `Photorealistic head-and-shoulders portrait avatar of "${data.name}"${
+    const baseInstruction = `Cinematic translucent blue holographic bust of "${data.name}"${
       data.description ? `, ${data.description}` : ""
-    }. Square framing, neutral studio background, soft lighting, dignified expression, ultra-high detail.`;
+    }, emerging from a circular metallic projector disc on the floor, beams of bright cyan-blue light shooting upward forming the figure, glowing particles and digital scan lines, dignified expression, head-and-shoulders framing, set inside a dark futuristic amphitheater with distant warm ambient lights, deep black background, dramatic rim light, sci-fi hologram aesthetic, ultra-detailed, photorealistic render, 85mm, cinematic, 'Legends Arena' style. Square 1:1 framing.`;
 
     let b64: string;
     if (refDataUrls.length > 0) {
-      const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person. Reproduce their actual face, features, ethnicity, age range, hair, and overall likeness as faithfully as possible — do not invent a different person. Use the references as ground truth for the identity; only the framing, lighting, and background should be standardized.`;
+      const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully as the IDENTITY of the holographic figure. Do NOT render a realistic studio photo: the final image MUST be the translucent cyan-blue hologram described above, projected from the disc, with scan lines and light beams. Keep the likeness; change the medium.`;
       b64 = await callImageGateway({
         model: "google/gemini-3.1-flash-image-preview",
         messages: [
