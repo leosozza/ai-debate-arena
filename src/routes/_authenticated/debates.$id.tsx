@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, type Verdict } from "@/lib/debate.functions";
 import { listParticipants } from "@/lib/debate-participants.functions";
+import { listPersonas } from "@/lib/persona.functions";
 import { getFormat } from "@/lib/debate-formats";
 import { CastStrip, roleLabel, type CastMember } from "@/components/CastStrip";
 import { generateParticipantTurn } from "@/lib/multi-debate.functions";
