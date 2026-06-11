@@ -619,9 +619,9 @@ Seja justo e específico ao tema. Português.` },
     }
   });
 
-type Subtopic = { title: string; focus: string };
+export type Subtopic = { title: string; focus: string };
 
-type Debate = {
+export type Debate = {
   id: string;
   rounds: number;
   blocks_count: number;
@@ -635,7 +635,7 @@ type Debate = {
 };
 type Msg = { role: string; phase: string; content: string };
 
-async function ensureBlockSubtopics(
+export async function ensureBlockSubtopics(
   debate: Debate,
   supabase: { from: (t: string) => { update: (p: Record<string, unknown>) => { eq: (c: string, v: string) => Promise<unknown> } } },
   chat: (messages: Array<{ role: "system" | "user" | "assistant"; content: string }>, model?: string) => Promise<string>,

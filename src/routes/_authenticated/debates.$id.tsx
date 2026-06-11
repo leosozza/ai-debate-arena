@@ -5,6 +5,7 @@ import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubte
 import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
 import { CastStrip, roleLabel, type CastMember } from "@/components/CastStrip";
+import { generateParticipantTurn } from "@/lib/multi-debate.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
@@ -23,6 +24,8 @@ function DebateDetail() {
   const router = useRouter();
   const get = useServerFn(getDebate);
   const genNext = useServerFn(generateNextTurn);
+  const genParticipant = useServerFn(generateParticipantTurn);
+  const listParts = useServerFn(listParticipants);
   const genVerdict = useServerFn(generateVerdict);
   const drawSubtemasFn = useServerFn(drawSubtemas);
   const injectSubtemaFn = useServerFn(injectSubtema);
@@ -38,18 +41,41 @@ function DebateDetail() {
     queryFn: () => get({ data: { id } }),
   });
 
-  const listP = useServerFn(listParticipants);
   const { data: extras = [] } = useQuery({
     queryKey: ["debate-participants", id],
-    queryFn: () => listP({ data: { debateId: id } }),
+    queryFn: () => listParts({ data: { debateId: id } }),
   });
+  const isMulti = !!data && (data.debate.format ?? "duel") !== "duel";
 
+  function roleName(role: string): string {
+    if (role === "moderator") return "Mediador";
+    if (role === "a") return data?.debate.debater_a_name ?? "A";
+    if (role === "b") return data?.debate.debater_b_name ?? "B";
+    const slot = role.startsWith("p") ? Number(role.slice(1)) : NaN;
+    return extras?.find((x) => x.slot === slot)?.display_name ?? role;
+  }
+  const PALETTE = [
+    { border: "border-l-side-a", text: "text-side-a" },
+    { border: "border-l-side-b", text: "text-side-b" },
+    { border: "border-l-chart-4", text: "text-chart-4" },
+    { border: "border-l-chart-5", text: "text-chart-5" },
+    { border: "border-l-primary", text: "text-primary" },
+  ];
+  function roleColor(role: string): { border: string; text: string } {
+    if (role === "a") return PALETTE[0];
+    if (role === "b") return PALETTE[1];
+    if (role === "moderator") return { border: "border-l-primary", text: "text-primary" };
+    const slot = role.startsWith("p") ? Number(role.slice(1)) : 0;
+    return PALETTE[slot % PALETTE.length];
+  }
 
-  // Non-streaming generation: one robust request/response per turn (reliable on
-  // serverless/Cloudflare, where SSE can stall). Returns whether the debate is
-  // done and whether this turn was the final verdict.
+  // Non-streaming generation: one robust request/response per turn. Despacha
+  // pelo formato — duel usa o engine clássico; o resto usa o multi-participante.
+
   async function generateOne(): Promise<{ done: boolean; final: boolean }> {
-    const r = await genNext({ data: { debateId: id } });
+    const r = isMulti
+      ? await genParticipant({ data: { debateId: id } })
+      : await genNext({ data: { debateId: id } });
     await refetch();
     if (r.done || !r.message) return { done: true, final: false };
     return { done: false, final: r.message.phase === "veredito" };
@@ -141,7 +167,7 @@ function DebateDetail() {
       "## Debate",
       "",
       ...data.messages.map((m) => {
-        const name = m.role === "moderator" ? "Mediador" : m.role === "a" ? data.debate.debater_a_name : data.debate.debater_b_name;
+        const name = roleName(m.role);
         return `### ${name} — ${m.phase}\n\n${m.content}\n`;
       }),
     ];
@@ -281,9 +307,9 @@ function DebateDetail() {
                 </div>
               )}
               {msgs.map((m) => {
-                const color = m.role === "a" ? "border-l-side-a" : m.role === "b" ? "border-l-side-b" : "border-l-primary";
-                const nameColor = m.role === "a" ? "text-side-a" : m.role === "b" ? "text-side-b" : "text-primary";
-                const name = m.role === "moderator" ? "Mediador" : m.role === "a" ? data.debate.debater_a_name : data.debate.debater_b_name;
+                const color = roleColor(m.role).border;
+                const nameColor = roleColor(m.role).text;
+                const name = roleName(m.role);
                 return (
                   <Card key={m.id} className={`p-5 border-l-4 ${color} bg-card/60 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-500`}>
                     <div className="flex items-baseline gap-2 mb-2">
