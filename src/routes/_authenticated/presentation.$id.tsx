@@ -144,6 +144,10 @@ function PresentMode() {
   const current = messages[index];
   const verdict = (data?.debate?.verdict as Verdict | null) ?? null;
   const arenaTheme = getArenaTheme((data?.debate as { arena_theme?: string | null } | undefined)?.arena_theme);
+  const commentatorList = (() => {
+    const cs = (data?.debate as { commentators?: unknown } | undefined)?.commentators;
+    return Array.isArray(cs) ? (cs as Array<{ name?: string; voiceProvider?: string | null; voiceId?: string | null }>) : [];
+  })();
   const slideCount = messages.length + (verdict ? 1 : 0);
 
   function clearKeepAlive() {
@@ -181,6 +185,10 @@ function PresentMode() {
       const slot = Number(role.slice(2));
       const e = extras.find((x) => x.slot === slot);
       if (e) return { provider: ((e.voice_provider as VoiceProvider | null) ?? "browser"), voiceId: e.voice_id ?? null, settings: DEFAULT_VOICE_SETTINGS };
+    }
+    if (role === "c0" || role === "c1") {
+      const c = commentatorList[role === "c0" ? 0 : 1];
+      if (c) return { provider: (c.voiceProvider as VoiceProvider | null) ?? "browser", voiceId: c.voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
     }
     return slotB;
   }
@@ -624,6 +632,13 @@ function PresentMode() {
     return extras.find((e) => e.slot === slot) ?? null;
   })();
 
+  // Comentarista (pós-bloco): role "c0" | "c1".
+  const commentator = (() => {
+    if (!current || (current.role !== "c0" && current.role !== "c1")) return null;
+    const c = commentatorList[current.role === "c0" ? 0 : 1];
+    return { name: (c?.name as string | undefined) ?? (current.role === "c0" ? "Comentarista 1" : "Comentarista 2") };
+  })();
+
   // Tarefas da preparação (montadas em tempo real para o PreparationScreen).
   const prepTasks = [
     { label: "Gerando vozes", done: prepVoices.done, total: prepVoices.total || 1, status: prepVoices.status },
@@ -690,6 +705,19 @@ function PresentMode() {
               <h3 className="font-display text-lg md:text-2xl font-extrabold text-foreground truncate">{extraSpeaker.display_name}</h3>
             </div>
             <VoiceWave active={playing && !loading} colorClass="bg-primary" bars={16} />
+          </div>
+          <p className="mt-3 text-sm md:text-base leading-relaxed text-foreground/90">{speakerContent}</p>
+        </div>
+      )}
+      {commentator && !isWinner && (
+        <div className="absolute inset-x-0 top-20 z-30 mx-auto w-[min(92%,42rem)] rounded-2xl border border-amber-400/40 bg-card/90 p-4 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-top-2 duration-500">
+          <div className="flex items-center gap-3">
+            <HologramAvatar name={commentator.name} tone="gold" size={64} />
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-amber-400 font-semibold">Comentarista · pós-bloco</div>
+              <h3 className="font-display text-lg md:text-2xl font-extrabold text-foreground truncate">{commentator.name}</h3>
+            </div>
+            <VoiceWave active={playing && !loading} colorClass="bg-amber-400" bars={16} />
           </div>
           <p className="mt-3 text-sm md:text-base leading-relaxed text-foreground/90">{speakerContent}</p>
         </div>

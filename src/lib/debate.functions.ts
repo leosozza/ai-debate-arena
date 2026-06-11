@@ -35,6 +35,14 @@ const ExtraParticipantSchema = z.object({
 });
 export type ExtraParticipantInput = z.infer<typeof ExtraParticipantSchema>;
 
+const CommentatorSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  persona: z.string().trim().max(4000).default(""),
+  voiceProvider: VoiceProviderSchema,
+  voiceId: VoiceIdSchema,
+});
+export type CommentatorInput = z.infer<typeof CommentatorSchema>;
+
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
   direction: z.string().trim().max(2000).optional(),
@@ -62,6 +70,7 @@ const NewDebateSchema = z.object({
   voiceProviderB: VoiceProviderSchema,
   voiceIdB: VoiceIdSchema,
   extras: z.array(ExtraParticipantSchema).max(20).default([]),
+  commentators: z.array(CommentatorSchema).max(2).default([]),
 });
 
 const FORMAT_RULES_HINTS: Record<string, string> = {
@@ -118,6 +127,7 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
         topic: data.topic,
         direction: data.direction || null,
         arena_theme: data.arenaTheme ?? null,
+        commentators: data.commentators.length ? data.commentators : null,
         format: data.format,
         debater_a_name: data.debaterAName,
         debater_a_persona: data.debaterAPersona,
@@ -648,6 +658,7 @@ export type Debate = {
   moderator_name?: string | null; moderator_style?: string | null;
   dynamic_flow: boolean;
   direction?: string | null;
+  commentators?: Array<{ name: string; persona?: string; voiceProvider?: string | null; voiceId?: string | null }> | null;
 };
 type Msg = { role: string; phase: string; content: string };
 
@@ -870,6 +881,14 @@ Histórico completo:
 ${transcript}${guidance}
 
 Encerre o programa com seu VEREDITO (quem foi mais convincente e por quê, mencionando momentos do debate). Português. Máximo 180 palavras.`;
+    } else if (next.role === "c0" || next.role === "c1") {
+      userPrompt = `Tema do programa: ${debate.topic}
+
+ACABOU o bloco ${next.block_index + 1} ("${block.title}", foco: ${block.focus}).
+Histórico até aqui:
+${transcript || "(início)"}${guidance}
+
+Sua tarefa: comente, como repórter de pós-jogo, o que achou DESTE bloco — quem mandou melhor, pontos fortes e fracos, o andamento. Opinativo e direto, em 2 a 3 frases. Máximo 80 palavras. NÃO inclua seu nome nem prefixo — só o comentário.`;
     } else {
       userPrompt = `Tema geral: ${debate.topic}
 Regras do mediador:
@@ -1050,17 +1069,22 @@ function buildSystemPromptMulti(role: string, parts: Participant[], debate: Deba
 
 
 
-export function labelFor(role: string, debate: { debater_a_name: string; debater_b_name: string }) {
+export function labelFor(role: string, debate: { debater_a_name: string; debater_b_name: string; commentators?: unknown }) {
   if (role === "moderator") return "Mediador";
   if (role === "a") return debate.debater_a_name;
   if (role === "b") return debate.debater_b_name;
+  if (role === "c0" || role === "c1") {
+    const cs = Array.isArray(debate.commentators) ? (debate.commentators as Array<{ name?: string }>) : [];
+    const c = cs[role === "c0" ? 0 : 1];
+    return c?.name ?? (role === "c0" ? "Comentarista 1" : "Comentarista 2");
+  }
   return role;
 }
 
-export function modelFor(role: "moderator" | "a" | "b", debate: Debate) {
-  if (role === "moderator") return debate.moderator_model;
+export function modelFor(role: "moderator" | "a" | "b" | "c0" | "c1", debate: Debate) {
   if (role === "a") return debate.debater_a_model;
-  return debate.debater_b_model;
+  if (role === "b") return debate.debater_b_model;
+  return debate.moderator_model; // moderator + comentaristas usam o modelo do mediador
 }
 
 const TTS_STYLE_RULES = `\n\nFORMATO OBRIGATÓRIO: sua resposta vai direto para um sintetizador de voz (TTS). Escreva APENAS texto corrido em frases faladas. PROIBIDO usar markdown, asteriscos (**), sublinhados (__), crases, marcadores de lista, títulos (#), emojis, ou qualquer pontuação tipográfica diferente de . , ? ! ; :. Não escreva "negrito" nem destaque palavras com símbolos — use ênfase apenas pela escolha das palavras.`;
@@ -1074,7 +1098,11 @@ export function directionClause(debate: { direction?: string | null }): string {
     : "";
 }
 
-export function buildSystemPrompt(role: "moderator" | "a" | "b", debate: Debate) {
+export function buildSystemPrompt(role: "moderator" | "a" | "b" | "c0" | "c1", debate: Debate) {
+  if (role === "c0" || role === "c1") {
+    const c = debate.commentators?.[role === "c0" ? 0 : 1];
+    return `Você é ${c?.name ?? "Comentarista"}, comentarista e repórter de um programa de debate de TV. ${c?.persona ?? ""}\nVocê NÃO debate: você ANALISA, como num pós-jogo, o bloco que acabou — quem mandou melhor, pontos fortes e fracos, o andamento e a reação do público. Seja perspicaz, direto e opinativo, em 2 a 3 frases. Fale em português.${directionClause(debate)}${TTS_STYLE_RULES}`;
+  }
   if (role === "moderator") {
     const whoM = debate.moderator_name ? `Você é ${debate.moderator_name}, ${debate.moderator_style ?? "mediador do programa"}.` : "Você é o MEDIADOR de um debate.";
     return `${whoM} Tom ${debate.moderator_tone}. Apresente fases, faça transições e, no veredito, avalie quem foi mais convincente sem ofender. Fale em português.${directionClause(debate)}${TTS_STYLE_RULES}`;
@@ -1089,27 +1117,34 @@ export function buildSystemPrompt(role: "moderator" | "a" | "b", debate: Debate)
 // Para cada bloco intermediário: vinheta(mod) + abertura(A) + abertura(B) + (réplica A + réplica B) × rounds
 // Bloco final: vinheta(mod) + considerações finais(A) + considerações finais(B) + veredito(mod)
 
-function blockTurnsCount(rounds: number, isFinal: boolean): number {
-  if (isFinal) return 1 + 2 + 1; // vinheta + A fim + B fim + veredito
-  return 1 + 2 + rounds * 2; // vinheta + 2 aberturas + rounds × 2 réplicas
+function commentatorCount(debate: Pick<Debate, "commentators">): number {
+  return Math.min(2, debate.commentators?.length ?? 0);
 }
 
-function fullSeqLength(debate: Pick<Debate, "rounds" | "blocks_count">): number {
+function blockTurnsCount(rounds: number, isFinal: boolean, cCount: number): number {
+  if (isFinal) return 1 + 2 + cCount + 1; // vinheta + A fim + B fim + comentários + veredito
+  return 1 + 2 + rounds * 2 + cCount; // vinheta + 2 aberturas + réplicas + comentários
+}
+
+function fullSeqLength(debate: Pick<Debate, "rounds" | "blocks_count" | "commentators">): number {
   const n = debate.blocks_count ?? 4;
+  const c = commentatorCount(debate);
   let total = 0;
-  for (let i = 0; i < n; i++) total += blockTurnsCount(debate.rounds, i === n - 1);
+  for (let i = 0; i < n; i++) total += blockTurnsCount(debate.rounds, i === n - 1, c);
   return total;
 }
 
-function fixedSeq(debate: Pick<Debate, "rounds" | "blocks_count">) {
+function fixedSeq(debate: Pick<Debate, "rounds" | "blocks_count" | "commentators">) {
   const n = debate.blocks_count ?? 4;
-  const seq: Array<{ role: "moderator" | "a" | "b"; phase: string; block_index: number }> = [];
+  const cCount = commentatorCount(debate);
+  const seq: Array<{ role: "moderator" | "a" | "b" | "c0" | "c1"; phase: string; block_index: number }> = [];
   for (let b = 0; b < n; b++) {
     const isFinal = b === n - 1;
     seq.push({ role: "moderator", phase: `vinheta ${b + 1}`, block_index: b });
     if (isFinal) {
       seq.push({ role: "a", phase: "considerações finais", block_index: b });
       seq.push({ role: "b", phase: "considerações finais", block_index: b });
+      for (let c = 0; c < cCount; c++) seq.push({ role: (`c${c}` as "c0" | "c1"), phase: "comentário final", block_index: b });
       seq.push({ role: "moderator", phase: "veredito", block_index: b });
     } else {
       seq.push({ role: "a", phase: "abertura", block_index: b });
@@ -1118,12 +1153,13 @@ function fixedSeq(debate: Pick<Debate, "rounds" | "blocks_count">) {
         seq.push({ role: "a", phase: `réplica ${r}`, block_index: b });
         seq.push({ role: "b", phase: `réplica ${r}`, block_index: b });
       }
+      for (let c = 0; c < cCount; c++) seq.push({ role: (`c${c}` as "c0" | "c1"), phase: `comentário bloco ${b + 1}`, block_index: b });
     }
   }
   return seq;
 }
 
-type NextTurn = { role: "moderator" | "a" | "b"; phase: string; block_index: number; guidance?: string };
+type NextTurn = { role: "moderator" | "a" | "b" | "c0" | "c1"; phase: string; block_index: number; guidance?: string };
 
 async function decideNextTurn(
   debate: Debate,

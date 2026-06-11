@@ -121,6 +121,18 @@ function NewDebate() {
     voiceIdB: null as string | null,
   });
   const [extras, setExtras] = useState<ExtraParticipantDraft[]>([]);
+  const [commentators, setCommentators] = useState<Array<{ name: string; persona: string; voiceProvider: VoiceProvider | null; voiceId: string | null }>>([]);
+  function toggleCommentators(on: boolean) {
+    setCommentators(on
+      ? [
+          { name: "Repórter 1", persona: "Comentarista esportivo de debates, analítico e direto.", voiceProvider: "kokoro", voiceId: "pm_alex" },
+          { name: "Repórter 2", persona: "Comentarista perspicaz, foca em retórica e impacto no público.", voiceProvider: "kokoro", voiceId: "pf_dora" },
+        ]
+      : []);
+  }
+  function updateCommentator(i: number, patch: Partial<{ name: string; persona: string; voiceProvider: VoiceProvider | null; voiceId: string | null }>) {
+    setCommentators((cs) => cs.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  }
   const currentFormat = getFormat(form.format)!;
   const [mediatorId, setMediatorId] = useState<string | null>(null);
 
@@ -218,7 +230,7 @@ function NewDebate() {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await create({ data: { ...form, extras } });
+      const result = await create({ data: { ...form, extras, commentators } });
       toast.success("Debate criado!");
       router.navigate({ to: "/debates/$id", params: { id: result.id } });
     } catch (e) {
@@ -510,6 +522,33 @@ function NewDebate() {
             onChange={(p, v) => setForm({ ...form, voiceProviderA: p, voiceIdA: v })} />
           <VoicePicker label={form.debaterBName || "Debatedor B"} provider={form.voiceProviderB} voiceId={form.voiceIdB}
             onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
+        </Card>
+
+        <Card className="p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <Switch id="comm" checked={commentators.length > 0} onCheckedChange={toggleCommentators} />
+            <div className="flex-1">
+              <Label htmlFor="comm" className="cursor-pointer">Comentaristas (pós-bloco)</Label>
+              <p className="text-xs text-muted-foreground">
+                Dois repórteres comentam ao fim de cada bloco — quem foi bem, pontos fortes e fracos — como num debate político.
+                {form.dynamicFlow && <span className="text-amber-500"> Desligue o fluxo dinâmico para os comentaristas entrarem.</span>}
+              </p>
+            </div>
+          </div>
+          {commentators.map((c, i) => (
+            <div key={i} className="rounded-md border border-border/60 p-3 space-y-3 bg-card/40">
+              <div className="space-y-1.5">
+                <Label>Nome do comentarista {i + 1}</Label>
+                <Input value={c.name} onChange={(e) => updateCommentator(i, { name: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Estilo / personalidade</Label>
+                <Textarea rows={2} value={c.persona} onChange={(e) => updateCommentator(i, { persona: e.target.value })} />
+              </div>
+              <VoicePicker provider={c.voiceProvider} voiceId={c.voiceId} sampleText={`Olá, eu sou ${c.name || "o comentarista"}.`}
+                onChange={(p, v) => updateCommentator(i, { voiceProvider: p, voiceId: v })} />
+            </div>
+          ))}
         </Card>
 
         <Button type="submit" size="lg" className="w-full" disabled={loading}>

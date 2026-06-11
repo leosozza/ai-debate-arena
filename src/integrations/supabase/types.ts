@@ -131,6 +131,7 @@ export type Database = {
         Row: {
           arena_theme: string | null
           block_subtopics: Json | null
+          commentators: Json | null
           blocks_count: number
           created_at: string
           debater_a_image_url: string | null
@@ -167,6 +168,7 @@ export type Database = {
         Insert: {
           arena_theme?: string | null
           block_subtopics?: Json | null
+          commentators?: Json | null
           blocks_count?: number
           created_at?: string
           debater_a_image_url?: string | null
@@ -203,6 +205,7 @@ export type Database = {
         Update: {
           arena_theme?: string | null
           block_subtopics?: Json | null
+          commentators?: Json | null
           blocks_count?: number
           created_at?: string
           debater_a_image_url?: string | null
