@@ -1,102 +1,93 @@
+## Objetivo
+Usar o conector Replicate (já ligado) para:
+1. Oferecer **FLUX** como alternativa de geração de imagem ao lado do Gemini atual.
+2. Criar **vinhetas de vídeo** (estilo Veo3) para cada persona, animando a foto + descrição com áudio ambiente.
 
-# Plataforma de Debates Históricos — Plano Macro
-
-Hoje o app só faz **Duelo 1×1** (`debates` tem `debater_a/b_*` fixos). Os 7 novos formatos exigem N participantes (até 8), papéis (defesa/acusação/juiz/entrevistador), e equipes. Isso é uma reformulação grande, então o plano é fatiado em 5 fases — cada uma é uma rodada de implementação aprovável separadamente.
-
----
-
-## Fase 1 — Catálogo de personas (próxima rodada)
-
-**Objetivo:** popular o banco com as ~60 personas listadas, públicas, organizadas por categoria, com biografia e prompt de IA. Fotos: 8 personas-âncora geradas agora; resto fica lazy (botão "gerar avatar" já existe via `persona-image.functions.ts`).
-
-**Mudanças de schema** (uma migração):
-- `personas.category` — text nullable, com índice (filtro na UI).
-- (mantém `is_public`, `user_id` — seed roda como o seu usuário e marca `is_public=true`).
-
-**Conteúdo do seed** (60 personas, agrupadas pelas 9 categorias que você listou). Para cada uma:
-- `name`, `description` (1–2 frases jornalísticas), `category`,
-- `persona_prompt` (~120–180 palavras: voz, tom, ideologia, época, vocabulário, "como debate" — derivado de obras/discursos reais),
-- `is_public: true`,
-- `image_url: null` por padrão.
-
-**Script de seed**: `scripts/seed-personas.ts` rodável via `bun run`, idempotente (upsert por `name + user_id`). Recebe seu `user_id` por env.
-
-**Fotos âncora (8)**: gerar com `imagegen` em `src/assets/personas/`, estilo retrato uniforme ("retrato pintura óleo, fundo escuro neutro, iluminação dramática, square 1024"). Sugestão de quem ganha foto pronta: Sócrates, Einstein, Marx, Adam Smith, Jesus, Pelé, Napoleão, Elon Musk (1 por categoria).
-
-**UI**: tela `/personas` ganha filtro por categoria (chips no topo) e seção "Catálogo público" separada das "Minhas personas".
+Tudo armazenado em buckets privados com URL assinada de longa duração (1 ano), seguindo o padrão já usado em `persona-images`.
 
 ---
 
-## Fase 2 — Schema multi-participante + Formatos novos (base)
+## 1. Backend — Replicate helpers (já existem)
+`src/lib/replicate.server.ts` e `src/lib/replicate-voices.ts` já fornecem `runPrediction`, `uploadFile`, `fetchAsBase64`, `createPredictionByVersion`. Reusar sem mudanças.
 
-**Objetivo:** permitir que um debate tenha N participantes com papéis, sem quebrar os debates 1×1 existentes.
+## 2. Novo storage bucket
+Migração: criar bucket privado `persona-videos` (mesmo padrão de `persona-images`, signed URLs).
 
-**Migração**:
-- Nova tabela `debate_participants` (`debate_id`, `persona_id`, `slot` int, `role` enum: `debater | moderator | judge | prosecutor | defender | interviewer | team_a | team_b`, `display_name`, `image_url`, `voice_provider`, `voice_id`).
-- `debates.format` enum: `duel | roundtable | presidential | tribunal | interview | era_clash | sages_council | ideas_war | century_problem` (default `duel` para retrocompat).
-- Campos `debater_a_*` / `debater_b_*` ficam como cache do formato `duel`; novos formatos só usam `debate_participants`.
+## 3. Imagem via Replicate — `src/lib/persona-image-replicate.functions.ts` (novo)
+- `generatePersonaImageReplicate({ name, description, model })`
+  - `model`: `"flux-schnell"` (rápido/barato) ou `"flux-1.1-pro"` (alta qualidade)
+  - Constrói prompt fotorrealista (mesma estrutura do Gemini atual)
+  - `runPrediction("black-forest-labs/flux-schnell" | "black-forest-labs/flux-1.1-pro", { prompt, aspect_ratio: "1:1", output_format: "png" })`
+  - Baixa output, faz upload em `persona-images` (reusa helper), retorna signed URL.
 
-**Backend (`debate.functions.ts`)**:
-- `generateBlock` recebe `format` + lista de participantes e despacha para um prompt-builder por formato. Cada formato vira um pequeno módulo (`src/lib/formats/{duel,roundtable,tribunal,...}.ts`) que define: ordem de fala, número de blocos, regras de réplica, e o prompt do moderador.
+## 4. Vídeo (vinheta) — `src/lib/persona-video.functions.ts` (novo)
+Estratégia escolhida pelo agente, com fallback automático:
 
-**Apresentação (`presentation.$id.tsx`)**:
-- Generaliza o stage atual (hoje fixo A/B) para grid dinâmico de N participantes destacando quem fala. Reaproveita `DebaterIntroCard` para o card de abertura (já side-by-side; vira layout N-up).
+1. **Tenta `google/veo-3-fast`** (image-to-video com áudio, ~30–90s render):
+   - Faz upload da imagem da persona como `input_image`
+   - Prompt: descrição da persona + "vinheta cinematográfica curta, retrato falando, ambiente coerente, áudio ambiente discreto", `duration: 8`, `aspect_ratio: "9:16"` ou `"16:9"` (escolha do usuário na UI).
+2. **Fallback `wan-video/wan-2.2-i2v-fast`** se Veo falhar (sem áudio, ~1 min).
 
-**Fluxo de criação (`/new`)**:
-- Seletor de **Formato** vem antes da escolha de personas, e define quantos slots aparecem e quais papéis precisam ser preenchidos (ex.: Tribunal pede 1 réu + ≥1 acusador + ≥1 defensor + ≥1 juiz).
+Função:
+- `generatePersonaVignette({ personaId, aspectRatio, withAudio })`
+  - Carrega persona (precisa ter `image_url`)
+  - Faz upload da imagem para Replicate (`uploadFile`)
+  - Cria predição, faz poll com `maxMs: 540_000` (9 min, dentro do limite de 600s do server function)
+  - Baixa o MP4, faz upload no bucket `persona-videos/{userId}/{uuid}.mp4`, gera signed URL
+  - Persiste em nova coluna `personas.vignette_url` + `personas.vignette_model`
+
+Migração SQL:
+```
+alter table public.personas
+  add column if not exists vignette_url text,
+  add column if not exists vignette_model text;
+```
+
+## 5. UI
+
+### 5a. `PersonaImagePanel` (existente)
+Adicionar um `<Select>` de "Provedor" antes do botão "Gerar com IA":
+- "Gemini (com referências da web)" — comportamento atual
+- "FLUX Schnell (rápido)" — chama nova função
+- "FLUX 1.1 Pro (alta qualidade)" — chama nova função
+
+O botão "Gerar com IA" roteia para a função correspondente.
+
+### 5b. Novo `PersonaVideoPanel.tsx`
+Renderizado abaixo do `PersonaImagePanel` na página de edição da persona.
+- Preview do vídeo atual (`<video controls>`) se `vignette_url` existir
+- Seletor de aspect ratio (9:16 vertical / 16:9 horizontal)
+- Toggle "Com áudio (Veo 3)" — desligado força Wan i2v
+- Botão "Gerar vinheta" (loading state, mensagem "pode levar até 3 min")
+- Mensagem de erro com fallback automático
+- Requer `image_url` setada (mostra aviso caso contrário)
+
+### 5c. Página do debate (`src/routes/_authenticated/debates.$id.tsx`)
+Para cada participante listado, adicionar pequeno botão "▶ Vinheta" que abre dialog com o vídeo da persona (se existir) ou um botão "Gerar agora" que chama a mesma server function.
+
+## 6. Acoplamento com personas
+- `src/lib/persona.functions.ts`: incluir `vignette_url` no retorno de `listPersonas` / `getPersona` / `updatePersona`.
+- `src/integrations/supabase/types.ts`: regenera após migração (automático).
+
+## 7. Segurança / limites
+- Toda função usa `requireSupabaseAuth` + verifica posse da persona via `user_id`.
+- Validação Zod nos inputs (name 1–120, aspect ratio enum, model enum).
+- Tamanho de vídeo final limitado por Replicate (~8s); upload para bucket privado, URL assinada 1 ano.
+
+## 8. Verificação
+- Typecheck via build automático.
+- Smoke test manual: gerar imagem FLUX para uma persona existente, gerar vinheta Wan (rápido) e Veo (lento) e conferir reprodução no painel.
 
 ---
 
-## Fase 3 — Implementação dos 7 formatos
+### Arquivos novos
+- `src/lib/persona-image-replicate.functions.ts`
+- `src/lib/persona-video.functions.ts`
+- `src/components/PersonaVideoPanel.tsx`
+- Migração SQL (bucket `persona-videos` + colunas `vignette_url`, `vignette_model`)
 
-Um por vez, na ordem de menor → maior risco:
-
-1. **Mesa Redonda (3–6)** — extensão direta do 1×1: mais slots, mediador faz pergunta, cada um responde, depois "debate aberto" (2 rodadas livres).
-2. **Conselho dos Sábios** — variação reflexiva da mesa redonda, tom "respeitoso", sem ataques diretos.
-3. **Entrevista Impossível** — 1 entrevistador (pode ser o próprio mediador com persona customizável) + 1 entrevistado. Blocos = perguntas temáticas.
-4. **Debate Entre Eras** — 1×1 com flag "histórico vs contemporâneo" → afeta só os prompts (contextualização extra), reusa engine de duel.
-5. **Tribunal da História** — 1 réu + N acusadores + N defensores + N juízes. Estrutura fixa: acusação → defesa → perguntas dos juízes → veredito coletivo.
-6. **Debate Presidencial (4–8)** — tempo de fala, direito de resposta, réplica, tréplica. Engine de turnos com "interrupções controladas".
-7. **Guerra das Ideias (equipes)** — Time A vs Time B; cada bloco alterna qual time abre; veredito por equipe.
-
-Cada formato entrega: prompt-builder + tela de criação + render de stage + integração com export MP4 (Fase 5).
-
----
-
-## Fase 4 — Disclaimer obrigatório
-
-- Componente `<AIDisclaimer />` com o texto exato que você passou.
-- **Card inicial do programa** (1ª tela do MP4 e da apresentação) — fundo escuro, logo do app, texto centralizado, dura ~4 s ou até toque. Adicionado no `presentation.$id.tsx` antes do `DebaterIntroCard` e em `video-export.ts` como primeiro frame.
-- **Rodapé fixo** discreto na apresentação ao vivo e na tela de criação ("Conteúdo gerado por IA — não são citações reais").
-- Também incluído por padrão no início dos textos exportados (roteiro, descrição YouTube/TikTok/Instagram).
-
----
-
-## Fase 5 — Exportações estendidas
-
-Reaproveita o pipeline de `video-export.ts` e o roteiro já estruturado:
-
-- **Roteiro completo** — markdown/.txt, com timestamps por bloco.
-- **Narração por participante** — zip de mp3s separados (já temos TTS por persona; só agrupar).
-- **Shorts (9:16, ≤60 s)** — picker de "melhor trecho" (LLM seleciona 1 turno de impacto) + render vertical no `video-export`.
-- **Legendas (.srt / .vtt)** — gerar a partir dos timings dos áudios TTS já existentes.
-- **Texto para YouTube** — título + descrição com timestamps + tags + disclaimer.
-- **Texto para TikTok / Instagram** — caption curta + hashtags, gerada por LLM com base no tema/personas.
-
-Tudo numa tela única "Exportar" depois do veredito, com checkboxes do que quer.
-
----
-
-## Detalhes técnicos resumidos
-
-**Stack:** TanStack Start + Supabase (Lovable Cloud). Tudo via `createServerFn` em `*.functions.ts`, RLS pra `debate_participants` espelhando a de `debates`. Catálogo de personas continua usando a policy pública existente.
-
-**Sem mudar agora:** sistema de TTS, modelos de IA, autenticação, integração de imagem de persona, fluxo de aprovação por turno.
-
-**Onde nada quebra:** debates antigos ficam com `format='duel'` e continuam usando `debater_a/b_*`. Renderização nova só ativa para `format != 'duel'`.
-
----
-
-## Próximos passos
-
-Se aprovar o macro, começo pela **Fase 1** (migração `category` + script de seed das 60 personas + 8 fotos âncora + filtro por categoria em `/personas`). Cada fase seguinte volta com seu próprio plano enxuto antes de implementar.
+### Arquivos editados
+- `src/components/PersonaImagePanel.tsx` (seletor de provedor)
+- `src/routes/_authenticated/personas.tsx` (renderizar `PersonaVideoPanel`)
+- `src/routes/_authenticated/debates.$id.tsx` (botão de vinheta por participante)
+- `src/lib/persona.functions.ts` (incluir `vignette_url`)
