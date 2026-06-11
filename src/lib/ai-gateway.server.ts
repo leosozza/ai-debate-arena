@@ -42,17 +42,36 @@ async function fetchWithTimeout(input: string, init: RequestInit, ms = 75000): P
   }
 }
 
+/** Retenta falhas transitórias (timeout, 5xx, 429) com backoff. Não retenta
+ *  erros terminais (créditos esgotados, chave ausente). */
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseMs = 800): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("Créditos") || msg.includes("LOVABLE_API_KEY") || msg.includes("Resposta vazia")) throw e;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, baseMs * Math.pow(2, i)));
+    }
+  }
+  throw lastErr;
+}
+
 export async function chatComplete(messages: ChatMessage[], model: string = DEFAULT_MODEL): Promise<string> {
-  const res = await fetchWithTimeout(ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey() },
-    body: JSON.stringify({ model, messages }),
+  return withRetry(async () => {
+    const res = await fetchWithTimeout(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey() },
+      body: JSON.stringify({ model, messages }),
+    });
+    if (!res.ok) handleStatus(res.status, await res.text());
+    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const text = data.choices?.[0]?.message?.content;
+    if (!text) throw new Error("Resposta vazia da IA.");
+    return text.trim();
   });
-  if (!res.ok) handleStatus(res.status, await res.text());
-  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error("Resposta vazia da IA.");
-  return text.trim();
 }
 
 /** Returns a ReadableStream<string> of text deltas, plus a promise that resolves with the full text. */

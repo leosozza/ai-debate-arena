@@ -94,7 +94,7 @@ export const removeParticipant = createServerFn({ method: "POST" })
       .from("debate_participants").select("user_id").eq("id", data.id).single();
     if (fErr || !row) throw new Error("Participante não encontrado.");
     if (row.user_id !== context.userId) throw new Error("Sem permissão.");
-    const { error } = await context.supabase.from("debate_participants").delete().eq("id", data.id);
+    const { error } = await context.supabase.from("debate_participants").delete().eq("id", data.id).eq("user_id", context.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

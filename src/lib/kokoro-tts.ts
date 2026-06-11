@@ -44,6 +44,11 @@ export async function kokoroSynthUrl(text: string, voice: string, onProgress?: (
   const audio = await tts.generate(text, { voice });
   const blob: Blob = audio.toBlob();
   const url = URL.createObjectURL(blob);
+  // Cache limitado: evita vazamento de memória em debates longos.
+  if (urlCache.size >= 200) {
+    const oldest = urlCache.keys().next().value;
+    if (oldest) { const old = urlCache.get(oldest); if (old) URL.revokeObjectURL(old); urlCache.delete(oldest); }
+  }
   urlCache.set(key, url);
   return url;
 }

@@ -30,6 +30,11 @@ export async function piperSynthUrl(text: string, voiceId: string): Promise<stri
   const mod = (await getMod()) as any;
   const wav: Blob = await mod.predict({ text, voiceId });
   const url = URL.createObjectURL(wav);
+  // Cache limitado: evita vazamento de memória em debates longos.
+  if (urlCache.size >= 200) {
+    const oldest = urlCache.keys().next().value;
+    if (oldest) { const old = urlCache.get(oldest); if (old) URL.revokeObjectURL(old); urlCache.delete(oldest); }
+  }
   urlCache.set(key, url);
   return url;
 }

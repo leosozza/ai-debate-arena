@@ -38,6 +38,14 @@ type VoiceSlot = { provider: VoiceProvider; voiceId: string | null; settings: Vo
 
 const DEFAULT_SLOT: VoiceSlot = { provider: "browser", voiceId: null, settings: DEFAULT_VOICE_SETTINGS };
 
+/** Tom do holograma por papel do participante (multi-formatos). */
+function roleTone(role: string, slot: number): "blue" | "gold" | "neutral" {
+  if (role === "judge" || role === "moderator") return "neutral";
+  if (role === "prosecutor" || role === "interviewer" || role === "team_a") return "blue";
+  if (role === "defender" || role === "interviewee" || role === "team_b") return "gold";
+  return slot % 2 === 0 ? "blue" : "gold";
+}
+
 function PresentMode() {
   const { id } = Route.useParams();
   const router = useRouter();
@@ -699,7 +707,7 @@ function PresentMode() {
       {extraSpeaker && !isWinner && (
         <div className="absolute inset-x-0 top-20 z-30 mx-auto w-[min(92%,42rem)] rounded-2xl border border-primary/40 bg-card/90 p-4 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-top-2 duration-500">
           <div className="flex items-center gap-3">
-            <HologramAvatar src={extraSpeaker.image_url} name={extraSpeaker.display_name} tone={extraSpeaker.slot % 2 === 0 ? "blue" : "gold"} size={72} />
+            <HologramAvatar src={extraSpeaker.image_url} name={extraSpeaker.display_name} tone={roleTone(extraSpeaker.role, extraSpeaker.slot)} size={72} />
             <div className="min-w-0 flex-1">
               <div className="text-[10px] uppercase tracking-[0.28em] text-primary font-semibold">{extraSpeaker.role.replace("_", " ")}</div>
               <h3 className="font-display text-lg md:text-2xl font-extrabold text-foreground truncate">{extraSpeaker.display_name}</h3>
