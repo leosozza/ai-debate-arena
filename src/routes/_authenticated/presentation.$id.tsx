@@ -977,6 +977,9 @@ function StageDebaterPanel({
   active,
   speaking,
   loading,
+  durationMs,
+  fallbackReason,
+  onRetry,
 }: {
   side: "a" | "b";
   name: string;
@@ -986,6 +989,9 @@ function StageDebaterPanel({
   active: boolean;
   speaking: boolean;
   loading: boolean;
+  durationMs?: number | null;
+  fallbackReason?: string | null;
+  onRetry?: () => void;
 }) {
   const theme = sideTheme(side);
   const align = side === "a" ? "md:text-left" : "md:text-right";
@@ -1033,9 +1039,33 @@ function StageDebaterPanel({
           <div className={`mb-2 text-xs font-semibold uppercase tracking-[0.24em] ${active ? theme.text : "text-muted-foreground"}`}>
             {active ? phase : "Aguardando"}
           </div>
-          <p className={`mx-auto max-w-xl text-base leading-relaxed md:text-xl ${active ? "text-foreground" : "text-muted-foreground"}`}>
-            {active ? content : ""}
-          </p>
+          {active ? (
+            <div className="mx-auto max-w-xl">
+              <Teleprompter
+                text={content}
+                active={speaking}
+                durationMs={durationMs ?? null}
+                heightRem={7}
+              />
+              {fallbackReason && (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">Voz clonada falhou — usando navegador.</span>
+                  </div>
+                  {onRetry && (
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={onRetry}>
+                      <RotateCcw className="h-3 w-3 mr-1" /> Tentar
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="mx-auto max-w-xl text-base leading-relaxed md:text-xl text-muted-foreground">
+              {""}
+            </p>
+          )}
         </div>
       </div>
     </article>
