@@ -11,7 +11,6 @@ import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
 import { DEFAULT_VOICE_SETTINGS } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
-import { kokoroSynthUrl } from "@/lib/kokoro-tts";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx } from "@/components/TimelineEditor";
@@ -63,6 +62,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const clean = stripMarkdownForTts(text).slice(0, 5000);
     if (slot.provider === "kokoro") {
       // Voz neural grátis sintetizada no navegador → blob URL (lida pelo ffmpeg).
+      const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
       return await kokoroSynthUrl(clean, slot.voiceId);
     }
     if (slot.provider === "eleven") {

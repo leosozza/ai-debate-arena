@@ -11,7 +11,6 @@ import { ensurePersonaVignette } from "@/lib/persona-video.functions";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { HologramAvatar } from "@/components/HologramAvatar";
-import { kokoroSynthUrl } from "@/lib/kokoro-tts";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
@@ -218,6 +217,7 @@ function PresentMode() {
     let url: string;
     if (slot.provider === "kokoro") {
       // Voz neural grátis, sintetizada no próprio navegador (sem custo).
+      const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
       url = await kokoroSynthUrl(clean, voiceId);
     } else if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: clean, voiceId } });

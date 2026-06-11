@@ -2,7 +2,7 @@
 import { ELEVEN_VOICES } from "./eleven-voices";
 import { MINIMAX_VOICES } from "./tts.functions";
 import { REPLICATE_VOICES } from "./replicate-voices";
-import { KOKORO_VOICES } from "./kokoro-tts";
+import { KOKORO_VOICES } from "./kokoro-voices";
 
 export type VoiceProvider = "browser" | "kokoro" | "eleven" | "minimax" | "replicate";
 

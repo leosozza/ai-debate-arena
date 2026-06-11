@@ -3,11 +3,7 @@
 // baixa uma vez e fica cacheado pelo browser. Qualquer falha degrada pro
 // navegador (quem chama trata o erro).
 
-export const KOKORO_VOICES = [
-  { id: "pf_dora", label: "🇧🇷 Dora (F)" },
-  { id: "pm_alex", label: "🇧🇷 Alex (M)" },
-  { id: "pm_santa", label: "🇧🇷 Santa (M, grave)" },
-] as const;
+export { KOKORO_VOICES } from "./kokoro-voices";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ttsPromise: Promise<any> | null = null;
@@ -15,9 +11,12 @@ let ttsPromise: Promise<any> | null = null;
 async function getTTS(onProgress?: (p: number) => void) {
   if (!ttsPromise) {
     ttsPromise = (async () => {
-      // CDN em runtime (variável evita TS2307 e o bundling pelo Vite).
+      // CDN em runtime. O import() é escondido do bundler via `new Function`,
+      // pra NÃO aparecer como import de URL externa no bundle do servidor
+      // (o Cloudflare Workers rejeita isso → quebra o build da Lovable).
       const cdn = "https://esm.sh/kokoro-js@^1";
-      const mod = await import(/* @vite-ignore */ cdn);
+      const dynamicImport = new Function("u", "return import(u)") as unknown as (u: string) => Promise<Record<string, unknown>>;
+      const mod = await dynamicImport(cdn);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const KokoroTTS = (mod as any).KokoroTTS;
       const hasGpu = typeof navigator !== "undefined" && "gpu" in navigator;
