@@ -221,8 +221,15 @@ function PresentMode() {
       url = await kokoroSynthUrl(clean, voiceId);
     } else if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: clean, voiceId } });
-      if ("error" in res && res.error) throw new Error(res.error);
-      url = `data:${res.mime};base64,${res.audio}`;
+      if ("error" in res && res.error) {
+        // Fallback automático: tenta a mesma voz ElevenLabs via Replicate (modelo eleven-v3).
+        console.warn("[tts] ElevenLabs direto falhou, tentando via Replicate:", res.error);
+        const rp = await rpTts({ data: { text: clean, voiceId: `el:${voiceId}` } });
+        if ("error" in rp && rp.error) throw new Error(`${res.error} | Replicate: ${rp.error}`);
+        url = `data:${rp.mime};base64,${rp.audioBase64}`;
+      } else {
+        url = `data:${res.mime};base64,${res.audio}`;
+      }
     } else if (slot.provider === "minimax") {
       const res = await mmTts({ data: {
         text: clean, voiceId, model: "speech-02-hd",
