@@ -4,6 +4,7 @@
 import { stripMarkdownForTts } from "./text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
+import { synthSfx, type SfxType } from "./sfx";
 
 export type ExportSide = "moderator" | "a" | "b";
 
@@ -35,6 +36,8 @@ export interface ExportInput {
   musicUrl?: string | null;
   /** Music volume 0..1 (default 0.25). */
   musicVolume?: number;
+  /** Efeitos sonoros posicionados na timeline (segundos a partir do início). */
+  sfx?: { type: SfxType; at: number }[];
   onProgress?: (stage: string, pct: number) => void;
 }
 
@@ -568,7 +571,7 @@ function getAudioDuration(url: string): Promise<number> {
 }
 
 export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
-  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, onProgress } = input;
+  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, onProgress } = input;
   const log = (stage: string, pct: number) => onProgress?.(stage, Math.max(0, Math.min(1, pct)));
 
   log("Carregando avatares", 0.02);
@@ -798,12 +801,51 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     }
   }
 
-  const out = (await ffmpeg.readFile("out.mp4")) as Uint8Array;
+  // Mixa os efeitos sonoros nos timestamps escolhidos.
+  let finalFile = "out.mp4";
+  if (sfx && sfx.length > 0) {
+    log("Misturando efeitos sonoros", 0.97);
+    try {
+      const inputs: string[] = ["-i", "out.mp4"];
+      const filters: string[] = [];
+      const labels: string[] = ["[0:a]"];
+      let k = 1;
+      for (const s of sfx.slice(0, 40)) {
+        const bytes = await synthSfx(s.type);
+        const name = `sfx${k}.wav`;
+        await ffmpeg.writeFile(name, bytes);
+        inputs.push("-i", name);
+        const delay = Math.max(0, Math.round(s.at * 1000));
+        filters.push(`[${k}:a]adelay=${delay}|${delay},volume=0.9[s${k}]`);
+        labels.push(`[s${k}]`);
+        k++;
+      }
+      const amix = `${labels.join("")}amix=inputs=${labels.length}:duration=first:normalize=0[a]`;
+      await ffmpeg.exec([
+        ...inputs,
+        "-filter_complex", `${filters.join(";")};${amix}`,
+        "-map", "0:v",
+        "-map", "[a]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-movflags", "+faststart",
+        "out_sfx.mp4",
+      ]);
+      for (let j = 1; j < k; j++) await ffmpeg.deleteFile(`sfx${j}.wav`).catch(() => {});
+      finalFile = "out_sfx.mp4";
+    } catch {
+      finalFile = "out.mp4"; // fallback: sem SFX
+    }
+  }
+
+  const out = (await ffmpeg.readFile(finalFile)) as Uint8Array;
   log("Pronto", 1);
   // Cleanup
   for (const s of segments) await ffmpeg.deleteFile(s).catch(() => {});
   await ffmpeg.deleteFile("list.txt").catch(() => {});
   await ffmpeg.deleteFile("out.mp4").catch(() => {});
+  if (finalFile !== "out.mp4") await ffmpeg.deleteFile(finalFile).catch(() => {});
 
   return new Blob([out as BlobPart], { type: "video/mp4" });
 }

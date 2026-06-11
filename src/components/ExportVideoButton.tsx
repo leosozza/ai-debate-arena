@@ -13,7 +13,7 @@ import { DEFAULT_VOICE_SETTINGS } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
-import { TimelineEditor, type TimelineClip, type TimelineMusic } from "@/components/TimelineEditor";
+import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx } from "@/components/TimelineEditor";
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 
 type Slot = { provider: VoiceProvider; voiceId: string | null };
@@ -166,7 +166,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
   }
 
-  async function runExport(editedClips: TimelineClip[], music: TimelineMusic) {
+  async function runExport(editedClips: TimelineClip[], music: TimelineMusic, sfx: TimelineSfx[]) {
     if (!data) return;
     const d = data.debate;
     setProgress({ label: "Renderizando vídeo", pct: 0 });
@@ -199,6 +199,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         })),
         musicUrl: music.enabled ? music.url : null,
         musicVolume: music.volume,
+        sfx: sfx.map((s) => ({ type: s.type, at: s.at })),
         onProgress: (label, pct) => setProgress({ label, pct }),
       });
 

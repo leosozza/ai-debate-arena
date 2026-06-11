@@ -21,7 +21,9 @@ import {
   Redo2,
   Scissors,
   Trash2,
+  Volume2,
 } from "lucide-react";
+import { SFX_TYPES, playSfx, type SfxType } from "@/lib/sfx";
 
 export interface TimelineClip {
   id: string;
@@ -41,12 +43,18 @@ export interface TimelineMusic {
   volume: number;
 }
 
+export interface TimelineSfx {
+  id: string;
+  type: SfxType;
+  at: number;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initialClips: TimelineClip[];
   musicUrl: string;
-  onExport: (clips: TimelineClip[], music: TimelineMusic) => Promise<void>;
+  onExport: (clips: TimelineClip[], music: TimelineMusic, sfx: TimelineSfx[]) => Promise<void>;
   progress: { label: string; pct: number } | null;
 }
 
@@ -76,6 +84,8 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [snapKey, setSnapKey] = useState<string>("0.25");
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [sfx, setSfx] = useState<TimelineSfx[]>([]);
+  const [sfxType, setSfxType] = useState<SfxType>("ding");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const dragSrcIdxRef = useRef<number | null>(null);
 
@@ -126,8 +136,15 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
   }, [open]);
 
   useEffect(() => {
-    if (open) setClips(initialClips);
+    if (open) { setClips(initialClips); setSfx([]); }
   }, [open, initialClips]);
+
+  function addSfx(atSec: number) {
+    setSfx((arr) => [...arr, { id: `sfx-${arr.length}-${Math.round(atSec * 100)}-${arr.length}`, type: sfxType, at: Math.max(0, atSec) }]);
+  }
+  function removeSfx(id: string) {
+    setSfx((arr) => arr.filter((s) => s.id !== id));
+  }
 
   const segs = useMemo(() => {
     let t = 0;
@@ -277,6 +294,21 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
               <Label htmlFor="mus" className="text-xs">Música</Label>
               <Switch id="mus" checked={music.enabled} onCheckedChange={(v) => setMusic((m) => ({ ...m, enabled: v }))} />
             </div>
+            <div className="flex items-center gap-2">
+              <Volume2 className="h-4 w-4 text-primary" />
+              <Label className="text-xs">SFX</Label>
+              <Select value={sfxType} onValueChange={(v) => setSfxType(v as SfxType)}>
+                <SelectTrigger className="h-8 w-[140px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SFX_TYPES.map((t) => (
+                    <SelectItem key={t.type} value={t.type}>{t.emoji} {t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => playSfx(sfxType)} title="Pré-ouvir efeito">
+                <Play className="h-3.5 w-3.5" />
+              </Button>
+            </div>
             <div className="flex items-center gap-2 min-w-[200px] flex-1">
               <span className="text-xs text-muted-foreground w-14">Volume</span>
               <Slider
@@ -407,6 +439,39 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                   );
                 })}
               </TrackRow>
+
+              {/* SFX track */}
+              <TrackRow icon={<Volume2 className="h-3.5 w-3.5" />} label="SFX">
+                <div
+                  className="absolute left-[120px] right-0 top-0 bottom-0 cursor-copy"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    addSfx((e.clientX - rect.left) / PX_PER_SEC);
+                  }}
+                  title="Clique para soltar o efeito selecionado aqui"
+                />
+                {sfx.map((s) => {
+                  const meta = SFX_TYPES.find((t) => t.type === s.type);
+                  return (
+                    <div key={s.id} className="absolute top-2 z-10 flex items-center gap-0.5" style={{ left: 120 + s.at * PX_PER_SEC }}>
+                      <button
+                        className="rounded bg-primary/20 border border-primary/50 px-1.5 py-0.5 text-[10px] text-primary whitespace-nowrap hover:bg-primary/30"
+                        onClick={(e) => { e.stopPropagation(); playSfx(s.type); }}
+                        title="Pré-ouvir"
+                      >
+                        {meta?.emoji} {meta?.label} · {fmt(s.at)}
+                      </button>
+                      <button
+                        className="text-muted-foreground hover:text-red-600 text-xs leading-none px-0.5"
+                        onClick={(e) => { e.stopPropagation(); removeSfx(s.id); }}
+                        title="Remover"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+              </TrackRow>
             </div>
           </div>
 
@@ -429,7 +494,7 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancelar
           </Button>
-          <Button onClick={() => onExport(clips, music)} disabled={busy || clips.length === 0}>
+          <Button onClick={() => onExport(clips, music, sfx)} disabled={busy || clips.length === 0}>
             {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Film className="h-4 w-4 mr-1" />}
             {busy ? "Exportando…" : "Exportar MP4"}
           </Button>
