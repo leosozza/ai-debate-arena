@@ -193,6 +193,19 @@ function PersonasPage() {
     if (showForm) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [showForm, editingId]);
 
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  useEffect(() => {
+    if (!search.edit || personas.length === 0) return;
+    if (editingId === search.edit) return;
+    const p = personas.find((x) => x.id === search.edit);
+    if (p) {
+      loadIntoForm(p);
+      navigate({ search: { edit: undefined }, replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.edit, personas]);
+
   return (
     <main className="container mx-auto px-4 py-10 max-w-5xl">
       <header className="mb-8 flex items-start justify-between gap-4 flex-wrap">
