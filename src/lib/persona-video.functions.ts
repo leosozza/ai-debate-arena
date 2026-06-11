@@ -54,7 +54,7 @@ export const generatePersonaVignette = createServerFn({ method: "POST" })
     if (!persona.image_url) throw new Error("A persona precisa ter uma imagem antes de gerar a vinheta.");
 
     // 2) download the persona image and upload to Replicate as a File
-    const imgResp = await fetch(persona.image_url);
+    const imgResp = await fetch(resolveImageUrl(persona.image_url));
     if (!imgResp.ok) throw new Error("Falha ao baixar a imagem da persona.");
     const imgBuf = await imgResp.arrayBuffer();
     const ct = imgResp.headers.get("content-type") ?? "image/png";
@@ -148,7 +148,7 @@ export const ensurePersonaVignette = createServerFn({ method: "POST" })
 
     const { runPrediction, uploadFile } = await import("./replicate.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const imgResp = await fetch(persona.image_url);
+    const imgResp = await fetch(resolveImageUrl(persona.image_url));
     if (!imgResp.ok) throw new Error("Falha ao baixar a imagem.");
     const imgBuf = await imgResp.arrayBuffer();
     const ct = imgResp.headers.get("content-type") ?? "image/png";
