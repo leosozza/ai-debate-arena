@@ -1,9 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 const BUCKET = "persona-videos";
 const SIGNED_TTL = 60 * 60 * 24 * 365;
+
+function resolveImageUrl(raw: string): string {
+  if (/^https?:\/\//i.test(raw) || raw.startsWith("data:")) return raw;
+  try {
+    const req = getRequest();
+    const origin = new URL(req.url).origin;
+    return new URL(raw, origin).toString();
+  } catch {
+    throw new Error(`Imagem da persona usa caminho relativo (${raw}). Regenere a imagem para salvá-la no storage.`);
+  }
+}
 
 function pickUrl(output: unknown): string | null {
   if (typeof output === "string") return output;
@@ -42,7 +54,7 @@ export const generatePersonaVignette = createServerFn({ method: "POST" })
     if (!persona.image_url) throw new Error("A persona precisa ter uma imagem antes de gerar a vinheta.");
 
     // 2) download the persona image and upload to Replicate as a File
-    const imgResp = await fetch(persona.image_url);
+    const imgResp = await fetch(resolveImageUrl(persona.image_url));
     if (!imgResp.ok) throw new Error("Falha ao baixar a imagem da persona.");
     const imgBuf = await imgResp.arrayBuffer();
     const ct = imgResp.headers.get("content-type") ?? "image/png";
@@ -136,7 +148,7 @@ export const ensurePersonaVignette = createServerFn({ method: "POST" })
 
     const { runPrediction, uploadFile } = await import("./replicate.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const imgResp = await fetch(persona.image_url);
+    const imgResp = await fetch(resolveImageUrl(persona.image_url));
     if (!imgResp.ok) throw new Error("Falha ao baixar a imagem.");
     const imgBuf = await imgResp.arrayBuffer();
     const ct = imgResp.headers.get("content-type") ?? "image/png";
