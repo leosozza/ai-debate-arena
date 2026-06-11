@@ -11,7 +11,7 @@ import { ensurePersonaVignette } from "@/lib/persona-video.functions";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
-import { DebaterIntroCard } from "@/components/DebaterIntroCard";
+// DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
 import { AIDisclaimer } from "@/components/AIDisclaimer";
 import { OpeningSequence } from "@/components/OpeningSequence";
