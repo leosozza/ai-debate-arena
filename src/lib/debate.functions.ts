@@ -440,8 +440,13 @@ export const ttsSpeak = createServerFn({ method: "POST" })
     z.object({ text: z.string().trim().min(1).max(5000), voiceId: z.string().trim().min(1).max(60) }).parse(d),
   )
   .handler(async ({ data }) => {
-    const { elevenTTS } = await import("./elevenlabs.server");
-    return elevenTTS(data.text, data.voiceId);
+    try {
+      const { elevenTTS } = await import("./elevenlabs.server");
+      return await elevenTTS(data.text, data.voiceId);
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "ElevenLabs falhou.";
+      return { audio: "", mime: "audio/mpeg" as const, error };
+    }
   });
 
 export const generateMatchupThemes = createServerFn({ method: "POST" })
