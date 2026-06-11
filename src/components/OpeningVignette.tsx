@@ -9,12 +9,15 @@ interface Props {
   onDone: () => void;
   /** Whether the audio element was primed inside a user gesture upstream. */
   audioPrimed?: boolean;
+  /** Shorter sequence (~3.8s) for when narration starts right after. */
+  compact?: boolean;
 }
 
-const TOTAL_MS = 8200;
-
 /** Cinematic news-broadcast intro: scanlines → particles → flash → logo → topic reveal. */
-export function OpeningVignette({ topic, onDone, audioPrimed = false }: Props) {
+export function OpeningVignette({ topic, onDone, audioPrimed = false, compact = false }: Props) {
+  const TOTAL_MS = compact ? 3800 : 8200;
+  const LOGO_AT = compact ? 600 : 1800;
+  const TOPIC_AT = compact ? 1500 : 3800;
   const [muted, setMuted] = useState(false);
   const [stage, setStage] = useState(0); // 0 boot, 1 logo, 2 topic, 3 fade out
   const audioRef = useRef<HTMLAudioElement | null>(null);
