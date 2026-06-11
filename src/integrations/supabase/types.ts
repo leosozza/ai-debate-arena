@@ -286,6 +286,42 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_presets: {
+        Row: {
+          created_at: string
+          id: string
+          is_real_person: boolean
+          name: string
+          notes: string | null
+          storage_path: string | null
+          updated_at: string
+          user_id: string
+          voice_url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_real_person?: boolean
+          name: string
+          notes?: string | null
+          storage_path?: string | null
+          updated_at?: string
+          user_id: string
+          voice_url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_real_person?: boolean
+          name?: string
+          notes?: string | null
+          storage_path?: string | null
+          updated_at?: string
+          user_id?: string
+          voice_url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
