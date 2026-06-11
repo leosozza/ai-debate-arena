@@ -16,7 +16,7 @@ const PersonaInput = z.object({
   description: z.string().trim().max(400).default(""),
   persona_prompt: z.string().trim().min(10).max(12000),
   is_public: z.boolean().default(false),
-  voice_provider: z.enum(["browser", "eleven", "minimax", "replicate"]).nullable().optional(),
+  voice_provider: z.enum(["browser", "kokoro", "eleven", "minimax", "replicate"]).nullable().optional(),
   voice_id: z.string().trim().max(120).nullable().optional(),
   image_url: z.string().trim().max(2048).nullable().optional(),
   vignette_url: z.string().trim().max(2048).nullable().optional(),

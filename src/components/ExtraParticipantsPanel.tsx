@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Users } from "lucide-react";
 import type { DebateFormat, ParticipantRole } from "@/lib/debate-formats";
 import type { VoiceProvider } from "@/lib/voice-catalog";
+import { PersonaSelectItems } from "@/components/PersonaSelectItems";
+import { VoicePicker } from "@/components/VoicePicker";
 
 export type ExtraParticipantDraft = {
   slot: number;
@@ -129,9 +131,7 @@ export function ExtraParticipantsPanel({ format, extras, setExtras, personas }: 
               <Select value={e.personaId ?? ""} onValueChange={(v) => applyPersona(i, v)}>
                 <SelectTrigger><SelectValue placeholder="Escolher persona…" /></SelectTrigger>
                 <SelectContent>
-                  {personas.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
+                  <PersonaSelectItems personas={personas} />
                 </SelectContent>
               </Select>
             </div>
@@ -159,6 +159,16 @@ export function ExtraParticipantsPanel({ format, extras, setExtras, personas }: 
             <Label>Personalidade e posição</Label>
             <Textarea rows={3} value={e.personaPrompt} onChange={(ev) => update(i, { personaPrompt: ev.target.value })} />
           </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Voz deste convidado</Label>
+            <VoicePicker
+              provider={e.voiceProvider}
+              voiceId={e.voiceId}
+              onChange={(prov, vid) => update(i, { voiceProvider: prov, voiceId: vid })}
+              sampleText={`Olá, eu sou ${e.displayName || "um convidado"}.`}
+            />
+          </div>
         </div>
       ))}
 
@@ -174,9 +184,6 @@ export function ExtraParticipantsPanel({ format, extras, setExtras, personas }: 
         {canAdd ? "Adicionar convidado" : "Limite do formato atingido"}
       </Button>
 
-      <p className="text-[11px] text-muted-foreground">
-        Por enquanto, a engine de geração roda no padrão duelo (A × B). Os extras ficam salvos e aparecem nas regras — assim que a engine N-up entrar no ar, este programa já estará pronto.
-      </p>
     </Card>
   );
 }
