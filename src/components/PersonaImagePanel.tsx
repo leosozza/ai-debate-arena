@@ -112,21 +112,23 @@ export function PersonaImagePanel({ name, description, value, onChange }: Props)
       </div>
 
       <div className="flex gap-4 items-start">
-        <div className="relative w-24 h-24 shrink-0 rounded-lg overflow-hidden border border-border bg-muted/40 flex items-center justify-center">
+        <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
           {value ? (
             <>
-              <img src={value} alt={name || "avatar"} className="w-full h-full object-cover" />
+              <HologramAvatar src={value} name={name} tone="blue" size={112} />
               <button
                 type="button"
                 onClick={() => onChange(null)}
-                className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 hover:bg-background"
+                className="absolute top-1 right-1 z-10 rounded-full bg-background/80 p-0.5 hover:bg-background"
                 aria-label="Remover imagem"
               >
                 <X className="h-3 w-3" />
               </button>
             </>
           ) : (
-            <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+            <div className="w-24 h-24 rounded-lg border border-border bg-muted/40 flex items-center justify-center">
+              <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+            </div>
           )}
         </div>
 
