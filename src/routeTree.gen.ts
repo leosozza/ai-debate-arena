@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedVoicesRouteImport } from './routes/_authenticated/voices'
 import { Route as AuthenticatedPersonasRouteImport } from './routes/_authenticated/personas'
 import { Route as AuthenticatedNewRouteImport } from './routes/_authenticated/new'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -34,6 +35,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedVoicesRoute = AuthenticatedVoicesRouteImport.update({
+  id: '/voices',
+  path: '/voices',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPersonasRoute = AuthenticatedPersonasRouteImport.update({
   id: '/personas',
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/new': typeof AuthenticatedNewRoute
   '/personas': typeof AuthenticatedPersonasRoute
+  '/voices': typeof AuthenticatedVoicesRoute
   '/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/presentation/$id': typeof AuthenticatedPresentationIdRoute
   '/api/debate/stream': typeof ApiDebateStreamRoute
@@ -97,6 +104,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/new': typeof AuthenticatedNewRoute
   '/personas': typeof AuthenticatedPersonasRoute
+  '/voices': typeof AuthenticatedVoicesRoute
   '/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/presentation/$id': typeof AuthenticatedPresentationIdRoute
   '/api/debate/stream': typeof ApiDebateStreamRoute
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/new': typeof AuthenticatedNewRoute
   '/_authenticated/personas': typeof AuthenticatedPersonasRoute
+  '/_authenticated/voices': typeof AuthenticatedVoicesRoute
   '/_authenticated/debates/$id': typeof AuthenticatedDebatesIdRouteWithChildren
   '/_authenticated/presentation/$id': typeof AuthenticatedPresentationIdRoute
   '/api/debate/stream': typeof ApiDebateStreamRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/new'
     | '/personas'
+    | '/voices'
     | '/debates/$id'
     | '/presentation/$id'
     | '/api/debate/stream'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/new'
     | '/personas'
+    | '/voices'
     | '/debates/$id'
     | '/presentation/$id'
     | '/api/debate/stream'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/new'
     | '/_authenticated/personas'
+    | '/_authenticated/voices'
     | '/_authenticated/debates/$id'
     | '/_authenticated/presentation/$id'
     | '/api/debate/stream'
@@ -186,6 +198,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/voices': {
+      id: '/_authenticated/voices'
+      path: '/voices'
+      fullPath: '/voices'
+      preLoaderRoute: typeof AuthenticatedVoicesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/personas': {
       id: '/_authenticated/personas'
@@ -266,6 +285,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedNewRoute: typeof AuthenticatedNewRoute
   AuthenticatedPersonasRoute: typeof AuthenticatedPersonasRoute
+  AuthenticatedVoicesRoute: typeof AuthenticatedVoicesRoute
   AuthenticatedDebatesIdRoute: typeof AuthenticatedDebatesIdRouteWithChildren
   AuthenticatedPresentationIdRoute: typeof AuthenticatedPresentationIdRoute
 }
@@ -274,6 +294,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedNewRoute: AuthenticatedNewRoute,
   AuthenticatedPersonasRoute: AuthenticatedPersonasRoute,
+  AuthenticatedVoicesRoute: AuthenticatedVoicesRoute,
   AuthenticatedDebatesIdRoute: AuthenticatedDebatesIdRouteWithChildren,
   AuthenticatedPresentationIdRoute: AuthenticatedPresentationIdRoute,
 }
@@ -290,3 +311,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
