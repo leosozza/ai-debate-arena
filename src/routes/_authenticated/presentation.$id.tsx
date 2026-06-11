@@ -487,30 +487,26 @@ function PresentMode() {
     // Garante elemento de áudio criado por gesto (clique no disclaimer já contou).
     ensureAudioEl();
 
-    // 1) Vozes
+    // 1) Vozes — só pré-gera a 1ª fala (para começar rápido, máx ~5s). O
+    // restante é sintetizado sob demanda durante a transmissão (com cache).
     (async () => {
       const todo = messages
         .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
-        .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId);
+        .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId)
+        .slice(0, 1);
       if (todo.length === 0) {
         setPrepVoices({ done: 0, total: 0, status: "done" });
         return;
       }
       setPrepVoices({ done: 0, total: todo.length, status: "running" });
-      let done = 0;
-      let cursor = 0;
-      const concurrency = 3;
-      const worker = async () => {
-        while (cursor < todo.length) {
-          const i = cursor++;
-          const { m, slot } = todo[i];
-          try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* ignora individual */ }
-          done++;
-          setPrepVoices({ done, total: todo.length, status: "running" });
+      const deadline = new Promise<void>((r) => setTimeout(r, 5000));
+      const work = (async () => {
+        for (const { m, slot } of todo) {
+          try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* ignora */ }
         }
-      };
-      await Promise.all(Array.from({ length: concurrency }, worker));
-      setPrepVoices({ done, total: todo.length, status: "done" });
+      })();
+      await Promise.race([work, deadline]);
+      setPrepVoices({ done: todo.length, total: todo.length, status: "done" });
     })();
 
     // 2) Vinhetas das personas (paralelo, não bloqueante para abrir o programa)

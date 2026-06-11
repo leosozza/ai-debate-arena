@@ -140,17 +140,21 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       await Promise.all(Array.from({ length: concurrency }, worker));
 
       const missing = all.filter((m) => !audioByMsg.get(m.id));
-      if (missing.length > 0) {
-        toast.error(`Falha ao gerar ${missing.length} áudio(s). Tente novamente.`);
+      if (missing.length === all.length) {
+        toast.error("Falha ao gerar todas as vozes. Verifique a conexão das vozes e tente de novo.");
         setProgress(null);
         return;
+      }
+      if (missing.length > 0) {
+        toast.warning(`${missing.length} fala(s) sem áudio foram puladas — você pode regenerá-las no editor.`);
       }
 
       // Get durations
       setProgress({ label: "Analisando áudios", pct: 0.95 });
       const built: TimelineClip[] = [];
       for (const m of all) {
-        const url = audioByMsg.get(m.id)!;
+        const url = audioByMsg.get(m.id);
+        if (!url) continue; // pula clips sem áudio
         const dur = await getAudioDuration(url);
         built.push({
           id: m.id,
