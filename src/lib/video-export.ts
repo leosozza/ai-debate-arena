@@ -14,6 +14,12 @@ export interface ExportMessage {
   content: string;
   /** data: URL or http URL of the spoken audio (mp3/wav). Required. */
   audioUrl: string;
+  /** seconds to cut from start of audio (default 0) */
+  trimStart?: number;
+  /** seconds to cut from end of audio (default 0) */
+  trimEnd?: number;
+  /** render caption on the frame for this clip (default true) */
+  subtitle?: boolean;
 }
 
 export interface ExportInput {
@@ -25,6 +31,10 @@ export interface ExportInput {
   aDescription?: string | null;
   bDescription?: string | null;
   messages: ExportMessage[];
+  /** Optional background music URL mixed over the whole debate (loops). */
+  musicUrl?: string | null;
+  /** Music volume 0..1 (default 0.25). */
+  musicVolume?: number;
   onProgress?: (stage: string, pct: number) => void;
 }
 
