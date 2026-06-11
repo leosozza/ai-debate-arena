@@ -144,9 +144,17 @@ function PresentMode() {
     try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
     if (audioRef.current) {
       try { audioRef.current.pause(); } catch { /* ignore */ }
-      audioRef.current.src = "";
-      audioRef.current = null;
+      // NÃO destruir o elemento — manter a permissão de autoplay no mobile.
     }
+  }
+
+  function ensureAudioEl(): HTMLAudioElement {
+    if (!audioRef.current) {
+      const a = new Audio();
+      a.preload = "auto";
+      audioRef.current = a;
+    }
+    return audioRef.current;
   }
 
   function slotFor(role: Side): VoiceSlot {
