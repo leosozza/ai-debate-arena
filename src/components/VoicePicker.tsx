@@ -192,7 +192,10 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
               const catalog = VOICE_CATALOG[p] ?? [];
               const fallback = catalog[0]?.id ?? "";
               const currentId = voiceId && voiceId.length > 0 ? voiceId : fallback;
-              const isCustom = currentId.length > 0 && !catalog.some((v) => v.id === currentId);
+              const showPresets = p === "replicate" && presets.length > 0;
+              const presetMatch = showPresets ? presets.find((pr) => pr.voice_url === currentId) : null;
+              const isCustomUrl = currentId.startsWith("http") && !presetMatch;
+              const isCustomCatalog = !currentId.startsWith("http") && currentId.length > 0 && !catalog.some((v) => v.id === currentId);
               if (!currentId) {
                 return (
                   <Select disabled value="__none">
@@ -207,12 +210,29 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                 <Select value={currentId} onValueChange={(v) => { stop(); onChange(p, v); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {isCustom && (
+                    {showPresets && (
+                      <SelectGroup>
+                        <SelectLabel>🎭 Meus presets (clonados)</SelectLabel>
+                        {presets.map((pr) => (
+                          <SelectItem key={pr.id} value={pr.voice_url}>
+                            {pr.is_real_person ? "🎭 " : "🎙 "}{pr.name}
+                            {pr.is_real_person ? " · Voz simulada por IA" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {isCustomUrl && !presetMatch && (
+                      <SelectItem value={currentId}>🎙 Personalizada (URL)</SelectItem>
+                    )}
+                    {isCustomCatalog && (
                       <SelectItem value={currentId}>🎙 Personalizada ({currentId.slice(0, 12)}…)</SelectItem>
                     )}
-                    {catalog.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Catálogo</SelectLabel>
+                      {catalog.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               );
