@@ -14,7 +14,7 @@ const RoleSchema = z.enum([
   "team_b",
 ]);
 
-const VoiceProviderSchema = z.enum(["browser", "eleven", "minimax", "replicate"]).nullable().optional();
+const VoiceProviderSchema = z.enum(["browser", "kokoro", "piper", "eleven", "minimax", "replicate"]).nullable().optional();
 
 const ParticipantInput = z.object({
   debateId: z.string().uuid(),

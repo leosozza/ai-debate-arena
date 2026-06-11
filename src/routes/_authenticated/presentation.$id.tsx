@@ -118,12 +118,14 @@ function PresentMode() {
       const persona = findPersona(personaName);
       const pp = persona?.voice_provider as VoiceProvider | null | undefined;
       const pid = persona?.voice_id ?? null;
-      if (pp && (pp === "browser" || pp === "kokoro" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
+      // A persona só sobrescreve se tiver voz REAL (não-navegador, com id);
+      // senão usa a voz definida no debate.
+      if (pp && pp !== "browser" && pid && (pp === "kokoro" || pp === "piper" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
         return { provider: pp, voiceId: pid, settings: DEFAULT_VOICE_SETTINGS };
       }
       if (!provider) return null;
       const p = provider as VoiceProvider;
-      if (p !== "browser" && p !== "kokoro" && p !== "eleven" && p !== "minimax" && p !== "replicate") return null;
+      if (p !== "browser" && p !== "kokoro" && p !== "piper" && p !== "eleven" && p !== "minimax" && p !== "replicate") return null;
       return { provider: p, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
     };
     const m = apply(d.voice_provider_mod, d.voice_id_mod); if (m) setSlotMod(m);
@@ -219,6 +221,9 @@ function PresentMode() {
       // Voz neural grátis, sintetizada no próprio navegador (sem custo).
       const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
       url = await kokoroSynthUrl(clean, voiceId);
+    } else if (slot.provider === "piper") {
+      const { piperSynthUrl } = await import("@/lib/piper-tts");
+      url = await piperSynthUrl(clean, voiceId);
     } else if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: clean, voiceId } });
       if ("error" in res && res.error) {

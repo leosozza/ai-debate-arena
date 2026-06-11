@@ -50,7 +50,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const persona = personaName ? personas?.find((p) => norm(p.name) === norm(personaName)) ?? null : null;
     const pp = persona?.voice_provider as VoiceProvider | null | undefined;
     const pid = persona?.voice_id ?? null;
-    if (pp && ["browser", "kokoro", "eleven", "minimax", "replicate"].includes(pp)) {
+    // A persona só sobrescreve se tiver uma voz REAL (não-navegador, com id).
+    // Senão, usa a voz definida no próprio debate (ex.: ajustada em ⚙️).
+    if (pp && pp !== "browser" && pid && ["kokoro", "piper", "eleven", "minimax", "replicate"].includes(pp)) {
       return { provider: pp, voiceId: pid };
     }
     const p = (provider as VoiceProvider) ?? "browser";
@@ -66,6 +68,10 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       // Voz neural grátis sintetizada no navegador → blob URL (lida pelo ffmpeg).
       const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
       return await kokoroSynthUrl(clean, slot.voiceId);
+    }
+    if (slot.provider === "piper") {
+      const { piperSynthUrl } = await import("@/lib/piper-tts");
+      return await piperSynthUrl(clean, slot.voiceId);
     }
     if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: clean, voiceId: slot.voiceId } });

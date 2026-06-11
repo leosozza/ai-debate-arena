@@ -111,11 +111,13 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
         return;
       }
 
-      if (p === "kokoro") {
+      if (p === "kokoro" || p === "piper") {
         setLoading(true);
-        const kid = (voiceId && voiceId.length > 0 ? voiceId : VOICE_CATALOG.kokoro[0]?.id) ?? "pf_dora";
-        const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
-        const url = await kokoroSynthUrl(text, kid);
+        const fallbackId = p === "kokoro" ? "pf_dora" : "pt_BR-faber-medium";
+        const vid = (voiceId && voiceId.length > 0 ? voiceId : VOICE_CATALOG[p][0]?.id) ?? fallbackId;
+        const url = p === "kokoro"
+          ? await (await import("@/lib/kokoro-tts")).kokoroSynthUrl(text, vid)
+          : await (await import("@/lib/piper-tts")).piperSynthUrl(text, vid);
         const audio = new Audio(url);
         audioRef.current = audio;
         audio.onended = () => setPlaying(false);
@@ -186,7 +188,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {(["browser", "kokoro", "eleven", "minimax", "replicate"] as const).map((k) => (
+              {(["browser", "kokoro", "piper", "eleven", "minimax", "replicate"] as const).map((k) => (
                 <SelectItem key={k} value={k}>{PROVIDER_LABEL[k]}</SelectItem>
               ))}
             </SelectContent>
