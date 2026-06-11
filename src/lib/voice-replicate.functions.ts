@@ -43,7 +43,8 @@ function buildInput(model: ReplicateModelKey, voiceParam: string, text: string):
       if (voiceParam && /^https?:\/\//i.test(voiceParam)) {
         input.audio_prompt_path = voiceParam;
       }
-      return { input, useVersion: false, maxMs: 180_000 };
+      // Community model on Replicate → precisa resolver versão.
+      return { input, useVersion: true, maxMs: 180_000 };
     }
     case "fish": {
       const input: Record<string, unknown> = { text };
