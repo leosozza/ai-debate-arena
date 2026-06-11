@@ -1,70 +1,52 @@
-## Problema
+## Rebrand: Arena IA → Legends Arena
 
-1. **Áudio não toca nada**: o player tenta gerar a 1ª fala (mediador via Replicate `presenter_male`) on-demand quando clicas em Tocar. O navegador bloqueia o `audio.play()` porque ele acontece depois de um `await` longo (XTTS-v2 / Replicate TTS demoram 30–90s) → o gesto do clique já expirou. Soma-se a isso a falta de feedback e a possibilidade de timeout do gateway.
-2. **Apresentação dos candidatos**: hoje é só foto+nome estáticos. As personas Dr Enéas e Karl Marx não têm `vignette_url` gerada.
+### 1. Logo (CDN asset)
+- Upload via `lovable-assets` do PNG enviado → `src/assets/legends-arena-logo.png.asset.json`.
+- Gerar favicon (versão "só portal", sem texto) via `imagegen--edit_image` (crop/foco no portal cyan) → upload como asset → `src/assets/legends-arena-favicon.png.asset.json`.
+- Criar `src/components/LegendsLogo.tsx` com prop `size: "sm" | "md" | "lg" | "xl"` e `withWordmark?: boolean` — usa `<img>` apontando para o asset.
 
-## Solução
+### 2. Header (`src/routes/_authenticated/route.tsx`)
+- Substituir o quadrado roxo com ícone microfone + texto "Arena IA" por `<LegendsLogo size="sm" />` + texto **"Legends Arena"** em font-display.
 
-### 1. Pré-geração automática + abertura "Tá no Ar" (apresentação `/presentation/:id`)
+### 3. Landing (`src/routes/index.tsx`)
+- Logo grande centralizado no hero (`<LegendsLogo size="xl" />`).
+- Título: **"Legends Arena"**.
+- Tagline: **"Onde lendas atravessam o portal. Você decide quem vence."**
+- Atualizar copy secundária mantendo CTAs.
 
-Sequência ao abrir a apresentação (substitui o disclaimer de 4.5s atual):
+### 4. Auth (`src/routes/auth.tsx`)
+- Logo no topo do card (`<LegendsLogo size="lg" />`), substituir texto "Arena IA" por "Legends Arena".
 
-```text
-[1] Card de aviso IA (4s, igual ao atual)
-[2] Tela de PREPARAÇÃO — barra de progresso "Preparando o programa…"
-      ├─ Gera vozes de TODAS as falas em paralelo (concurrency=3)
-      ├─ Em paralelo: garante vinhetas das 2 personas (gera se faltar)
-      └─ Botão "Pular preparação" → vai direto ao card estático antigo
-[3] ABERTURA cinematográfica (auto-play, ~20s total)
-      ├─ 2-3s: título do debate em tela cheia com lower-third do programa
-      ├─ 6-8s: vinheta do Convidado A em fullscreen + nome animado
-      ├─ 6-8s: vinheta do Convidado B em fullscreen + nome animado
-      └─ 2s: "VS" + tema → dissolve para o estúdio
-[4] Debate normal toca imediatamente (áudios já em cache → zero latência)
-```
+### 5. OpeningSequence (`src/components/OpeningSequence.tsx`)
+- Adicionar logo pequeno discreto no topo da tela `step === "title"` acima do "Legends Arena · Hoje no programa".
+- Texto já está alinhado ✅.
 
-Se uma persona não tem vignette_url, geramos automaticamente (`generatePersonaVignette` já existe). Se a geração falhar/demorar muito (>90s), caímos no card estático Ken-Burns do retrato.
+### 6. Metadados / SEO (`src/routes/__root.tsx`)
+- `<title>`: "Legends Arena — Debates épicos entre lendas"
+- `meta description`: "Onde lendas atravessam o portal. Debates ao vivo com IA — você decide quem vence."
+- `og:site_name`: "Legends Arena"
+- `og:title`, `og:description`, `twitter:card`, `twitter:title`, `twitter:description`.
+- `<link rel="icon">` → URL do favicon asset.
+- Manter root sem `og:image` (regra: og:image só em leaves) — adicionar `og:image` apontando para o logo apenas em `index.tsx`.
 
-### 2. Correção do gesto de áudio
+### 7. Index head (`src/routes/index.tsx`)
+- `head()` próprio: title, description, og:title/description/image (logo), twitter equivalents.
 
-Mesmo com pré-geração, o primeiro `audio.play()` precisa ser criado dentro do gesto do clique. Trocamos `new Audio(url).play()` por um único elemento `<audio>` montado uma vez (no clique de "Tocar abertura") cujo `src` é trocado entre falas — mantém a permissão de autoplay já concedida.
+### 8. Nome do app / package
+- **Fora de escopo**: `package.json` name e `.lovable/project.json` — apenas branding visível.
 
-### 3. Botão "Tocar vinheta" na página do debate
+### Arquivos editados
+- `src/routes/_authenticated/route.tsx`
+- `src/routes/index.tsx`
+- `src/routes/auth.tsx`
+- `src/routes/__root.tsx`
+- `src/components/OpeningSequence.tsx`
 
-A pedido anterior, também adicionamos um botão "▶ Tocar abertura cinematográfica" na página `/debates/:id` que abre a mesma sequência [3] em modal, sem precisar entrar no modo apresentação.
+### Arquivos criados
+- `src/assets/legends-arena-logo.png.asset.json`
+- `src/assets/legends-arena-favicon.png.asset.json`
+- `src/components/LegendsLogo.tsx`
 
-## Detalhes técnicos
-
-**Novos componentes**
-- `src/components/PreparationScreen.tsx` — tela de loading com barras paralelas (vozes X/Y, vinheta A, vinheta B) e botão pular.
-- `src/components/OpeningSequence.tsx` — fullscreen autoplay: título → vídeo A → vídeo B → VS. Usa `<video autoPlay muted playsInline>` (muted permite autoplay no mobile; áudio das vinhetas Veo-3 fica opcional via toggle).
-- `src/components/AudioPlayer.tsx` (hook `useSequentialAudio`) — singleton `<audio>` reaproveitado para preservar o gesto.
-
-**Arquivos editados**
-- `src/routes/_authenticated/presentation.$id.tsx`:
-  - Substitui o `<button overlay>` do disclaimer por máquina de estados `phase: "disclaimer" | "preparing" | "opening" | "live"`.
-  - `preparing`: dispara `pregenerateAll()` + `ensureVignettes()` em paralelo, mostra `PreparationScreen`, avança para `opening` quando vozes ≥80% prontas.
-  - `opening`: renderiza `OpeningSequence`, ao terminar (ou ao "Pular") seta `live` e auto-clica o Play.
-  - `live`: comportamento atual, mas usando o singleton audio.
-- `src/lib/persona-video.functions.ts`: já existe `generatePersonaVignette`; adiciono `ensurePersonaVignette({personaId})` que gera só se faltar e devolve a URL.
-- `src/routes/_authenticated/debates.$id.tsx`: adiciona botão "🎬 Tocar abertura" que abre `OpeningSequence` em `<Dialog>`.
-
-**Pré-geração de áudio (sem timeout)**
-- Mantém `concurrency=3` no client.
-- Cada chamada ao Replicate XTTS-v2 já tem `maxMs=180_000` server-side.
-- Adiciona toast com erro específico por fala que falhar (em vez de silenciar).
-- Cache permanece em memória; ao recarregar perde — aceitável por enquanto.
-
-**Fallback se a vinheta não gerar a tempo (>90s)**
-- `OpeningSequence` mostra Ken-Burns do `image_url` da persona por 6s com o nome em entrada animada, no lugar do `<video>`.
-
-## Riscos
-
-- Gerar 2 vinhetas Veo-3 leva 1–3 min cada → preparação pode passar de 3 min na primeira vez. Mitigação: rodamos vinhetas em paralelo com a geração de vozes; se vozes terminarem antes, mostramos "Vinhetas ainda processando — pular?" e seguimos sem elas.
-- Mobile autoplay: `<video muted>` autoplaya; se o usuário ligar áudio da vinheta no toggle, exigimos toque (já estamos pós-clique do "Iniciar", então OK).
-
-## Fora de escopo (deixar para depois)
-
-- Persistir cache de áudio em IndexedDB para sobreviver a reload.
-- Música de fundo / sting de transição.
-- Vinheta dinâmica do mediador.
+### Riscos
+- `imagegen--edit_image` para gerar favicon pode demorar ~30s; se falhar, fallback: usar o logo completo como favicon (menos legível em 16×16 mas funcional).
+- Personas/vinhetas já geradas mantêm estética holográfica que combina com o portal do logo — sem retrabalho.

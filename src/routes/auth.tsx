@@ -8,13 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Reveal } from "@/components/Reveal";
 import { toast } from "sonner";
-import { Mic } from "lucide-react";
+import { LegendsLogo } from "@/components/LegendsLogo";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Entrar — Arena IA" },
-      { name: "description", content: "Entre para criar debates entre IAs." },
+      { title: "Entrar — Legends Arena" },
+      { name: "description", content: "Entre para invocar lendas e criar debates épicos." },
     ],
   }),
   component: AuthPage,
@@ -69,12 +69,12 @@ function AuthPage() {
       <Reveal className="w-full max-w-md">
         <Card className="w-full p-8 space-y-6 bg-card/70 border-border/60 backdrop-blur shadow-2xl shadow-black/30">
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary">
-            <Mic className="h-6 w-6" />
+          <div className="flex justify-center">
+            <LegendsLogo size="lg" />
           </div>
-          <h1 className="font-display text-2xl font-bold">Arena IA</h1>
+          <h1 className="font-display text-2xl font-bold tracking-wide">Legends Arena</h1>
           <p className="text-sm text-muted-foreground">
-            {mode === "login" ? "Entre para criar debates" : "Crie sua conta"}
+            {mode === "login" ? "Entre para invocar as lendas" : "Crie sua conta"}
           </p>
         </div>
 
