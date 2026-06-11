@@ -316,6 +316,14 @@ function PersonasPage() {
                 onChange={(url) => setForm((f) => ({ ...f, image_url: url }))}
               />
 
+              <PersonaVideoPanel
+                personaId={editingId}
+                hasImage={!!form.image_url}
+                vignetteUrl={form.vignette_url}
+                onGenerated={(url) => setForm((f) => ({ ...f, vignette_url: url }))}
+              />
+
+
               <div className="space-y-2">
                 <Label>Persona prompt (como a IA deve encarnar)</Label>
                 <Textarea
