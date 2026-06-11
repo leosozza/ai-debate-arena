@@ -11,6 +11,8 @@ import { ensurePersonaVignette } from "@/lib/persona-video.functions";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { HologramAvatar } from "@/components/HologramAvatar";
+import { ArenaScene } from "@/components/ArenaScene";
+import { getArenaTheme } from "@/lib/arena-themes";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
@@ -141,6 +143,7 @@ function PresentMode() {
   const messages = rawMessages;
   const current = messages[index];
   const verdict = (data?.debate?.verdict as Verdict | null) ?? null;
+  const arenaTheme = getArenaTheme((data?.debate as { arena_theme?: string | null } | undefined)?.arena_theme);
   const slideCount = messages.length + (verdict ? 1 : 0);
 
   function clearKeepAlive() {
@@ -630,6 +633,7 @@ function PresentMode() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
+      {arenaTheme && <ArenaScene theme={arenaTheme} className="opacity-90" />}
       <AIDisclaimer variant="footer" />
       {phase === "disclaimer" && (
         <button

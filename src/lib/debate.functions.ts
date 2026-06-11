@@ -38,6 +38,7 @@ export type ExtraParticipantInput = z.infer<typeof ExtraParticipantSchema>;
 const NewDebateSchema = z.object({
   topic: z.string().trim().min(3).max(500),
   direction: z.string().trim().max(2000).optional(),
+  arenaTheme: z.string().trim().max(60).nullable().optional(),
   format: FormatSchema,
   debaterAName: z.string().trim().min(1).max(60),
   debaterAPersona: z.string().trim().min(1).max(20000),
@@ -116,6 +117,7 @@ Use markdown com títulos curtos. Seja direto e envolvente.`;
         user_id: context.userId,
         topic: data.topic,
         direction: data.direction || null,
+        arena_theme: data.arenaTheme ?? null,
         format: data.format,
         debater_a_name: data.debaterAName,
         debater_a_persona: data.debaterAPersona,

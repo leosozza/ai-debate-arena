@@ -2,6 +2,7 @@
 // Carregado da CDN em runtime (escondido do bundler → não vai pro bundle do
 // servidor, não quebra o Cloudflare). Falhas degradam pro navegador.
 export { PIPER_VOICES } from "./piper-voices";
+import { loadCdnModule } from "./load-cdn";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let modPromise: Promise<any> | null = null;
@@ -9,9 +10,7 @@ let modPromise: Promise<any> | null = null;
 async function getMod() {
   if (!modPromise) {
     modPromise = (async () => {
-      const cdn = "https://esm.sh/@mintplex-labs/piper-tts-web@1.0.4";
-      const dynamicImport = new Function("u", "return import(u)") as unknown as (u: string) => Promise<Record<string, unknown>>;
-      return await dynamicImport(cdn);
+      return await loadCdnModule("https://esm.sh/@mintplex-labs/piper-tts-web@1.0.4");
     })().catch((e) => {
       modPromise = null; // permite nova tentativa
       throw e;

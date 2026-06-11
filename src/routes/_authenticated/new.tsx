@@ -25,6 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { ExtraParticipantsPanel, makeEmptyExtra, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
 import { personaGender, defaultVoiceForGender } from "@/lib/persona-gender";
 import { MEDIATORS, type Mediator } from "@/lib/mediators";
+import { themesForFormat } from "@/lib/arena-themes";
+import { ArenaScene } from "@/components/ArenaScene";
 import { AIDisclaimer } from "@/components/AIDisclaimer";
 
 export const Route = createFileRoute("/_authenticated/new")({
@@ -95,6 +97,7 @@ function NewDebate() {
     topic: "",
     direction: "",
     format: "duel" as DebateFormatId,
+    arenaTheme: "duel-cyber" as string,
     debaterAName: "Aurora",
     debaterAPersona: "Defensora apaixonada da tecnologia, otimista quanto ao futuro da IA.",
     debaterAModel: DEFAULT_MODEL,
@@ -262,7 +265,8 @@ function NewDebate() {
                   key={f.id}
                   type="button"
                   onClick={() => {
-                    setForm({ ...form, format: f.id });
+                    const themes = themesForFormat(f.id);
+                    setForm({ ...form, format: f.id, arenaTheme: themes[0]?.id ?? form.arenaTheme });
                     // Já cria a quantidade mínima de convidados do formato (além de A/B).
                     const need = Math.max(0, f.minDebaters - 2);
                     setExtras(Array.from({ length: need }, (_, idx) => makeEmptyExtra(2 + idx)));
@@ -287,9 +291,29 @@ function NewDebate() {
           </div>
           {form.format !== "duel" && (
             <p className="text-xs text-muted-foreground">
-              Os formatos novos já podem ser criados e salvos. A engine de geração e o palco com múltiplos convidados entram nas próximas atualizações — por enquanto, o programa roda no padrão duelo 1×1.
+              {currentFormat.minDebaters}–{currentFormat.maxDebaters} participantes — os 2 primeiros são os lados A/B; adicione os demais no painel de convidados.
             </p>
           )}
+
+          <div className="space-y-2 pt-2">
+            <Label>Cenário da arena</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {themesForFormat(form.format).map((t) => {
+                const active = form.arenaTheme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setForm({ ...form, arenaTheme: t.id })}
+                    className={`relative aspect-video overflow-hidden rounded-lg border transition ${active ? "border-primary ring-2 ring-primary/40" : "border-border/60 hover:border-border"}`}
+                  >
+                    <ArenaScene theme={t} />
+                    <span className="absolute bottom-1 left-2 z-10 text-[11px] font-semibold text-white drop-shadow">{t.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </Card>
 
         <Card className="p-6 space-y-4">

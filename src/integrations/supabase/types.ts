@@ -129,6 +129,7 @@ export type Database = {
       }
       debates: {
         Row: {
+          arena_theme: string | null
           block_subtopics: Json | null
           blocks_count: number
           created_at: string
@@ -164,6 +165,7 @@ export type Database = {
           voice_provider_mod: string | null
         }
         Insert: {
+          arena_theme?: string | null
           block_subtopics?: Json | null
           blocks_count?: number
           created_at?: string
@@ -199,6 +201,7 @@ export type Database = {
           voice_provider_mod?: string | null
         }
         Update: {
+          arena_theme?: string | null
           block_subtopics?: Json | null
           blocks_count?: number
           created_at?: string

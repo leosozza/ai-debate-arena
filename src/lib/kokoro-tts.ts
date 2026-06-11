@@ -4,6 +4,7 @@
 // navegador (quem chama trata o erro).
 
 export { KOKORO_VOICES } from "./kokoro-voices";
+import { loadCdnModule } from "./load-cdn";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ttsPromise: Promise<any> | null = null;
@@ -11,12 +12,9 @@ let ttsPromise: Promise<any> | null = null;
 async function getTTS(onProgress?: (p: number) => void) {
   if (!ttsPromise) {
     ttsPromise = (async () => {
-      // CDN em runtime. O import() é escondido do bundler via `new Function`,
-      // pra NÃO aparecer como import de URL externa no bundle do servidor
-      // (o Cloudflare Workers rejeita isso → quebra o build da Lovable).
-      const cdn = "https://esm.sh/kokoro-js@^1";
-      const dynamicImport = new Function("u", "return import(u)") as unknown as (u: string) => Promise<Record<string, unknown>>;
-      const mod = await dynamicImport(cdn);
+      // CDN via <script type=module> (sem import() de URL nem eval) → o bundle
+      // do servidor (Cloudflare) fica limpo e o build da Lovable não quebra.
+      const mod = await loadCdnModule("https://esm.sh/kokoro-js@^1");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const KokoroTTS = (mod as any).KokoroTTS;
       const hasGpu = typeof navigator !== "undefined" && "gpu" in navigator;
