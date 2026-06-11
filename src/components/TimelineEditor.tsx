@@ -19,6 +19,8 @@ import {
   Eye,
   Undo2,
   Redo2,
+  Scissors,
+  Trash2,
 } from "lucide-react";
 
 export interface TimelineClip {
@@ -186,6 +188,28 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
     }
   }
 
+  function splitClip(i: number) {
+    const c = clips[i];
+    const effDur = c.duration - c.trimStart - c.trimEnd;
+    if (effDur < 0.8) return; // curto demais pra dividir
+    pushHistory();
+    const mid = c.trimStart + effDur / 2;
+    const stamp = String(clips.length) + "x" + (pastRef.current.length);
+    const left: TimelineClip = { ...c, id: `${c.id}-L${stamp}`, trimEnd: c.duration - mid };
+    const right: TimelineClip = { ...c, id: `${c.id}-R${stamp}`, trimStart: mid };
+    setClips((cs) => {
+      const next = cs.slice();
+      next.splice(i, 1, left, right);
+      return next;
+    });
+  }
+
+  function deleteClip(i: number) {
+    if (clips.length <= 1) return;
+    pushHistory();
+    setClips((cs) => cs.filter((_, idx) => idx !== i));
+  }
+
   function reorder(from: number, to: number) {
     if (from === to || to < 0 || to >= clips.length) return;
     setClips((cs) => {
@@ -340,6 +364,8 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                         setDragOverIdx(null);
                         if (from != null && to != null) reorder(from, to);
                       }}
+                      onSplit={() => splitClip(i)}
+                      onDelete={() => deleteClip(i)}
                     />
                   );
                 })}
@@ -448,6 +474,8 @@ function ClipBlock({
   onDragStart,
   onDragOver,
   onDragEnd,
+  onSplit,
+  onDelete,
 }: {
   left: number;
   width: number;
@@ -469,6 +497,8 @@ function ClipBlock({
   onDragStart: () => void;
   onDragOver: () => void;
   onDragEnd: () => void;
+  onSplit: () => void;
+  onDelete: () => void;
 }) {
   function startTrim(e: React.PointerEvent, side: "left" | "right", cb: (delta: number) => void) {
     e.stopPropagation();
@@ -540,6 +570,22 @@ function ClipBlock({
       >
         <GripHorizontal className="h-3.5 w-3.5" />
       </span>
+      <button
+        className="relative px-1 text-black/70 hover:text-black"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); onSplit(); }}
+        title="Dividir a fala ao meio"
+      >
+        <Scissors className="h-3 w-3" />
+      </button>
+      <button
+        className="relative px-1 text-black/70 hover:text-red-700"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        title="Apagar esta fala"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
       <button
         className="px-1 text-black/70 hover:text-black"
         onPointerDown={(e) => e.stopPropagation()}
