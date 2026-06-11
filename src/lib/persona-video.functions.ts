@@ -50,11 +50,11 @@ export const generatePersonaVignette = createServerFn({ method: "POST" })
     const imgFile = new File([imgBuf], `persona.${ext}`, { type: ct });
     const inputImageUrl = await uploadFile(imgFile);
 
-    // 3) build prompt
-    const prompt = `Cinematic short vignette portrait of ${persona.name}${
-      persona.description ? `, ${persona.description}` : ""
-    }. Subtle camera movement (slow push-in), shallow depth of field, professional lighting, coherent environment, dignified expression. ${
-      data.withAudio ? "Ambient background sound." : ""
+    // 3) build prompt — Legends Arena holographic portal vignette
+    const prompt = `Cinematic vignette: a circular metallic projector disc on a dark amphitheater floor activates with a burst of cyan-blue light; from the rising beam, a translucent blue holographic bust of ${persona.name}${
+      persona.description ? ` (${persona.description})` : ""
+    } materializes with glowing particles and digital scan lines, dignified expression, slow push-in camera, distant warm ambient stage lights in the background, deep black surroundings, sci-fi hologram aesthetic, dramatic rim light, photoreal. ${
+      data.withAudio ? "Subtle electric hum and ambient stage sound." : ""
     }`;
 
     // 4) try Veo 3 Fast first when audio is requested, otherwise Wan
@@ -144,9 +144,9 @@ export const ensurePersonaVignette = createServerFn({ method: "POST" })
     const file = new File([imgBuf], `persona.${ext}`, { type: ct });
     const inputImageUrl = await uploadFile(file);
 
-    const prompt = `Cinematic portrait vignette of ${persona.name}${
-      persona.description ? `, ${persona.description}` : ""
-    }. Slow push-in camera, shallow depth of field, professional studio lighting, dignified expression, subtle ambient motion.`;
+    const prompt = `Cinematic vignette: a circular metallic projector disc on a dark amphitheater floor activates with a burst of cyan-blue light; from the rising beam, a translucent blue holographic bust of ${persona.name}${
+      persona.description ? ` (${persona.description})` : ""
+    } materializes with glowing particles and digital scan lines, dignified expression, slow push-in camera, distant warm ambient stage lights, deep black surroundings, sci-fi hologram aesthetic, photoreal.`;
 
     const output = await runPrediction(
       "wan-video/wan-2.2-i2v-fast",

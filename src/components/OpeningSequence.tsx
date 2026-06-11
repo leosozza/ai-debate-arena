@@ -65,7 +65,7 @@ export function OpeningSequence({ topic, a, b, onDone }: Props) {
       {step === "title" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center animate-in fade-in zoom-in-95 duration-700">
           <div className="text-xs md:text-sm uppercase tracking-[0.5em] text-primary font-semibold mb-6">
-            Hoje no programa
+            Legends Arena · Hoje no programa
           </div>
           <h1 className="font-display text-4xl md:text-7xl font-extrabold tracking-tight text-foreground max-w-5xl text-balance">
             {topic}
