@@ -54,8 +54,8 @@ function PresentMode() {
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → opening (cinematic) → live (debate)
-  type Phase = "disclaimer" | "preparing" | "opening" | "live";
+  // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → vignette (cinematic+music) → opening (A/B/VS) → live (debate)
+  type Phase = "disclaimer" | "preparing" | "vignette" | "opening" | "live";
   const [phase, setPhase] = useState<Phase>("disclaimer");
   const [prepVoices, setPrepVoices] = useState({ done: 0, total: 0, status: "idle" as "idle" | "running" | "done" | "error" });
   const [prepVigA, setPrepVigA] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
