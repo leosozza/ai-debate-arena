@@ -497,11 +497,11 @@ function PresentMode() {
     void fetchVig(pB, setPrepVigB, setVignetteB);
   }, [phase, data, personas, messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-avança para abertura quando vozes terminam (vinhetas podem continuar).
+  // Auto-avança para a vinheta cinematográfica quando vozes terminam.
   useEffect(() => {
     if (phase !== "preparing") return;
     if (prepVoices.status === "done") {
-      const t = setTimeout(() => setPhase("opening"), 600);
+      const t = setTimeout(() => setPhase("vignette"), 600);
       return () => clearTimeout(t);
     }
   }, [phase, prepVoices.status]);
