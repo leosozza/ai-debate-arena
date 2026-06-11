@@ -84,11 +84,19 @@ function buildInput(model: ReplicateModelKey, voiceParam: string, text: string):
 /** TTS via Replicate. Modelo é resolvido pelo prefixo no voiceId. */
 export const replicateTts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => TtsInput.parse(d))
+  .inputValidator((d: unknown) => d as { text?: unknown; voiceId?: unknown })
   .handler(async ({ data }) => {
     try {
-      const { model, voiceParam } = resolveReplicateVoice(data.voiceId);
-      const { input, useVersion, maxMs } = buildInput(model, voiceParam, data.text);
+      const parsed = TtsInput.safeParse(data);
+      if (!parsed.success) {
+        return {
+          audioBase64: "",
+          mime: "audio/mpeg" as const,
+          error: `Entrada inválida: ${parsed.error.issues[0]?.message ?? "dados ausentes"}`,
+        };
+      }
+      const { model, voiceParam } = resolveReplicateVoice(parsed.data.voiceId);
+      const { input, useVersion, maxMs } = buildInput(model, voiceParam, parsed.data.text);
       const modelPath = REPLICATE_MODELS[model];
 
       const output = await runPrediction(modelPath, input, { maxMs, useVersion });
@@ -98,6 +106,7 @@ export const replicateTts = createServerFn({ method: "POST" })
       return { audioBase64: base64, mime };
     } catch (e) {
       const error = e instanceof Error ? e.message : "Replicate TTS falhou.";
+      console.error("[replicateTts]", error);
       return { audioBase64: "", mime: "audio/mpeg" as const, error };
     }
   });
