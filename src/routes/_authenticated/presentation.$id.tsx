@@ -403,9 +403,83 @@ function PresentMode() {
 
 
   function handlePlayToggle() {
-    if (!playing) hasStartedRef.current = true;
+    if (!playing) {
+      hasStartedRef.current = true;
+      // Cria o elemento de áudio AQUI dentro do gesto do clique → preserva
+      // permissão de autoplay no iOS Safari mesmo após awaits longos.
+      ensureAudioEl();
+    }
     setPlaying((p) => !p);
   }
+
+  // Preparação: gera vozes (paralelo, concurrency=3) + vinhetas (paralelo).
+  const prepStartedRef = useRef(false);
+  useEffect(() => {
+    if (phase !== "preparing" || prepStartedRef.current || !data || !personas) return;
+    prepStartedRef.current = true;
+    // Garante elemento de áudio criado por gesto (clique no disclaimer já contou).
+    ensureAudioEl();
+
+    // 1) Vozes
+    (async () => {
+      const todo = messages
+        .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
+        .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId);
+      if (todo.length === 0) {
+        setPrepVoices({ done: 0, total: 0, status: "done" });
+        return;
+      }
+      setPrepVoices({ done: 0, total: todo.length, status: "running" });
+      let done = 0;
+      let cursor = 0;
+      const concurrency = 3;
+      const worker = async () => {
+        while (cursor < todo.length) {
+          const i = cursor++;
+          const { m, slot } = todo[i];
+          try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* ignora individual */ }
+          done++;
+          setPrepVoices({ done, total: todo.length, status: "running" });
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, worker));
+      setPrepVoices({ done, total: todo.length, status: "done" });
+    })();
+
+    // 2) Vinhetas das personas (paralelo, não bloqueante para abrir o programa)
+    const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+    const pA = personas.find((p) => norm(p.name) === norm(data.debate.debater_a_name)) ?? null;
+    const pB = personas.find((p) => norm(p.name) === norm(data.debate.debater_b_name)) ?? null;
+
+    const fetchVig = async (
+      persona: typeof pA,
+      setStatus: (s: { status: "idle" | "running" | "done" | "error"; message: string }) => void,
+      setUrl: (u: string | null) => void,
+    ) => {
+      if (!persona) { setStatus({ status: "done", message: "sem persona" }); return; }
+      if (!persona.image_url) { setStatus({ status: "done", message: "sem imagem" }); return; }
+      setStatus({ status: "running", message: "gerando…" });
+      try {
+        const res = await ensureVig({ data: { personaId: persona.id, aspectRatio: "16:9" } });
+        setUrl(res.vignetteUrl);
+        setStatus({ status: "done", message: res.cached ? "pronta" : "nova" });
+      } catch (e) {
+        setStatus({ status: "error", message: e instanceof Error ? e.message.slice(0, 40) : "falhou" });
+      }
+    };
+    void fetchVig(pA, setPrepVigA, setVignetteA);
+    void fetchVig(pB, setPrepVigB, setVignetteB);
+  }, [phase, data, personas, messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-avança para abertura quando vozes terminam (vinhetas podem continuar).
+  useEffect(() => {
+    if (phase !== "preparing") return;
+    if (prepVoices.status === "done") {
+      const t = setTimeout(() => setPhase("opening"), 600);
+      return () => clearTimeout(t);
+    }
+  }, [phase, prepVoices.status]);
+
 
   function goToBlock(delta: -1 | 1) {
     if (!messages.length) return;
