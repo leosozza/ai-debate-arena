@@ -13,6 +13,7 @@ import {
 import { Video, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { generatePersonaVignette } from "@/lib/persona-video.functions";
+import { PersonaVignettePlayer } from "@/components/PersonaVignettePlayer";
 
 interface Props {
   personaId: string | null; // null while creating
