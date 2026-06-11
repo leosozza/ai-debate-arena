@@ -48,10 +48,6 @@ export function PersonaImagePanel({ name, description, value, onChange }: Props)
     try {
       if (provider === "gemini") {
         const out = await gen({ data: { name: name.trim(), description } });
-        if (!out.imageUrl) {
-          toast.error(out.error ?? "Não foi possível gerar a imagem agora.");
-          return;
-        }
         onChange(out.imageUrl);
         toast.success(
           out.referencesUsed > 0
@@ -99,10 +95,6 @@ export function PersonaImagePanel({ name, description, value, onChange }: Props)
       fd.append("file", file, file.name);
       if (enhancePrompt.trim()) fd.append("prompt", enhancePrompt.trim());
       const out = await enh({ data: fd as unknown as never });
-      if (!out.imageUrl) {
-        toast.error(out.error ?? "Não foi possível melhorar a imagem agora.");
-        return;
-      }
       onChange(out.imageUrl);
       toast.success("Imagem melhorada");
     } catch (e) {

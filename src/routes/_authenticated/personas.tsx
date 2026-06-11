@@ -30,9 +30,6 @@ import { PERSONA_CATEGORIES } from "@/lib/persona-seed-data";
 import { PERSONA_ANCHOR_IMAGES } from "@/lib/persona-anchor-images";
 
 export const Route = createFileRoute("/_authenticated/personas")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    edit: typeof s.edit === "string" ? s.edit : undefined,
-  }),
   component: PersonasPage,
 });
 
@@ -192,19 +189,6 @@ function PersonasPage() {
   useEffect(() => {
     if (showForm) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [showForm, editingId]);
-
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-  useEffect(() => {
-    if (!search.edit || personas.length === 0) return;
-    if (editingId === search.edit) return;
-    const p = personas.find((x) => x.id === search.edit);
-    if (p) {
-      loadIntoForm(p);
-      navigate({ search: { edit: undefined }, replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search.edit, personas]);
 
   return (
     <main className="container mx-auto px-4 py-10 max-w-5xl">

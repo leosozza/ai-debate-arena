@@ -12,8 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PersonaSelectItems } from "@/components/PersonaSelectItems";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Reveal } from "@/components/Reveal";
@@ -31,6 +30,48 @@ export const Route = createFileRoute("/_authenticated/new")({
 });
 
 const DEFAULT_MODEL = "google/gemini-3-flash-preview";
+
+// Categorias do catálogo de personas (rótulo + ordem de exibição).
+const CAT_LABELS: Record<string, string> = {
+  filosofia: "Filosofia",
+  ciencia: "Ciência",
+  inventores: "Inventores",
+  religiao: "Religião & Espiritualidade",
+  "politica-mundo": "Política (Mundo)",
+  "politica-br": "Política (Brasil)",
+  economia: "Economia",
+  estrategia: "Estratégia & Guerra",
+  esporte: "Esporte",
+};
+const CAT_ORDER = ["filosofia", "ciencia", "inventores", "religiao", "politica-mundo", "politica-br", "economia", "estrategia", "esporte"];
+
+type PersonaLite = { id: string; name: string; category?: string | null };
+
+/** Itens do select de persona, agrupados por categoria. */
+function PersonaSelectItems({ personas }: { personas: PersonaLite[] }) {
+  const groups = new Map<string, PersonaLite[]>();
+  for (const p of personas) {
+    const cat = p.category || "outros";
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat)!.push(p);
+  }
+  const cats = [
+    ...CAT_ORDER.filter((c) => groups.has(c)),
+    ...[...groups.keys()].filter((c) => !CAT_ORDER.includes(c)),
+  ];
+  return (
+    <>
+      {cats.map((cat) => (
+        <SelectGroup key={cat}>
+          <SelectLabel>{CAT_LABELS[cat] ?? "Outros"}</SelectLabel>
+          {groups.get(cat)!.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
+            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+          ))}
+        </SelectGroup>
+      ))}
+    </>
+  );
+}
 
 function NewDebate() {
   const router = useRouter();
@@ -219,7 +260,7 @@ function NewDebate() {
           </div>
           {form.format !== "duel" && (
             <p className="text-xs text-muted-foreground">
-              {currentFormat.minDebaters}–{currentFormat.maxDebaters} participantes. Os dois primeiros são os lados A e B abaixo; adicione os demais no painel de convidados. O programa roda com todos eles.
+              Os formatos novos já podem ser criados e salvos. A engine de geração e o palco com múltiplos convidados entram nas próximas atualizações — por enquanto, o programa roda no padrão duelo 1×1.
             </p>
           )}
         </Card>

@@ -3,7 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, type Verdict } from "@/lib/debate.functions";
 import { listParticipants } from "@/lib/debate-participants.functions";
-import { listPersonas } from "@/lib/persona.functions";
 import { getFormat } from "@/lib/debate-formats";
 import { CastStrip, roleLabel, type CastMember } from "@/components/CastStrip";
 import { generateParticipantTurn } from "@/lib/multi-debate.functions";
@@ -46,14 +45,6 @@ function DebateDetail() {
     queryKey: ["debate-participants", id],
     queryFn: () => listParts({ data: { debateId: id } }),
   });
-  const listPersonasFn = useServerFn(listPersonas);
-  const { data: personas = [] } = useQuery({
-    queryKey: ["personas"],
-    queryFn: () => listPersonasFn(),
-  });
-  const personaIdByName = new Map(personas.map((p) => [p.name.trim().toLowerCase(), p.id]));
-  const findPersonaId = (name: string | null | undefined) =>
-    name ? personaIdByName.get(name.trim().toLowerCase()) ?? null : null;
   const isMulti = !!data && (data.debate.format ?? "duel") !== "duel";
 
   function roleName(role: string): string {
@@ -271,7 +262,6 @@ function DebateDetail() {
             imageUrl: data.debate.debater_a_image_url ?? null,
             roleLabel: fmt?.id === "interview" ? "Entrevistador" : fmt?.id === "tribunal" ? "Acusação" : "Lado A",
             accent: "side-a",
-            personaId: findPersonaId(data.debate.debater_a_name),
           },
           {
             key: "b",
@@ -279,7 +269,6 @@ function DebateDetail() {
             imageUrl: data.debate.debater_b_image_url ?? null,
             roleLabel: fmt?.id === "interview" ? "Entrevistado" : fmt?.id === "tribunal" ? "Defesa" : "Lado B",
             accent: "side-b",
-            personaId: findPersonaId(data.debate.debater_b_name),
           },
           ...extras.map((e) => ({
             key: e.id,
@@ -287,7 +276,6 @@ function DebateDetail() {
             imageUrl: e.image_url ?? null,
             roleLabel: roleLabel(e.role),
             accent: "accent" as const,
-            personaId: e.persona_id ?? findPersonaId(e.display_name),
           })),
         ];
         return <CastStrip formatLabel={fmt ? `${fmt.emoji} ${fmt.label}` : undefined} members={cast} />;

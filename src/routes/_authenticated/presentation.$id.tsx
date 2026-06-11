@@ -118,9 +118,7 @@ function PresentMode() {
       const persona = findPersona(personaName);
       const pp = persona?.voice_provider as VoiceProvider | null | undefined;
       const pid = persona?.voice_id ?? null;
-      // A persona só sobrescreve se tiver voz REAL (não-navegador, com id);
-      // senão usa a voz definida no debate.
-      if (pp && pp !== "browser" && pid && (pp === "kokoro" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
+      if (pp && (pp === "browser" || pp === "kokoro" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
         return { provider: pp, voiceId: pid, settings: DEFAULT_VOICE_SETTINGS };
       }
       if (!provider) return null;

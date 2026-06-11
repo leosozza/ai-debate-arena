@@ -1,7 +1,5 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
 
 export type CastMember = {
   key: string;
@@ -9,7 +7,6 @@ export type CastMember = {
   imageUrl: string | null;
   roleLabel: string;
   accent: "side-a" | "side-b" | "accent" | "primary";
-  personaId?: string | null;
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -42,46 +39,25 @@ function Avatar({ name, src, accent }: { name: string; src: string | null; accen
   );
 }
 
-function MemberCard({ m }: { m: CastMember }) {
-  const inner = (
-    <>
-      <Avatar name={m.name} src={m.imageUrl} accent={m.accent} />
-      <div className="min-w-0">
-        <div className="font-display font-semibold text-sm leading-tight truncate max-w-[140px] flex items-center gap-1">
-          {m.name}
-          {m.personaId && <Pencil className="h-3 w-3 opacity-50 shrink-0" />}
-        </div>
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{m.roleLabel}</div>
-      </div>
-    </>
-  );
-  const className = "flex items-center gap-2.5 rounded-lg border border-border/50 bg-background/40 px-3 py-2 shrink-0 transition-colors";
-  if (m.personaId) {
-    return (
-      <Link
-        to="/personas"
-        search={{ edit: m.personaId }}
-        className={`${className} hover:bg-background/70 hover:border-primary/40 cursor-pointer`}
-        title="Editar persona"
-      >
-        {inner}
-      </Link>
-    );
-  }
-  return <div className={className}>{inner}</div>;
-}
-
 export function CastStrip({ formatLabel, members }: { formatLabel?: string; members: CastMember[] }) {
   return (
     <Card className="p-4 mb-6 bg-card/50">
       {formatLabel && (
         <div className="flex items-center gap-2 mb-3">
           <Badge variant="outline" className="text-[10px] uppercase tracking-widest">{formatLabel}</Badge>
-          <span className="text-xs text-muted-foreground">Elenco do programa · clique para editar</span>
+          <span className="text-xs text-muted-foreground">Elenco do programa</span>
         </div>
       )}
       <div className="flex gap-3 overflow-x-auto pb-1">
-        {members.map((m) => <MemberCard key={m.key} m={m} />)}
+        {members.map((m) => (
+          <div key={m.key} className="flex items-center gap-2.5 rounded-lg border border-border/50 bg-background/40 px-3 py-2 shrink-0">
+            <Avatar name={m.name} src={m.imageUrl} accent={m.accent} />
+            <div className="min-w-0">
+              <div className="font-display font-semibold text-sm leading-tight truncate max-w-[140px]">{m.name}</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{m.roleLabel}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </Card>
   );
