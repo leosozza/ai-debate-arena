@@ -129,7 +129,17 @@ export function PersonaImagePanel({ name, description, value, onChange }: Props)
           )}
         </div>
 
-        <div className="flex-1 flex flex-wrap gap-2">
+        <div className="flex-1 flex flex-wrap gap-2 items-center">
+          <Select value={provider} onValueChange={(v) => setProvider(v as Provider)}>
+            <SelectTrigger className="h-8 w-[210px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gemini">Gemini (com referências web)</SelectItem>
+              <SelectItem value="flux-schnell">FLUX Schnell (rápido)</SelectItem>
+              <SelectItem value="flux-1.1-pro">FLUX 1.1 Pro (qualidade)</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             type="button"
             size="sm"
