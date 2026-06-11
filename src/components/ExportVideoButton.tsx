@@ -11,6 +11,7 @@ import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
 import { DEFAULT_VOICE_SETTINGS } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
+import { kokoroSynthUrl } from "@/lib/kokoro-tts";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx } from "@/components/TimelineEditor";
@@ -50,7 +51,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const persona = personaName ? personas?.find((p) => norm(p.name) === norm(personaName)) ?? null : null;
     const pp = persona?.voice_provider as VoiceProvider | null | undefined;
     const pid = persona?.voice_id ?? null;
-    if (pp && ["browser", "eleven", "minimax", "replicate"].includes(pp)) {
+    if (pp && ["browser", "kokoro", "eleven", "minimax", "replicate"].includes(pp)) {
       return { provider: pp, voiceId: pid };
     }
     const p = (provider as VoiceProvider) ?? "browser";
@@ -60,6 +61,10 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   async function fetchAudioUrl(slot: Slot, text: string): Promise<string> {
     if (!slot.voiceId) throw new Error("voz_nao_definida");
     const clean = stripMarkdownForTts(text).slice(0, 5000);
+    if (slot.provider === "kokoro") {
+      // Voz neural grátis sintetizada no navegador → blob URL (lida pelo ffmpeg).
+      return await kokoroSynthUrl(clean, slot.voiceId);
+    }
     if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: clean, voiceId: slot.voiceId } });
       return `data:${res.mime};base64,${res.audio}`;
@@ -85,7 +90,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const slotB = resolveSlot(d.voice_provider_b, d.voice_id_b, d.debater_b_name);
 
     if ([slotMod, slotA, slotB].some((s) => s.provider === "browser" || !s.voiceId)) {
-      toast.error("Defina uma voz não-navegador para mediador e debatedores antes de exportar.");
+      toast.error("O vídeo precisa de vozes reais (a do navegador não pode ser gravada). Defina Kokoro (grátis) ou uma voz premium para mediador e debatedores.", { duration: 7000 });
       return;
     }
 
