@@ -144,9 +144,9 @@ export const ensurePersonaVignette = createServerFn({ method: "POST" })
     const file = new File([imgBuf], `persona.${ext}`, { type: ct });
     const inputImageUrl = await uploadFile(file);
 
-    const prompt = `Cinematic portrait vignette of ${persona.name}${
-      persona.description ? `, ${persona.description}` : ""
-    }. Slow push-in camera, shallow depth of field, professional studio lighting, dignified expression, subtle ambient motion.`;
+    const prompt = `Cinematic vignette: a circular metallic projector disc on a dark amphitheater floor activates with a burst of cyan-blue light; from the rising beam, a translucent blue holographic bust of ${persona.name}${
+      persona.description ? ` (${persona.description})` : ""
+    } materializes with glowing particles and digital scan lines, dignified expression, slow push-in camera, distant warm ambient stage lights, deep black surroundings, sci-fi hologram aesthetic, photoreal.`;
 
     const output = await runPrediction(
       "wan-video/wan-2.2-i2v-fast",
