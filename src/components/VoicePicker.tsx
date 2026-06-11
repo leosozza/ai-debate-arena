@@ -193,9 +193,13 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
               const fallback = catalog[0]?.id ?? "";
               const currentId = voiceId && voiceId.length > 0 ? voiceId : fallback;
               const showPresets = p === "replicate" && presets.length > 0;
-              const presetMatch = showPresets ? presets.find((pr) => pr.voice_url === currentId) : null;
-              const isCustomUrl = currentId.startsWith("http") && !presetMatch;
-              const isCustomCatalog = !currentId.startsWith("http") && currentId.length > 0 && !catalog.some((v) => v.id === currentId);
+              // Para presets clonados (replicate), o usuário pode escolher o modelo:
+              // armazenamos como "<prefix>:<url>" ou só "<url>" (xtts default).
+              const stripPrefix = (s: string) => s.replace(/^(cb|fish|xtts):/, "");
+              const cleanId = p === "replicate" ? stripPrefix(currentId) : currentId;
+              const presetMatch = showPresets ? presets.find((pr) => pr.voice_url === cleanId) : null;
+              const isCustomUrl = cleanId.startsWith("http") && !presetMatch;
+              const isCustomCatalog = !cleanId.startsWith("http") && cleanId.length > 0 && !catalog.some((v) => v.id === currentId);
               if (!currentId) {
                 return (
                   <Select disabled value="__none">
@@ -206,8 +210,13 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                   </Select>
                 );
               }
+              // Quando uma URL clonada está selecionada (replicate), mostramos seletor
+              // de modelo logo abaixo do select de vozes (renderizado fora).
               return (
-                <Select value={currentId} onValueChange={(v) => { stop(); onChange(p, v); }}>
+                <Select
+                  value={presetMatch ? presetMatch.voice_url : currentId}
+                  onValueChange={(v) => { stop(); onChange(p, v); }}
+                >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {showPresets && (
@@ -222,13 +231,13 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                       </SelectGroup>
                     )}
                     {isCustomUrl && !presetMatch && (
-                      <SelectItem value={currentId}>🎙 Personalizada (URL)</SelectItem>
+                      <SelectItem value={cleanId}>🎙 Personalizada (URL)</SelectItem>
                     )}
                     {isCustomCatalog && (
                       <SelectItem value={currentId}>🎙 Personalizada ({currentId.slice(0, 12)}…)</SelectItem>
                     )}
                     <SelectGroup>
-                      <SelectLabel>Catálogo</SelectLabel>
+                      <SelectLabel>Catálogo PT-BR &amp; Geral</SelectLabel>
                       {catalog.map((v) => (
                         <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
                       ))}
