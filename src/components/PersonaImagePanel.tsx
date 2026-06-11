@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ImageIcon, Sparkles, Upload, Wand2, Loader2, X } from "lucide-react";
+import { HologramAvatar } from "@/components/HologramAvatar";
 import { toast } from "sonner";
 import {
   generatePersonaImage,
