@@ -146,6 +146,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
               },
             })
           : await rpTts({ data: { text, voiceId: id } });
+      if ("error" in res && res.error) throw new Error(res.error);
       const base64 = "audio" in res ? res.audio : res.audioBase64;
       const mime = res.mime;
       const audio = new Audio(`data:${mime};base64,${base64}`);

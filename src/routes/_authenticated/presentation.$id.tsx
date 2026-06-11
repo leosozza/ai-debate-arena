@@ -221,6 +221,7 @@ function PresentMode() {
       url = await kokoroSynthUrl(clean, voiceId);
     } else if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: clean, voiceId } });
+      if ("error" in res && res.error) throw new Error(res.error);
       url = `data:${res.mime};base64,${res.audio}`;
     } else if (slot.provider === "minimax") {
       const res = await mmTts({ data: {
@@ -232,6 +233,7 @@ function PresentMode() {
       url = `data:${res.mime};base64,${res.audioBase64}`;
     } else {
       const res = await rpTts({ data: { text: clean, voiceId } });
+      if ("error" in res && res.error) throw new Error(res.error);
       url = `data:${res.mime};base64,${res.audioBase64}`;
     }
     audioCache.current.set(cacheKey, url);

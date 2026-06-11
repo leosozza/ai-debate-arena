@@ -91,6 +91,7 @@ function VoicesPage() {
           voiceId: voiceUrl,
         },
       });
+      if ("error" in res && res.error) throw new Error(res.error);
       const audio = new Audio(`data:${res.mime};base64,${res.audioBase64}`);
       audioRef.current = audio;
       audio.onended = () => setPlayingId(null);
