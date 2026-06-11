@@ -225,12 +225,16 @@ function PresentMode() {
       setLoading(true);
       const url = await fetchAudioUrl(slot, msgId, clean);
       if (token !== playTokenRef.current) return;
-      const audio = new Audio(url);
-      audioRef.current = audio;
+      const audio = ensureAudioEl();
+      audio.onended = null;
+      audio.src = url;
       // Para providers que não aceitam settings server-side, aplica no player.
       if (slot.provider === "replicate" || slot.provider === "eleven") {
         audio.playbackRate = Math.max(0.5, Math.min(2, slot.settings.speed));
         audio.volume = Math.max(0, Math.min(1, slot.settings.volume));
+      } else {
+        audio.playbackRate = 1;
+        audio.volume = 1;
       }
       audio.onended = () => { if (token === playTokenRef.current) onEnd(); };
       await audio.play();
