@@ -889,7 +889,16 @@ Histórico até aqui:
 ${transcript || "(início)"}${guidance}
 
 Sua tarefa: comente, como repórter de pós-jogo, o que achou DESTE bloco — quem mandou melhor, pontos fortes e fracos, o andamento. Opinativo e direto, em 2 a 3 frases. Máximo 80 palavras. NÃO inclua seu nome nem prefixo — só o comentário.`;
+    } else if (next.role === "moderator" && next.phase === "pergunta-incisiva") {
+      userPrompt = `Tema: ${debate.topic}
+Bloco atual: "${block.title}" — foco: ${block.focus}
+
+Histórico:
+${transcript}${guidance}
+
+Você INTERROMPE o debate como mediador firme, com UMA pergunta incisiva ou cobrança curta e direta, pressionando um dos debatedores sobre algo que ficou no ar ou uma contradição. 1 a 2 frases, máximo 40 palavras. Cite o nome de quem você cobra. Português. NÃO faça veredito.`;
     } else {
+      const replicaMax = next.phase.startsWith("réplica") ? 120 : 180;
       userPrompt = `Tema geral: ${debate.topic}
 Regras do mediador:
 ${debate.rules}
@@ -901,7 +910,7 @@ ${next.phase === "considerações finais" ? "Este é o bloco de fechamento do pr
 Histórico até agora:
 ${transcript || "(o debate ainda não começou)"}${guidance}
 
-Sua tarefa: produzir a próxima fala da fase "${next.phase}" dentro deste bloco. Seja claro, direto e envolvente em português. Máximo de 180 palavras. NÃO inclua o nome ou prefixo — apenas o conteúdo da fala.`;
+Sua tarefa: produzir a próxima fala da fase "${next.phase}" dentro deste bloco. Seja claro, direto e envolvente em português. Máximo de ${replicaMax} palavras${next.phase.startsWith("réplica") ? " — seja afiado e direto, sem rodeios" : ""}. NÃO inclua o nome ou prefixo — apenas o conteúdo da fala.`;
     }
 
     const model = modelFor(next.role, debate);
@@ -1190,9 +1199,12 @@ async function decideNextTurn(
     [
       {
         role: "system",
-        content: `Você é o MEDIADOR de um debate. Decida quem deve falar agora dentro do bloco atual: "${debate.debater_a_name}" (A) ou "${debate.debater_b_name}" (B). Responda APENAS um JSON válido: {"speaker":"a"|"b","instruction":"..."}. A instrução deve orientar o próximo a rebater um ponto específico do oponente DENTRO do sub-tema do bloco. Sem markdown, sem texto extra.`,
+        content: `Você é o MEDIADOR de um debate de TV AO VIVO, conduzindo um bate-rebate ágil e tenso dentro do bloco atual. "${debate.debater_a_name}" é A, "${debate.debater_b_name}" é B. Decida o PRÓXIMO movimento:
+- "a" ou "b": quem rebate agora. A instrução deve ser AFIADA — mandar a pessoa rebater DIRETAMENTE um ponto, contradição ou exagero específico do oponente (citando-o pelo nome), provocar, expor fragilidade. Nada de repetir o já dito.
+- "moderator": DE VEZ EM QUANDO (não sempre — talvez 1 em cada 4 turnos), VOCÊ interrompe com uma pergunta incisiva ou cobra uma resposta que ficou no ar.
+Responda APENAS JSON válido: {"speaker":"a"|"b"|"moderator","instruction":"..."}. Sem markdown, sem texto extra.`,
       },
-      { role: "user", content: `Tema: ${debate.topic}${blockHint}\n\nHistórico:\n${transcript}\n\nQuem fala agora e o que deve abordar?` },
+      { role: "user", content: `Tema: ${debate.topic}${blockHint}\n\nHistórico:\n${transcript}\n\nQual o próximo movimento e o foco?` },
     ],
     debate.moderator_model,
   );
@@ -1200,6 +1212,9 @@ async function decideNextTurn(
   try {
     const cleaned = decision.replace(/^```json\s*|\s*```$/g, "").trim();
     const parsed = JSON.parse(cleaned) as { speaker?: string; instruction?: string };
+    if (parsed.speaker === "moderator") {
+      return { role: "moderator", phase: "pergunta-incisiva", block_index: fixed.block_index, guidance: parsed.instruction };
+    }
     const speaker = parsed.speaker === "b" ? "b" : "a";
     return { role: speaker, phase: fixed.phase, block_index: fixed.block_index, guidance: parsed.instruction };
   } catch {
