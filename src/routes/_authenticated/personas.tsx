@@ -30,6 +30,9 @@ import { PERSONA_CATEGORIES } from "@/lib/persona-seed-data";
 import { PERSONA_ANCHOR_IMAGES } from "@/lib/persona-anchor-images";
 
 export const Route = createFileRoute("/_authenticated/personas")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    edit: typeof s.edit === "string" ? s.edit : undefined,
+  }),
   component: PersonasPage,
 });
 
