@@ -27,6 +27,7 @@ function AuthenticatedLayout() {
           </Link>
           <div className="flex items-center gap-2">
             <Link to="/personas"><Button size="sm" variant="ghost">Personas</Button></Link>
+            <Link to="/voices"><Button size="sm" variant="ghost">Vozes</Button></Link>
             <Link to="/new"><Button size="sm">Novo debate</Button></Link>
             <ThemeToggle />
             <Button
