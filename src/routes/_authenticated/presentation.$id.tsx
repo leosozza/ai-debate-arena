@@ -13,8 +13,9 @@ import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
-import { AIDisclaimer } from "@/components/AIDisclaimer";
+import { AIDisclaimer, AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import { OpeningSequence } from "@/components/OpeningSequence";
+import { OpeningVignette } from "@/components/OpeningVignette";
 import { PreparationScreen } from "@/components/PreparationScreen";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
@@ -53,8 +54,8 @@ function PresentMode() {
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → opening (cinematic) → live (debate)
-  type Phase = "disclaimer" | "preparing" | "opening" | "live";
+  // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → vignette (cinematic+music) → opening (A/B/VS) → live (debate)
+  type Phase = "disclaimer" | "preparing" | "vignette" | "opening" | "live";
   const [phase, setPhase] = useState<Phase>("disclaimer");
   const [prepVoices, setPrepVoices] = useState({ done: 0, total: 0, status: "idle" as "idle" | "running" | "done" | "error" });
   const [prepVigA, setPrepVigA] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
@@ -125,7 +126,32 @@ function PresentMode() {
   }, [data, personas]);
 
 
-  const messages = data?.messages ?? [];
+  // Inject 2 virtual moderator openings (AI disclaimer + guests intro) before the scripted debate.
+  const debateInfo = data?.debate;
+  const rawMessages = data?.messages ?? [];
+  const virtualOpening = debateInfo
+    ? [
+        {
+          id: "__opening_disclaimer__",
+          role: "moderator" as const,
+          phase: "abertura",
+          block_index: 0,
+          content: AI_DISCLAIMER_TEXT,
+        },
+        {
+          id: "__opening_guests__",
+          role: "moderator" as const,
+          phase: "abertura",
+          block_index: 0,
+          content:
+            `Boa noite, e bem-vindos à Legends Arena. Hoje na arena, o tema é: ${debateInfo.topic}. ` +
+            `À minha direita, ${debateInfo.debater_a_name}. ` +
+            `À minha esquerda, ${debateInfo.debater_b_name}. ` +
+            `Que vença o melhor argumento.`,
+        },
+      ]
+    : [];
+  const messages = [...virtualOpening, ...rawMessages];
   const current = messages[index];
   const verdict = (data?.debate?.verdict as Verdict | null) ?? null;
   const slideCount = messages.length + (verdict ? 1 : 0);
@@ -471,11 +497,11 @@ function PresentMode() {
     void fetchVig(pB, setPrepVigB, setVignetteB);
   }, [phase, data, personas, messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-avança para abertura quando vozes terminam (vinhetas podem continuar).
+  // Auto-avança para a vinheta cinematográfica quando vozes terminam.
   useEffect(() => {
     if (phase !== "preparing") return;
     if (prepVoices.status === "done") {
-      const t = setTimeout(() => setPhase("opening"), 600);
+      const t = setTimeout(() => setPhase("vignette"), 600);
       return () => clearTimeout(t);
     }
   }, [phase, prepVoices.status]);
@@ -520,7 +546,7 @@ function PresentMode() {
     return <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">Carregando…</div>;
   }
 
-  if (messages.length === 0) {
+  if (rawMessages.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background flex-col gap-4">
         <p className="text-muted-foreground">Nenhuma fala ainda.</p>
@@ -583,7 +609,14 @@ function PresentMode() {
         <PreparationScreen
           tasks={prepTasks}
           canSkip
-          onSkip={() => setPhase("opening")}
+          onSkip={() => setPhase("vignette")}
+        />
+      )}
+      {phase === "vignette" && (
+        <OpeningVignette
+          topic={data.debate.topic}
+          audioPrimed
+          onDone={() => setPhase("opening")}
         />
       )}
       {phase === "opening" && (
