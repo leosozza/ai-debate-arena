@@ -131,6 +131,9 @@ export async function fetchAsBase64(url: string): Promise<{ base64: string; mime
   if (!res.ok) throw new Error(`Falha ao baixar saída do Replicate (${res.status}).`);
   const mime = res.headers.get("content-type") ?? "audio/mpeg";
   const buf = new Uint8Array(await res.arrayBuffer());
+  if (buf.length < 1024) {
+    throw new Error(`Modelo devolveu áudio vazio ou muito curto (${buf.length} bytes). Tente outro modelo ou outra voz.`);
+  }
   let bin = "";
   const CHUNK = 0x8000;
   for (let i = 0; i < buf.length; i += CHUNK) {
