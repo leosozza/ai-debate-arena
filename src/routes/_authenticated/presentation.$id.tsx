@@ -55,6 +55,10 @@ function PresentMode() {
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Duração do áudio atual (para teleprompter)
+  const [currentAudioMs, setCurrentAudioMs] = useState<number | null>(null);
+  // Aviso quando a voz clonada cai para o navegador
+  const [voiceFallback, setVoiceFallback] = useState<{ msgId: string; reason: string } | null>(null);
   // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → vignette (cinematic+music) → opening (A/B/VS) → live (debate)
   type Phase = "disclaimer" | "preparing" | "vignette" | "opening" | "live";
   const [phase, setPhase] = useState<Phase>("disclaimer");
