@@ -7,12 +7,15 @@ import { listParticipants } from "@/lib/debate-participants.functions";
 import { listPersonas } from "@/lib/persona.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
+import { ensurePersonaVignette } from "@/lib/persona-video.functions";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
-import { DebaterIntroCard } from "@/components/DebaterIntroCard";
+// DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
 import { AIDisclaimer } from "@/components/AIDisclaimer";
+import { OpeningSequence } from "@/components/OpeningSequence";
+import { PreparationScreen } from "@/components/PreparationScreen";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
@@ -38,6 +41,7 @@ function PresentMode() {
   const mmTts = useServerFn(minimaxTts);
   const rpTts = useServerFn(replicateTts);
   const updDebate = useServerFn(updateDebate);
+  const ensureVig = useServerFn(ensurePersonaVignette);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
   const lp = useServerFn(listPersonas);
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
@@ -49,15 +53,16 @@ function PresentMode() {
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → opening (cinematic) → live (debate)
+  type Phase = "disclaimer" | "preparing" | "opening" | "live";
+  const [phase, setPhase] = useState<Phase>("disclaimer");
+  const [prepVoices, setPrepVoices] = useState({ done: 0, total: 0, status: "idle" as "idle" | "running" | "done" | "error" });
+  const [prepVigA, setPrepVigA] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
+  const [prepVigB, setPrepVigB] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
+  const [vignetteA, setVignetteA] = useState<string | null>(null);
+  const [vignetteB, setVignetteB] = useState<string | null>(null);
   // Vinheta de bloco: bloco a apresentar agora (ou null se não há vinheta pendente)
   const [introBlock, setIntroBlock] = useState<number | null>(null);
-  // Card de aviso de IA: 1ª tela do programa, ~4s ou até toque.
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
-  useEffect(() => {
-    if (!showDisclaimer) return;
-    const t = setTimeout(() => setShowDisclaimer(false), 4500);
-    return () => clearTimeout(t);
-  }, [showDisclaimer]);
 
   // Voz por participante (cada um pode usar um provider diferente).
   const [slotMod, setSlotMod] = useState<VoiceSlot>(DEFAULT_SLOT);
@@ -67,6 +72,8 @@ function PresentMode() {
   // Vozes do navegador (carregadas dinamicamente)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
+  // Singleton audio element — created once on first user gesture so subsequent
+  // play() calls don't lose the autoplay permission on mobile Safari.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
   const playTokenRef = useRef(0);
@@ -137,9 +144,17 @@ function PresentMode() {
     try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
     if (audioRef.current) {
       try { audioRef.current.pause(); } catch { /* ignore */ }
-      audioRef.current.src = "";
-      audioRef.current = null;
+      // NÃO destruir o elemento — manter a permissão de autoplay no mobile.
     }
+  }
+
+  function ensureAudioEl(): HTMLAudioElement {
+    if (!audioRef.current) {
+      const a = new Audio();
+      a.preload = "auto";
+      audioRef.current = a;
+    }
+    return audioRef.current;
   }
 
   function slotFor(role: Side): VoiceSlot {
@@ -210,12 +225,16 @@ function PresentMode() {
       setLoading(true);
       const url = await fetchAudioUrl(slot, msgId, clean);
       if (token !== playTokenRef.current) return;
-      const audio = new Audio(url);
-      audioRef.current = audio;
+      const audio = ensureAudioEl();
+      audio.onended = null;
+      audio.src = url;
       // Para providers que não aceitam settings server-side, aplica no player.
       if (slot.provider === "replicate" || slot.provider === "eleven") {
         audio.playbackRate = Math.max(0.5, Math.min(2, slot.settings.speed));
         audio.volume = Math.max(0, Math.min(1, slot.settings.volume));
+      } else {
+        audio.playbackRate = 1;
+        audio.volume = 1;
       }
       audio.onended = () => { if (token === playTokenRef.current) onEnd(); };
       await audio.play();
@@ -384,9 +403,83 @@ function PresentMode() {
 
 
   function handlePlayToggle() {
-    if (!playing) hasStartedRef.current = true;
+    if (!playing) {
+      hasStartedRef.current = true;
+      // Cria o elemento de áudio AQUI dentro do gesto do clique → preserva
+      // permissão de autoplay no iOS Safari mesmo após awaits longos.
+      ensureAudioEl();
+    }
     setPlaying((p) => !p);
   }
+
+  // Preparação: gera vozes (paralelo, concurrency=3) + vinhetas (paralelo).
+  const prepStartedRef = useRef(false);
+  useEffect(() => {
+    if (phase !== "preparing" || prepStartedRef.current || !data || !personas) return;
+    prepStartedRef.current = true;
+    // Garante elemento de áudio criado por gesto (clique no disclaimer já contou).
+    ensureAudioEl();
+
+    // 1) Vozes
+    (async () => {
+      const todo = messages
+        .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
+        .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId);
+      if (todo.length === 0) {
+        setPrepVoices({ done: 0, total: 0, status: "done" });
+        return;
+      }
+      setPrepVoices({ done: 0, total: todo.length, status: "running" });
+      let done = 0;
+      let cursor = 0;
+      const concurrency = 3;
+      const worker = async () => {
+        while (cursor < todo.length) {
+          const i = cursor++;
+          const { m, slot } = todo[i];
+          try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* ignora individual */ }
+          done++;
+          setPrepVoices({ done, total: todo.length, status: "running" });
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, worker));
+      setPrepVoices({ done, total: todo.length, status: "done" });
+    })();
+
+    // 2) Vinhetas das personas (paralelo, não bloqueante para abrir o programa)
+    const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+    const pA = personas.find((p) => norm(p.name) === norm(data.debate.debater_a_name)) ?? null;
+    const pB = personas.find((p) => norm(p.name) === norm(data.debate.debater_b_name)) ?? null;
+
+    const fetchVig = async (
+      persona: typeof pA,
+      setStatus: (s: { status: "idle" | "running" | "done" | "error"; message: string }) => void,
+      setUrl: (u: string | null) => void,
+    ) => {
+      if (!persona) { setStatus({ status: "done", message: "sem persona" }); return; }
+      if (!persona.image_url) { setStatus({ status: "done", message: "sem imagem" }); return; }
+      setStatus({ status: "running", message: "gerando…" });
+      try {
+        const res = await ensureVig({ data: { personaId: persona.id, aspectRatio: "16:9" } });
+        setUrl(res.vignetteUrl);
+        setStatus({ status: "done", message: res.cached ? "pronta" : "nova" });
+      } catch (e) {
+        setStatus({ status: "error", message: e instanceof Error ? e.message.slice(0, 40) : "falhou" });
+      }
+    };
+    void fetchVig(pA, setPrepVigA, setVignetteA);
+    void fetchVig(pB, setPrepVigB, setVignetteB);
+  }, [phase, data, personas, messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-avança para abertura quando vozes terminam (vinhetas podem continuar).
+  useEffect(() => {
+    if (phase !== "preparing") return;
+    if (prepVoices.status === "done") {
+      const t = setTimeout(() => setPhase("opening"), 600);
+      return () => clearTimeout(t);
+    }
+  }, [phase, prepVoices.status]);
+
 
   function goToBlock(delta: -1 | 1) {
     if (!messages.length) return;
@@ -460,22 +553,46 @@ function PresentMode() {
     return extras.find((e) => e.slot === slot) ?? null;
   })();
 
-  // Card de apresentação dos convidados: aparece em cima da tela enquanto a
-  // primeira vinheta do mediador é narrada (index 0). Some assim que avançamos.
-  const showDebaterIntro = playing && index === 0 && currentBlockIdx === 0 && role === "moderator";
+  // Tarefas da preparação (montadas em tempo real para o PreparationScreen).
+  const prepTasks = [
+    { label: "Gerando vozes", done: prepVoices.done, total: prepVoices.total || 1, status: prepVoices.status },
+    { label: `Vinheta · ${data.debate.debater_a_name}`, done: prepVigA.status === "done" ? 1 : 0, total: 1, status: prepVigA.status, message: prepVigA.message },
+    { label: `Vinheta · ${data.debate.debater_b_name}`, done: prepVigB.status === "done" ? 1 : 0, total: 1, status: prepVigB.status, message: prepVigB.message },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
       <AIDisclaimer variant="footer" />
-      {showDisclaimer && (
+      {phase === "disclaimer" && (
         <button
           type="button"
-          onClick={() => setShowDisclaimer(false)}
+          onClick={() => {
+            // Prime audio element dentro do gesto → libera autoplay no iOS Safari.
+            const a = ensureAudioEl();
+            a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+            a.play().then(() => a.pause()).catch(() => { /* ignore */ });
+            setPhase("preparing");
+          }}
           className="fixed inset-0 z-[60] flex items-center justify-center bg-background/95 backdrop-blur-md cursor-pointer"
           aria-label="Continuar"
         >
           <AIDisclaimer variant="card" />
         </button>
+      )}
+      {phase === "preparing" && (
+        <PreparationScreen
+          tasks={prepTasks}
+          canSkip
+          onSkip={() => setPhase("opening")}
+        />
+      )}
+      {phase === "opening" && (
+        <OpeningSequence
+          topic={data.debate.topic}
+          a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved, videoUrl: vignetteA, description: aDescription }}
+          b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, videoUrl: vignetteB, description: bDescription }}
+          onDone={() => { setPhase("live"); setPlaying(true); }}
+        />
       )}
       {introBlock !== null && subtopicsList[introBlock] && (
         <BlockIntroCard
@@ -484,14 +601,6 @@ function PresentMode() {
           title={subtopicsList[introBlock].title}
           focus={subtopicsList[introBlock].focus}
           onDone={() => setIntroBlock(null)}
-        />
-      )}
-      {showDebaterIntro && (
-        <DebaterIntroCard
-          topic={data.debate.topic}
-          a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved, description: aDescription }}
-          b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, description: bDescription }}
-          onSkip={() => { stopAll(); setIndex((i) => Math.min(slideCount - 1, i + 1)); }}
         />
       )}
       {extraSpeaker && !isWinner && (

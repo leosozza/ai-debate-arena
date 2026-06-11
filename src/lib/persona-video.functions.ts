@@ -116,3 +116,63 @@ export const generatePersonaVignette = createServerFn({ method: "POST" })
 
     return { vignetteUrl: signed.signedUrl, model: modelUsed };
   });
+
+/** Returns existing vignette if present; otherwise generates one (Wan no-audio, faster). */
+export const ensurePersonaVignette = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ personaId: z.string().uuid(), aspectRatio: z.enum(["16:9", "9:16"]).default("16:9") }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: persona, error: pErr } = await context.supabase
+      .from("personas")
+      .select("id, vignette_url, image_url, name, description, user_id")
+      .eq("id", data.personaId)
+      .single();
+    if (pErr || !persona) throw new Error("Persona não encontrada.");
+    if (persona.user_id !== context.userId) throw new Error("Sem permissão.");
+    if (persona.vignette_url) return { vignetteUrl: persona.vignette_url, cached: true };
+    if (!persona.image_url) return { vignetteUrl: null as string | null, cached: false };
+
+    const { runPrediction, uploadFile } = await import("./replicate.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const imgResp = await fetch(persona.image_url);
+    if (!imgResp.ok) throw new Error("Falha ao baixar a imagem.");
+    const imgBuf = await imgResp.arrayBuffer();
+    const ct = imgResp.headers.get("content-type") ?? "image/png";
+    const ext = ct.includes("jpeg") ? "jpg" : ct.includes("webp") ? "webp" : "png";
+    const file = new File([imgBuf], `persona.${ext}`, { type: ct });
+    const inputImageUrl = await uploadFile(file);
+
+    const prompt = `Cinematic portrait vignette of ${persona.name}${
+      persona.description ? `, ${persona.description}` : ""
+    }. Slow push-in camera, shallow depth of field, professional studio lighting, dignified expression, subtle ambient motion.`;
+
+    const output = await runPrediction(
+      "wan-video/wan-2.2-i2v-fast",
+      { image: inputImageUrl, prompt, num_frames: 81 },
+      { maxMs: 300_000 },
+    );
+    const videoUrl = pickUrl(output);
+    if (!videoUrl) throw new Error("Sem vídeo.");
+
+    const vResp = await fetch(videoUrl);
+    if (!vResp.ok) throw new Error(`Download falhou (${vResp.status}).`);
+    const vBytes = new Uint8Array(await vResp.arrayBuffer());
+    const path = `${context.userId}/${crypto.randomUUID()}.mp4`;
+    const { error: upErr } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .upload(path, vBytes, { contentType: "video/mp4", upsert: false });
+    if (upErr) throw new Error(`Upload: ${upErr.message}`);
+    const { data: signed, error: sErr } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .createSignedUrl(path, SIGNED_TTL);
+    if (sErr || !signed) throw new Error(`Signed URL: ${sErr?.message}`);
+
+    await context.supabase
+      .from("personas")
+      .update({ vignette_url: signed.signedUrl, vignette_model: "wan-video/wan-2.2-i2v-fast" })
+      .eq("id", persona.id);
+
+    return { vignetteUrl: signed.signedUrl, cached: false };
+  });
