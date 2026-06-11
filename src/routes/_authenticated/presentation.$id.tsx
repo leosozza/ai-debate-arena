@@ -41,6 +41,7 @@ function PresentMode() {
   const mmTts = useServerFn(minimaxTts);
   const rpTts = useServerFn(replicateTts);
   const updDebate = useServerFn(updateDebate);
+  const ensureVig = useServerFn(ensurePersonaVignette);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
   const lp = useServerFn(listPersonas);
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
@@ -52,15 +53,16 @@ function PresentMode() {
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → opening (cinematic) → live (debate)
+  type Phase = "disclaimer" | "preparing" | "opening" | "live";
+  const [phase, setPhase] = useState<Phase>("disclaimer");
+  const [prepVoices, setPrepVoices] = useState({ done: 0, total: 0, status: "idle" as "idle" | "running" | "done" | "error" });
+  const [prepVigA, setPrepVigA] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
+  const [prepVigB, setPrepVigB] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
+  const [vignetteA, setVignetteA] = useState<string | null>(null);
+  const [vignetteB, setVignetteB] = useState<string | null>(null);
   // Vinheta de bloco: bloco a apresentar agora (ou null se não há vinheta pendente)
   const [introBlock, setIntroBlock] = useState<number | null>(null);
-  // Card de aviso de IA: 1ª tela do programa, ~4s ou até toque.
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
-  useEffect(() => {
-    if (!showDisclaimer) return;
-    const t = setTimeout(() => setShowDisclaimer(false), 4500);
-    return () => clearTimeout(t);
-  }, [showDisclaimer]);
 
   // Voz por participante (cada um pode usar um provider diferente).
   const [slotMod, setSlotMod] = useState<VoiceSlot>(DEFAULT_SLOT);
@@ -70,6 +72,8 @@ function PresentMode() {
   // Vozes do navegador (carregadas dinamicamente)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
+  // Singleton audio element — created once on first user gesture so subsequent
+  // play() calls don't lose the autoplay permission on mobile Safari.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCache = useRef<Map<string, string>>(new Map());
   const playTokenRef = useRef(0);
