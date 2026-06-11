@@ -271,6 +271,7 @@ function DebateDetail() {
             imageUrl: data.debate.debater_a_image_url ?? null,
             roleLabel: fmt?.id === "interview" ? "Entrevistador" : fmt?.id === "tribunal" ? "Acusação" : "Lado A",
             accent: "side-a",
+            personaId: findPersonaId(data.debate.debater_a_name),
           },
           {
             key: "b",
@@ -278,6 +279,7 @@ function DebateDetail() {
             imageUrl: data.debate.debater_b_image_url ?? null,
             roleLabel: fmt?.id === "interview" ? "Entrevistado" : fmt?.id === "tribunal" ? "Defesa" : "Lado B",
             accent: "side-b",
+            personaId: findPersonaId(data.debate.debater_b_name),
           },
           ...extras.map((e) => ({
             key: e.id,
@@ -285,6 +287,7 @@ function DebateDetail() {
             imageUrl: e.image_url ?? null,
             roleLabel: roleLabel(e.role),
             accent: "accent" as const,
+            personaId: e.persona_id ?? findPersonaId(e.display_name),
           })),
         ];
         return <CastStrip formatLabel={fmt ? `${fmt.emoji} ${fmt.label}` : undefined} members={cast} />;
