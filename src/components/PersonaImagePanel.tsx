@@ -3,6 +3,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ImageIcon, Sparkles, Upload, Wand2, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -10,6 +17,9 @@ import {
   uploadPersonaImage,
   enhancePersonaImage,
 } from "@/lib/persona-image.functions";
+import { generatePersonaImageReplicate } from "@/lib/persona-image-replicate.functions";
+
+type Provider = "gemini" | "flux-schnell" | "flux-1.1-pro";
 
 interface Props {
   name: string;
@@ -20,9 +30,11 @@ interface Props {
 
 export function PersonaImagePanel({ name, description, value, onChange }: Props) {
   const gen = useServerFn(generatePersonaImage);
+  const genFlux = useServerFn(generatePersonaImageReplicate);
   const up = useServerFn(uploadPersonaImage);
   const enh = useServerFn(enhancePersonaImage);
   const [busy, setBusy] = useState<null | "gen" | "up" | "enh">(null);
+  const [provider, setProvider] = useState<Provider>("gemini");
   const [enhancePrompt, setEnhancePrompt] = useState("");
   const lastFileRef = useRef<File | null>(null);
 
@@ -33,13 +45,20 @@ export function PersonaImagePanel({ name, description, value, onChange }: Props)
     }
     setBusy("gen");
     try {
-      const out = await gen({ data: { name: name.trim(), description } });
-      onChange(out.imageUrl);
-      toast.success(
-        out.referencesUsed > 0
-          ? `Imagem gerada com ${out.referencesUsed} referência(s) reais da web`
-          : "Imagem gerada (sem referências reais encontradas — avatar fictício)",
-      );
+      if (provider === "gemini") {
+        const out = await gen({ data: { name: name.trim(), description } });
+        onChange(out.imageUrl);
+        toast.success(
+          out.referencesUsed > 0
+            ? `Imagem gerada com ${out.referencesUsed} referência(s) reais da web`
+            : "Imagem gerada (sem referências reais encontradas — avatar fictício)",
+        );
+      } else {
+        const model = provider === "flux-schnell" ? "schnell" : "1.1-pro";
+        const out = await genFlux({ data: { name: name.trim(), description, model } });
+        onChange(out.imageUrl);
+        toast.success(`Imagem gerada via ${out.model}`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha");
     } finally {
