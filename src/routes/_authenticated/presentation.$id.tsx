@@ -566,7 +566,13 @@ function PresentMode() {
       {phase === "disclaimer" && (
         <button
           type="button"
-          onClick={() => setPhase("preparing")}
+          onClick={() => {
+            // Prime audio element dentro do gesto → libera autoplay no iOS Safari.
+            const a = ensureAudioEl();
+            a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+            a.play().then(() => a.pause()).catch(() => { /* ignore */ });
+            setPhase("preparing");
+          }}
           className="fixed inset-0 z-[60] flex items-center justify-center bg-background/95 backdrop-blur-md cursor-pointer"
           aria-label="Continuar"
         >
