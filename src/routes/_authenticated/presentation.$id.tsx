@@ -863,6 +863,9 @@ function PresentMode() {
                 active={role === "a"}
                 speaking={role === "a" && playing && !loading}
                 loading={role === "a" && loading}
+                durationMs={role === "a" ? currentAudioMs : null}
+                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "a" ? voiceFallback.reason : null}
+                onRetry={retryCurrent}
               />
               <div className="hidden items-center justify-center md:flex">
                 <div className="relative flex h-full w-20 items-center justify-center">
@@ -881,6 +884,9 @@ function PresentMode() {
                 active={role === "b"}
                 speaking={role === "b" && playing && !loading}
                 loading={role === "b" && loading}
+                durationMs={role === "b" ? currentAudioMs : null}
+                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "b" ? voiceFallback.reason : null}
+                onRetry={retryCurrent}
               />
             </section>
           </div>
