@@ -272,6 +272,38 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
         </Button>
       </div>
 
+      {p === "replicate" && (() => {
+        const raw = voiceId ?? "";
+        const cleanId = raw.replace(/^(cb|fish|xtts):/, "");
+        if (!/^https?:\/\//i.test(cleanId)) return null;
+        const currentModel: "xtts" | "cb" | "fish" = raw.startsWith("cb:")
+          ? "cb"
+          : raw.startsWith("fish:")
+          ? "fish"
+          : "xtts";
+        return (
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">Modelo</Label>
+            <Select
+              value={currentModel}
+              onValueChange={(v) => {
+                stop();
+                const prefix = v === "xtts" ? "" : `${v}:`;
+                onChange("replicate", `${prefix}${cleanId}`);
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cb">🌎 Chatterbox · PT-BR nativo (recomendado)</SelectItem>
+                <SelectItem value="xtts">⚡ XTTS v2 · rápido (legado)</SelectItem>
+                <SelectItem value="fish">💎 Fish Speech · premium (lento)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      })()}
+
+
       {onSettingsChange && showAdjust && (
         <div className="rounded-md border border-border/60 bg-muted/20 p-3 space-y-3">
           <div className="flex items-center justify-between">
