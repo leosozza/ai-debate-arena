@@ -23,6 +23,7 @@ import { type VoiceProvider } from "@/lib/voice-catalog";
 import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-formats";
 import { Badge } from "@/components/ui/badge";
 import { ExtraParticipantsPanel, makeEmptyExtra, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
+import { personaGender, defaultVoiceForGender } from "@/lib/persona-gender";
 import { AIDisclaimer } from "@/components/AIDisclaimer";
 
 export const Route = createFileRoute("/_authenticated/new")({
@@ -119,8 +120,13 @@ function NewDebate() {
   function applyPersona(side: "A" | "B", personaId: string) {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
-    const vp = (p.voice_provider as VoiceProvider | null) ?? "browser";
-    const vid = p.voice_id ?? null;
+    let vp = (p.voice_provider as VoiceProvider | null) ?? "browser";
+    let vid = p.voice_id ?? null;
+    // Sem voz real definida → sugere uma voz grátis do gênero da persona.
+    if (vp === "browser" || !vid) {
+      const g = personaGender(p.name);
+      if (g) { const d = defaultVoiceForGender(g); vp = d.provider; vid = d.voiceId; }
+    }
     const img = p.image_url ?? null;
     if (side === "A") {
       setForm((f) => ({ ...f, debaterAName: p.name, debaterAPersona: p.persona_prompt, voiceProviderA: vp, voiceIdA: vid, debaterAImageUrl: img }));

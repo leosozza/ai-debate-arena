@@ -10,6 +10,7 @@ import type { DebateFormat, ParticipantRole } from "@/lib/debate-formats";
 import type { VoiceProvider } from "@/lib/voice-catalog";
 import { PersonaSelectItems } from "@/components/PersonaSelectItems";
 import { VoicePicker } from "@/components/VoicePicker";
+import { personaGender, defaultVoiceForGender } from "@/lib/persona-gender";
 
 export type ExtraParticipantDraft = {
   slot: number;
@@ -89,13 +90,19 @@ export function ExtraParticipantsPanel({ format, extras, setExtras, personas }: 
   function applyPersona(i: number, personaId: string) {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
+    let vp = (p.voice_provider as VoiceProvider | null) ?? null;
+    let vid = p.voice_id ?? null;
+    if (!vp || vp === "browser" || !vid) {
+      const g = personaGender(p.name);
+      if (g) { const d = defaultVoiceForGender(g); vp = d.provider; vid = d.voiceId; }
+    }
     update(i, {
       personaId: p.id,
       displayName: p.name,
       personaPrompt: p.persona_prompt,
       imageUrl: p.image_url,
-      voiceProvider: (p.voice_provider as VoiceProvider | null) ?? null,
-      voiceId: p.voice_id ?? null,
+      voiceProvider: vp,
+      voiceId: vid,
     });
   }
 
