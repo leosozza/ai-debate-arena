@@ -10,8 +10,9 @@
 //   - "<https-url>"           → xtts-v2 (compat com presets antigos)
 
 export const REPLICATE_MODELS = {
-  "minimax-hd": "minimax/speech-02-hd",
-  "minimax-turbo": "minimax/speech-02-turbo",
+  "minimax-hd": "minimax/speech-2.8-hd", // #1 em benchmark (era speech-02-hd)
+  "minimax-turbo": "minimax/speech-2.8-turbo",
+  google: "google/gemini-3.1-flash-tts", // 70+ idiomas, 30 vozes, alta qualidade
   chatterbox: "resemble-ai/chatterbox-multilingual",
   fish: "lucataco/fish-speech-1.5",
   xtts: "lucataco/xtts-v2",
@@ -23,6 +24,15 @@ export type ReplicateModelKey = keyof typeof REPLICATE_MODELS;
 // Todas usam MiniMax HD (preset puro, barato/rápido) + language_boost="Portuguese"
 // no servidor. Vinheta visual no label indica categoria.
 const PT_BR_CURATED: ReadonlyArray<{ id: string; label: string }> = [
+  // ⭐ Google Gemini TTS (alta qualidade, 70+ idiomas, language_code pt-BR)
+  { id: "g:Charon", label: "⭐ Google · Charon (M, grave)" },
+  { id: "g:Puck", label: "⭐ Google · Puck (M)" },
+  { id: "g:Fenrir", label: "⭐ Google · Fenrir (M, forte)" },
+  { id: "g:Kore", label: "⭐ Google · Kore (F)" },
+  { id: "g:Aoede", label: "⭐ Google · Aoede (F)" },
+  { id: "g:Leda", label: "⭐ Google · Leda (F, jovem)" },
+  { id: "g:Orus", label: "⭐ Google · Orus (M, firme)" },
+  { id: "g:Zephyr", label: "⭐ Google · Zephyr (F, leve)" },
   // Apresentação / TV
   { id: "presenter_male", label: "🇧🇷 Apresentador de TV (M)" },
   { id: "presenter_female", label: "🇧🇷 Apresentadora de TV (F)" },
@@ -102,6 +112,7 @@ export function resolveReplicateVoice(voiceId: string): {
   voiceParam: string; // voice_id (preset) OU URL (clone)
 } {
   const v = voiceId.trim();
+  if (v.startsWith("g:")) return { model: "google", voiceParam: v.slice(2) };
   if (v.startsWith("mmt:")) return { model: "minimax-turbo", voiceParam: v.slice(4) };
   if (v.startsWith("cb:")) return { model: "chatterbox", voiceParam: v.slice(3) };
   if (v.startsWith("fish:")) return { model: "fish", voiceParam: v.slice(5) };

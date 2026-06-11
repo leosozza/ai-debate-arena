@@ -58,6 +58,12 @@ function buildInput(model: ReplicateModelKey, voiceParam: string, text: string):
         useVersion: true,
         maxMs: 180_000,
       };
+    case "google":
+      return {
+        input: { text, voice: voiceParam, language_code: "pt-BR" },
+        useVersion: false,
+        maxMs: 120_000,
+      };
   }
 }
 
