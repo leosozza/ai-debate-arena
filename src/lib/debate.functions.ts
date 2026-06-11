@@ -317,6 +317,28 @@ export const deleteDebate = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Apaga a última fala do debate (para regenerar). Reabre o debate se estava concluído. */
+export const deleteLastTurn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ debateId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("debate_messages")
+      .select("id")
+      .eq("debate_id", data.debateId)
+      .eq("user_id", context.userId)
+      .order("order_index", { ascending: false })
+      .limit(1);
+    if (error) throw new Error(error.message);
+    const last = rows?.[0];
+    if (!last) return { deleted: false };
+    const { error: dErr } = await context.supabase
+      .from("debate_messages").delete().eq("id", last.id).eq("user_id", context.userId);
+    if (dErr) throw new Error(dErr.message);
+    await context.supabase.from("debates").update({ status: "ready" }).eq("id", data.debateId).eq("user_id", context.userId);
+    return { deleted: true };
+  });
+
 // ===== Criação assistida por IA (gerador de tema / debatedores opostos) =====
 
 export const generateDebateTopic = createServerFn({ method: "POST" })

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, type Verdict } from "@/lib/debate.functions";
+import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, deleteLastTurn, type Verdict } from "@/lib/debate.functions";
 import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
 import { CastStrip, roleLabel, type CastMember } from "@/components/CastStrip";
@@ -9,7 +9,7 @@ import { generateParticipantTurn } from "@/lib/multi-debate.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
-import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil } from "lucide-react";
+import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil, RotateCcw } from "lucide-react";
 import { ExportPackDialog } from "@/components/ExportPackDialog";
 import { ExportVideoButton } from "@/components/ExportVideoButton";
 import { useRef, useState } from "react";
@@ -88,6 +88,22 @@ function DebateDetail() {
       if (r.done || r.final) toast.info("Debate concluído.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao gerar fala");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  const delLast = useServerFn(deleteLastTurn);
+  async function redoLast() {
+    if (!data || data.messages.length === 0) return;
+    setGenerating(true);
+    try {
+      await delLast({ data: { debateId: id } });
+      await refetch();
+      await generateOne();
+      toast.success("Última fala regenerada.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao refazer");
     } finally {
       setGenerating(false);
     }
@@ -224,6 +240,9 @@ function DebateDetail() {
         </Button>
         <Button onClick={handleGenerateAll} disabled={generating || done} size="sm">
           <Play className="h-4 w-4 mr-1" /> {generating ? "Gerando…" : "Gerar todas"}
+        </Button>
+        <Button onClick={redoLast} disabled={generating || !data || data.messages.length === 0} variant="outline" size="sm" title="Apaga a última fala e gera de novo">
+          <RotateCcw className="h-4 w-4 mr-1" /> Refazer última
         </Button>
         {generating && (
           <Button onClick={handleStop} variant="destructive" size="sm">
