@@ -1,9 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 const BUCKET = "persona-videos";
 const SIGNED_TTL = 60 * 60 * 24 * 365;
+
+function resolveImageUrl(raw: string): string {
+  if (/^https?:\/\//i.test(raw) || raw.startsWith("data:")) return raw;
+  try {
+    const req = getRequest();
+    const origin = new URL(req.url).origin;
+    return new URL(raw, origin).toString();
+  } catch {
+    throw new Error(`Imagem da persona usa caminho relativo (${raw}). Regenere a imagem para salvá-la no storage.`);
+  }
+}
 
 function pickUrl(output: unknown): string | null {
   if (typeof output === "string") return output;
