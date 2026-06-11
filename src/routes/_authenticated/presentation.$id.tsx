@@ -202,6 +202,9 @@ function PresentMode() {
     u.rate = Math.max(0.1, Math.min(10, slot.settings.speed));
     u.pitch = Math.max(0, Math.min(2, 1 + slot.settings.pitch / 12));
     u.volume = Math.max(0, Math.min(1, slot.settings.volume));
+    // Estima duração para teleprompter
+    const estMs = Math.round((Math.max(20, text.length) / 14) * 1000 / Math.max(0.5, u.rate));
+    setCurrentAudioMs(estMs);
     u.onend = () => {
       clearKeepAlive();
       if (token === playTokenRef.current) setTimeout(onEnd, 0);
@@ -248,6 +251,7 @@ function PresentMode() {
     const token = playTokenRef.current;
     const slot = slotFor(role);
     const clean = stripMarkdownForTts(text);
+    setVoiceFallback((f) => (f?.msgId === msgId ? null : f));
     if (slot.provider === "browser") {
       browserSpeak(clean, role, token, onEnd);
       return;
@@ -258,6 +262,12 @@ function PresentMode() {
       if (token !== playTokenRef.current) return;
       const audio = ensureAudioEl();
       audio.onended = null;
+      audio.onloadedmetadata = () => {
+        if (token !== playTokenRef.current) return;
+        if (isFinite(audio.duration) && audio.duration > 0) {
+          setCurrentAudioMs(Math.round(audio.duration * 1000));
+        }
+      };
       audio.src = url;
       // Para providers que não aceitam settings server-side, aplica no player.
       if (slot.provider === "replicate" || slot.provider === "eleven") {
@@ -271,14 +281,32 @@ function PresentMode() {
       await audio.play();
       // Prefetch das próximas 2 falas em background (não bloqueia).
       void prefetchUpcoming(2);
-    } catch {
+    } catch (err) {
       if (token !== playTokenRef.current) return;
       const label = slot.provider === "eleven" ? "ElevenLabs" : slot.provider === "minimax" ? "MiniMax" : "Replicate";
-      toast.error(`${label} indisponível — usando voz do navegador.`);
+      const reason = err instanceof Error ? err.message : "erro desconhecido";
+      toast.error(`${label} falhou: ${reason.slice(0, 120)} — usando voz do navegador.`, { duration: 6000 });
+      setVoiceFallback({ msgId, reason });
       browserSpeak(clean, role, token, onEnd);
     } finally {
       setLoading(false);
     }
+  }
+
+  /** Retenta a fala atual (útil quando a voz clonada falhou). */
+  function retryCurrent() {
+    if (!current) return;
+    // Invalida cache desta mensagem para forçar nova chamada.
+    const slot = slotFor((current.role ?? "moderator") as Side);
+    const cacheKeyPrefix = `${slot.provider}:${current.id}:`;
+    for (const k of Array.from(audioCache.current.keys())) {
+      if (k.startsWith(cacheKeyPrefix)) audioCache.current.delete(k);
+    }
+    setVoiceFallback(null);
+    stopAll();
+    // Re-dispara o efeito de speak
+    setPlaying(false);
+    setTimeout(() => setPlaying(true), 50);
   }
 
   async function prefetchUpcoming(count: number) {
