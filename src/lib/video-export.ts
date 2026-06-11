@@ -581,7 +581,17 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
   const segments: string[] = [];
   const total = messages.length;
 
-  // ── Disclaimer segment (4s, silent audio) ──
+  // Pré-carrega a música de abertura (compartilhada entre disclaimer e vinheta).
+  let openingMusicLoaded = false;
+  try {
+    const musicBytes = await fetchBytes(musicAsset.url);
+    await ffmpeg.writeFile("opening.mp3", musicBytes);
+    openingMusicLoaded = true;
+  } catch {
+    // sem música — segmentos de abertura ficam em silêncio
+  }
+
+  // ── Disclaimer segment (4s, com música de abertura se disponível) ──
   log("Renderizando aviso de IA", 0.08);
   drawDisclaimerFrame(ctx);
   {
@@ -590,12 +600,17 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     );
     const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
     await ffmpeg.writeFile("disclaimer.png", pngBytes);
+    const audioInputs = openingMusicLoaded
+      ? ["-i", "opening.mp3"]
+      : ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"];
+    const audioFilter = openingMusicLoaded
+      ? ["-af", "afade=t=in:st=0:d=0.5,afade=t=out:st=3.3:d=0.7,volume=0.6"]
+      : [];
     await ffmpeg.exec([
       "-loop", "1",
       "-framerate", "2",
       "-i", "disclaimer.png",
-      "-f", "lavfi",
-      "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+      ...audioInputs,
       "-t", "4",
       "-c:v", "libx264",
       "-tune", "stillimage",
@@ -605,6 +620,7 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
       "-c:a", "aac",
       "-b:a", "160k",
       "-ar", "44100",
+      ...audioFilter,
       "-shortest",
       "-movflags", "+faststart",
       "seg_disclaimer.mp4",
@@ -612,6 +628,43 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     await ffmpeg.deleteFile("disclaimer.png").catch(() => {});
     segments.push("seg_disclaimer.mp4");
   }
+
+  // ── Vignette segment (6s, música de abertura) — só se temos música ──
+  if (openingMusicLoaded) {
+    log("Renderizando vinheta", 0.1);
+    drawVignetteFrame(ctx, topic);
+    const pngBlob: Blob = await new Promise((res) =>
+      canvas.toBlob((b) => res(b!), "image/png"),
+    );
+    const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
+    await ffmpeg.writeFile("vignette.png", pngBytes);
+    await ffmpeg.exec([
+      "-loop", "1",
+      "-framerate", "2",
+      "-i", "vignette.png",
+      "-i", "opening.mp3",
+      "-t", "6",
+      "-c:v", "libx264",
+      "-tune", "stillimage",
+      "-pix_fmt", "yuv420p",
+      "-vf", "scale=1280:720",
+      "-r", "24",
+      "-c:a", "aac",
+      "-b:a", "160k",
+      "-ar", "44100",
+      "-af", "afade=t=in:st=0:d=0.4,afade=t=out:st=5.2:d=0.8,volume=0.85",
+      "-shortest",
+      "-movflags", "+faststart",
+      "seg_vignette.mp4",
+    ]);
+    await ffmpeg.deleteFile("vignette.png").catch(() => {});
+    segments.push("seg_vignette.mp4");
+  }
+
+  if (openingMusicLoaded) {
+    await ffmpeg.deleteFile("opening.mp3").catch(() => {});
+  }
+
 
 
   for (let i = 0; i < total; i++) {
