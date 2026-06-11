@@ -140,7 +140,6 @@ export type Database = {
           debater_b_model: string
           debater_b_name: string
           debater_b_persona: string
-          direction: string | null
           dynamic_flow: boolean
           format: string
           id: string
@@ -173,7 +172,6 @@ export type Database = {
           debater_b_model?: string
           debater_b_name: string
           debater_b_persona: string
-          direction?: string | null
           dynamic_flow?: boolean
           format?: string
           id?: string
@@ -206,7 +204,6 @@ export type Database = {
           debater_b_model?: string
           debater_b_name?: string
           debater_b_persona?: string
-          direction?: string | null
           dynamic_flow?: boolean
           format?: string
           id?: string
