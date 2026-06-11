@@ -32,7 +32,7 @@ export interface TimelineMusic {
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  initialClips: Omit<TimelineClip, "trimStart" | "trimEnd" | "subtitle" | "duration"> & { duration: number }[] extends never ? never : TimelineClip[];
+  initialClips: TimelineClip[];
   musicUrl: string;
   onExport: (clips: TimelineClip[], music: TimelineMusic) => Promise<void>;
   /** export progress (0..1) and label; null means idle */
