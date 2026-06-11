@@ -17,6 +17,8 @@ import {
   Magnet,
   GripHorizontal,
   Eye,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 
 export interface TimelineClip {
@@ -76,6 +78,50 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
   const dragSrcIdxRef = useRef<number | null>(null);
 
   const snap = SNAP_OPTIONS.find((o) => o.value === snapKey)?.seconds ?? 0;
+
+  // Histórico (undo/redo) — snapshot no início de cada ação.
+  const clipsRef = useRef(clips);
+  clipsRef.current = clips;
+  const pastRef = useRef<TimelineClip[][]>([]);
+  const futureRef = useRef<TimelineClip[][]>([]);
+  const [, bump] = useState(0);
+  function pushHistory() {
+    pastRef.current.push(clipsRef.current);
+    if (pastRef.current.length > 80) pastRef.current.shift();
+    futureRef.current = [];
+    bump((x) => x + 1);
+  }
+  function undo() {
+    const prev = pastRef.current.pop();
+    if (!prev) return;
+    futureRef.current.push(clipsRef.current);
+    setClips(prev);
+    bump((x) => x + 1);
+  }
+  function redo() {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    pastRef.current.push(clipsRef.current);
+    setClips(next);
+    bump((x) => x + 1);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      } else if (mod && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (open) setClips(initialClips);
@@ -178,6 +224,14 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
         <div className="space-y-4">
           {/* Top controls */}
           <div className="flex flex-wrap items-center gap-4 rounded-lg border p-3">
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={undo} disabled={pastRef.current.length === 0} title="Desfazer (Ctrl+Z)">
+                <Undo2 className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={redo} disabled={futureRef.current.length === 0} title="Refazer (Ctrl+Shift+Z)">
+                <Redo2 className="h-4 w-4" />
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
               <Magnet className="h-4 w-4 text-primary" />
               <Label className="text-xs">Snap</Label>
@@ -256,6 +310,10 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                       label={`${labelFor(c.role)} · ${fmt(seg.eff)}`}
                       playing={playingId === c.id}
                       isDropTarget={isOver}
+                      url={c.audioUrl}
+                      trimStart={c.trimStart}
+                      trimEnd={c.trimEnd}
+                      duration={c.duration}
                       onPlay={() => (playingId === c.id ? stop() : play(c))}
                       onPreviewLeft={() => previewEdge(c, "left")}
                       onPreviewRight={() => previewEdge(c, "right")}
@@ -272,7 +330,8 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                         if (newEnd !== c.trimEnd) updateClip(c.id, { trimEnd: newEnd });
                       }}
                       onTrimEndCommit={(side) => previewEdge(c, side)}
-                      onDragStart={() => (dragSrcIdxRef.current = i)}
+                      onBeforeChange={pushHistory}
+                      onDragStart={() => { pushHistory(); dragSrcIdxRef.current = i; }}
                       onDragOver={() => setDragOverIdx(i)}
                       onDragEnd={() => {
                         const from = dragSrcIdxRef.current;
@@ -313,7 +372,7 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                           : "border-dashed border-muted-foreground/30 bg-transparent text-muted-foreground/60"
                       }`}
                       style={{ left: 120 + seg.start * PX_PER_SEC, width: seg.eff * PX_PER_SEC }}
-                      onClick={() => updateClip(c.id, { subtitle: !c.subtitle })}
+                      onClick={() => { pushHistory(); updateClip(c.id, { subtitle: !c.subtitle }); }}
                       title="Clique para alternar legenda"
                     >
                       {c.subtitle ? "CC " : "—  "}
@@ -375,12 +434,17 @@ function ClipBlock({
   label,
   playing,
   isDropTarget,
+  url,
+  trimStart,
+  trimEnd,
+  duration,
   onPlay,
   onPreviewLeft,
   onPreviewRight,
   onTrimLeft,
   onTrimRight,
   onTrimEndCommit,
+  onBeforeChange,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -391,12 +455,17 @@ function ClipBlock({
   label: string;
   playing: boolean;
   isDropTarget: boolean;
+  url: string;
+  trimStart: number;
+  trimEnd: number;
+  duration: number;
   onPlay: () => void;
   onPreviewLeft: () => void;
   onPreviewRight: () => void;
   onTrimLeft: (deltaPx: number) => void;
   onTrimRight: (deltaPx: number) => void;
   onTrimEndCommit: (side: "left" | "right") => void;
+  onBeforeChange: () => void;
   onDragStart: () => void;
   onDragOver: () => void;
   onDragEnd: () => void;
@@ -404,6 +473,7 @@ function ClipBlock({
   function startTrim(e: React.PointerEvent, side: "left" | "right", cb: (delta: number) => void) {
     e.stopPropagation();
     e.preventDefault();
+    onBeforeChange();
     let lastX = e.clientX;
     const move = (ev: PointerEvent) => {
       const dx = ev.clientX - lastX;
@@ -440,8 +510,9 @@ function ClipBlock({
       }`}
       style={{ left, width: Math.max(20, width), backgroundColor: color, opacity: 0.92 }}
     >
+      <ClipWaveform url={url} trimStart={trimStart} trimEnd={trimEnd} duration={duration} />
       <div
-        className="h-full w-2 cursor-ew-resize bg-black/30 hover:bg-black/50 transition"
+        className="relative h-full w-2 cursor-ew-resize bg-black/30 hover:bg-black/50 transition"
         onPointerDown={(e) => startTrim(e, "left", onTrimLeft)}
         title="Arraste para cortar início (snap ativo)"
       />
@@ -486,6 +557,61 @@ function ClipBlock({
         title="Arraste para cortar fim (snap ativo)"
       />
     </div>
+  );
+}
+
+/* ── Waveform (decodifica o áudio uma vez, cacheia os picos) ── */
+const peaksCache = new Map<string, number[]>();
+let sharedCtx: AudioContext | null = null;
+function audioCtx(): AudioContext {
+  const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  return (sharedCtx ??= new Ctor());
+}
+async function computePeaks(url: string, bars = 240): Promise<number[]> {
+  const cached = peaksCache.get(url);
+  if (cached) return cached;
+  const arr = await fetch(url).then((r) => r.arrayBuffer());
+  const audio = await audioCtx().decodeAudioData(arr.slice(0));
+  const data = audio.getChannelData(0);
+  const block = Math.max(1, Math.floor(data.length / bars));
+  const peaks: number[] = [];
+  for (let i = 0; i < bars; i++) {
+    let max = 0;
+    const base = i * block;
+    for (let j = 0; j < block; j++) {
+      const v = Math.abs(data[base + j] || 0);
+      if (v > max) max = v;
+    }
+    peaks.push(max);
+  }
+  const norm = Math.max(...peaks, 0.01);
+  const out = peaks.map((p) => p / norm);
+  peaksCache.set(url, out);
+  return out;
+}
+
+function ClipWaveform({ url, trimStart, trimEnd, duration }: { url: string; trimStart: number; trimEnd: number; duration: number }) {
+  const [peaks, setPeaks] = useState<number[] | null>(null);
+  useEffect(() => {
+    let on = true;
+    computePeaks(url).then((p) => on && setPeaks(p)).catch(() => {});
+    return () => { on = false; };
+  }, [url]);
+  if (!peaks || peaks.length === 0) return null;
+  const total = duration || 1;
+  const a = clamp(trimStart / total, 0, 1);
+  const b = clamp(1 - trimEnd / total, 0, 1);
+  const i0 = Math.floor(a * peaks.length);
+  const i1 = Math.max(i0 + 1, Math.floor(b * peaks.length));
+  const slice = peaks.slice(i0, i1);
+  const n = slice.length;
+  return (
+    <svg className="absolute inset-0 h-full w-full opacity-35 pointer-events-none" viewBox={`0 0 ${n} 100`} preserveAspectRatio="none">
+      {slice.map((p, i) => {
+        const h = Math.max(2, p * 88);
+        return <rect key={i} x={i + 0.12} y={(100 - h) / 2} width={0.76} height={h} rx={0.3} fill="black" />;
+      })}
+    </svg>
   );
 }
 
