@@ -14,6 +14,12 @@ export interface ExportMessage {
   content: string;
   /** data: URL or http URL of the spoken audio (mp3/wav). Required. */
   audioUrl: string;
+  /** seconds to cut from start of audio (default 0) */
+  trimStart?: number;
+  /** seconds to cut from end of audio (default 0) */
+  trimEnd?: number;
+  /** render caption on the frame for this clip (default true) */
+  subtitle?: boolean;
 }
 
 export interface ExportInput {
@@ -25,6 +31,10 @@ export interface ExportInput {
   aDescription?: string | null;
   bDescription?: string | null;
   messages: ExportMessage[];
+  /** Optional background music URL mixed over the whole debate (loops). */
+  musicUrl?: string | null;
+  /** Music volume 0..1 (default 0.25). */
+  musicVolume?: number;
   onProgress?: (stage: string, pct: number) => void;
 }
 
@@ -553,7 +563,7 @@ function getAudioDuration(url: string): Promise<number> {
 }
 
 export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
-  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, onProgress } = input;
+  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, onProgress } = input;
   const log = (stage: string, pct: number) => onProgress?.(stage, Math.max(0, Math.min(1, pct)));
 
   log("Carregando avatares", 0.02);
@@ -669,7 +679,8 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
 
   for (let i = 0; i < total; i++) {
     const m = messages[i];
-    const caption = stripMarkdownForTts(m.content);
+    const showSubtitle = m.subtitle !== false;
+    const caption = showSubtitle ? stripMarkdownForTts(m.content) : "";
     // O primeiro turno é a vinheta de abertura — usamos o frame de apresentação
     // dos convidados (estilo Roda Viva) em vez do palco padrão.
     if (i === 0) {
@@ -696,18 +707,23 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     const segName = `seg${i}.mp4`;
 
     const audBytes = await fetchBytes(m.audioUrl);
-    const duration = await getAudioDuration(m.audioUrl);
+    const rawDuration = await getAudioDuration(m.audioUrl);
+    const trimStart = Math.max(0, Math.min(rawDuration - 0.2, m.trimStart ?? 0));
+    const trimEnd = Math.max(0, Math.min(rawDuration - trimStart - 0.2, m.trimEnd ?? 0));
+    const effective = Math.max(0.2, rawDuration - trimStart - trimEnd);
 
     await ffmpeg.writeFile(imgName, pngBytes);
     await ffmpeg.writeFile(audName, audBytes);
 
-    // image + audio → mp4 segment. -shortest stops at audio end.
+    // image + audio (trimmed) → mp4 segment.
     await ffmpeg.exec([
       "-loop", "1",
       "-framerate", "2",
       "-i", imgName,
+      "-ss", String(trimStart),
+      "-t", String(effective),
       "-i", audName,
-      "-t", String(duration + 0.2),
+      "-t", String(effective + 0.05),
       "-c:v", "libx264",
       "-tune", "stillimage",
       "-pix_fmt", "yuv420p",
@@ -726,22 +742,56 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     await ffmpeg.deleteFile(audName).catch(() => {});
 
     segments.push(segName);
-    log(`Codificando fala ${i + 1}/${total}`, 0.1 + (0.8 * (i + 1)) / total);
+    log(`Codificando fala ${i + 1}/${total}`, 0.1 + (0.75 * (i + 1)) / total);
   }
 
   // Concat list
   const list = segments.map((s) => `file '${s}'`).join("\n");
   await ffmpeg.writeFile("list.txt", new TextEncoder().encode(list));
 
-  log("Juntando segmentos", 0.92);
+  log("Juntando segmentos", 0.9);
+  const concatOutput = musicUrl ? "concat.mp4" : "out.mp4";
   await ffmpeg.exec([
     "-f", "concat",
     "-safe", "0",
     "-i", "list.txt",
     "-c", "copy",
     "-movflags", "+faststart",
-    "out.mp4",
+    concatOutput,
   ]);
+
+  // Mix background music over the whole video (looped, low volume).
+  if (musicUrl) {
+    log("Misturando música de fundo", 0.95);
+    try {
+      const musBytes = await fetchBytes(musicUrl);
+      await ffmpeg.writeFile("bgmusic.mp3", musBytes);
+      const vol = Math.max(0, Math.min(1, musicVolume));
+      await ffmpeg.exec([
+        "-i", "concat.mp4",
+        "-stream_loop", "-1",
+        "-i", "bgmusic.mp3",
+        "-filter_complex",
+        `[1:a]volume=${vol.toFixed(2)},afade=t=out:st=0:d=0.0[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=0[a]`,
+        "-map", "0:v",
+        "-map", "[a]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-shortest",
+        "-movflags", "+faststart",
+        "out.mp4",
+      ]);
+      await ffmpeg.deleteFile("bgmusic.mp3").catch(() => {});
+      await ffmpeg.deleteFile("concat.mp4").catch(() => {});
+    } catch {
+      // fallback: usa concat sem música
+      try {
+        await ffmpeg.exec(["-i", "concat.mp4", "-c", "copy", "out.mp4"]);
+        await ffmpeg.deleteFile("concat.mp4").catch(() => {});
+      } catch { /* ignore */ }
+    }
+  }
 
   const out = (await ffmpeg.readFile("out.mp4")) as Uint8Array;
   log("Pronto", 1);
