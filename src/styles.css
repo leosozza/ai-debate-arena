@@ -176,3 +176,31 @@
   background-color: color-mix(in oklch, var(--color-card) 70%, transparent);
   backdrop-filter: blur(12px);
 }
+
+/* ===== Holographic "summoning" — legends projetadas de outra dimensão ===== */
+@keyframes holo-flicker {
+  0%, 86%, 100% { opacity: 1; }
+  88% { opacity: 0.78; }
+  90% { opacity: 1; }
+  93% { opacity: 0.88; }
+  95% { opacity: 1; }
+}
+@keyframes holo-scan {
+  from { background-position: 0 0; }
+  to { background-position: 0 -120px; }
+}
+@keyframes portal-pulse {
+  0%, 100% { opacity: 0.6; transform: translateX(-50%) scaleX(1); }
+  50% { opacity: 0.95; transform: translateX(-50%) scaleX(1.06); }
+}
+
+@utility holo-scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 255, 255, 0.06) 3px,
+    transparent 4px
+  );
+  animation: holo-scan 7s linear infinite;
+}

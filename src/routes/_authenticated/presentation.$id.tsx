@@ -10,6 +10,7 @@ import { replicateTts } from "@/lib/voice-replicate.functions";
 import { ensurePersonaVignette } from "@/lib/persona-video.functions";
 import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
+import { HologramAvatar } from "@/components/HologramAvatar";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
@@ -681,11 +682,7 @@ function PresentMode() {
       {extraSpeaker && !isWinner && (
         <div className="absolute inset-x-0 top-20 z-30 mx-auto w-[min(92%,42rem)] rounded-2xl border border-primary/40 bg-card/90 p-4 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-top-2 duration-500">
           <div className="flex items-center gap-3">
-            {extraSpeaker.image_url ? (
-              <img src={extraSpeaker.image_url} alt={extraSpeaker.display_name} className="h-14 w-14 rounded-full border-2 border-primary object-cover" />
-            ) : (
-              <div className="h-14 w-14 rounded-full bg-primary/15 flex items-center justify-center border-2 border-primary"><Bot className="h-7 w-7 text-primary" /></div>
-            )}
+            <HologramAvatar src={extraSpeaker.image_url} name={extraSpeaker.display_name} tone={extraSpeaker.slot % 2 === 0 ? "blue" : "gold"} size={72} />
             <div className="min-w-0 flex-1">
               <div className="text-[10px] uppercase tracking-[0.28em] text-primary font-semibold">{extraSpeaker.role.replace("_", " ")}</div>
               <h3 className="font-display text-lg md:text-2xl font-extrabold text-foreground truncate">{extraSpeaker.display_name}</h3>

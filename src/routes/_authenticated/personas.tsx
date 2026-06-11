@@ -17,7 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Sparkles, Trash2, Plus, Globe, Lock, Mic, User, Library } from "lucide-react";
+import { Sparkles, Trash2, Plus, Globe, Lock, Mic, Library } from "lucide-react";
+import { HologramAvatar } from "@/components/HologramAvatar";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { VoiceClonePanel } from "@/components/VoiceClonePanel";
 import { PersonaImagePanel } from "@/components/PersonaImagePanel";
@@ -433,13 +434,7 @@ function PersonasPage() {
             <Card key={p.id} className="p-4 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex gap-3 min-w-0">
-                  <div className="w-14 h-14 shrink-0 rounded-lg overflow-hidden border border-border bg-muted/40 flex items-center justify-center">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="h-6 w-6 text-muted-foreground/50" />
-                    )}
-                  </div>
+                  <HologramAvatar src={p.image_url} name={p.name} tone="blue" size={60} className="shrink-0" />
                   <div className="min-w-0">
                     <h3 className="font-semibold truncate">{p.name}</h3>
                     {p.description && (
