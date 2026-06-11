@@ -22,7 +22,7 @@ import { VoicePicker } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-formats";
 import { Badge } from "@/components/ui/badge";
-import { ExtraParticipantsPanel, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
+import { ExtraParticipantsPanel, makeEmptyExtra, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
 import { AIDisclaimer } from "@/components/AIDisclaimer";
 
 export const Route = createFileRoute("/_authenticated/new")({
@@ -239,7 +239,12 @@ function NewDebate() {
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => { setForm({ ...form, format: f.id }); setExtras([]); }}
+                  onClick={() => {
+                    setForm({ ...form, format: f.id });
+                    // Já cria a quantidade mínima de convidados do formato (além de A/B).
+                    const need = Math.max(0, f.minDebaters - 2);
+                    setExtras(Array.from({ length: need }, (_, idx) => makeEmptyExtra(2 + idx)));
+                  }}
                   className={`group relative text-left rounded-lg border p-3 transition-all ${
                     active
                       ? "border-primary bg-primary/10 ring-2 ring-primary/40"
