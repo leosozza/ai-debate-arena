@@ -44,6 +44,13 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
   const elTts = useServerFn(ttsSpeak);
   const mmTts = useServerFn(minimaxTts);
   const rpTts = useServerFn(replicateTts);
+  const listPresets = useServerFn(listVoicePresets);
+  const presetsQuery = useQuery({
+    queryKey: ["voice-presets"],
+    queryFn: () => listPresets(),
+    staleTime: 60_000,
+  });
+  const presets = presetsQuery.data ?? [];
 
   useEffect(() => {
     function load() {
