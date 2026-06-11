@@ -3,6 +3,7 @@
 
 import { stripMarkdownForTts } from "./text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
+import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 
 export type ExportSide = "moderator" | "a" | "b";
 
