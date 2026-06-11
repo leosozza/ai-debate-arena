@@ -479,22 +479,40 @@ function PresentMode() {
     return extras.find((e) => e.slot === slot) ?? null;
   })();
 
-  // Card de apresentação dos convidados: aparece em cima da tela enquanto a
-  // primeira vinheta do mediador é narrada (index 0). Some assim que avançamos.
-  const showDebaterIntro = playing && index === 0 && currentBlockIdx === 0 && role === "moderator";
+  // Tarefas da preparação (montadas em tempo real para o PreparationScreen).
+  const prepTasks = [
+    { label: "Gerando vozes", done: prepVoices.done, total: prepVoices.total || 1, status: prepVoices.status },
+    { label: `Vinheta · ${data.debate.debater_a_name}`, done: prepVigA.status === "done" ? 1 : 0, total: 1, status: prepVigA.status, message: prepVigA.message },
+    { label: `Vinheta · ${data.debate.debater_b_name}`, done: prepVigB.status === "done" ? 1 : 0, total: 1, status: prepVigB.status, message: prepVigB.message },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[oklch(0.12_0.02_264)] text-foreground">
       <AIDisclaimer variant="footer" />
-      {showDisclaimer && (
+      {phase === "disclaimer" && (
         <button
           type="button"
-          onClick={() => setShowDisclaimer(false)}
+          onClick={() => setPhase("preparing")}
           className="fixed inset-0 z-[60] flex items-center justify-center bg-background/95 backdrop-blur-md cursor-pointer"
           aria-label="Continuar"
         >
           <AIDisclaimer variant="card" />
         </button>
+      )}
+      {phase === "preparing" && (
+        <PreparationScreen
+          tasks={prepTasks}
+          canSkip
+          onSkip={() => setPhase("opening")}
+        />
+      )}
+      {phase === "opening" && (
+        <OpeningSequence
+          topic={data.debate.topic}
+          a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved, videoUrl: vignetteA, description: aDescription }}
+          b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, videoUrl: vignetteB, description: bDescription }}
+          onDone={() => { setPhase("live"); setPlaying(true); }}
+        />
       )}
       {introBlock !== null && subtopicsList[introBlock] && (
         <BlockIntroCard
@@ -503,14 +521,6 @@ function PresentMode() {
           title={subtopicsList[introBlock].title}
           focus={subtopicsList[introBlock].focus}
           onDone={() => setIntroBlock(null)}
-        />
-      )}
-      {showDebaterIntro && (
-        <DebaterIntroCard
-          topic={data.debate.topic}
-          a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved, description: aDescription }}
-          b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, description: bDescription }}
-          onSkip={() => { stopAll(); setIndex((i) => Math.min(slideCount - 1, i + 1)); }}
         />
       )}
       {extraSpeaker && !isWinner && (
