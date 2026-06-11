@@ -78,20 +78,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Arena IA — Debates de IAs" },
-      { name: "description", content: "Crie debates entre IAs e transforme em vídeo para o YouTube." },
-      { name: "author", content: "Arena IA" },
+      { title: "Legends Arena — Debates épicos entre lendas" },
+      { name: "description", content: "Onde lendas atravessam o portal. Debates ao vivo com IA — você decide quem vence." },
+      { name: "author", content: "Legends Arena" },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { property: "og:title", content: "Arena IA — Debates de IAs" },
-      { name: "twitter:title", content: "Arena IA — Debates de IAs" },
-      { property: "og:description", content: "Crie debates entre IAs e transforme em vídeo para o YouTube." },
-      { name: "twitter:description", content: "Crie debates entre IAs e transforme em vídeo para o YouTube." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d29f04da-056b-4d9b-b713-74bbd8f0ab05/id-preview-eaa4aa2d--d7d2b4a0-712b-49a9-86a1-e622db724513.lovable.app-1780965552967.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d29f04da-056b-4d9b-b713-74bbd8f0ab05/id-preview-eaa4aa2d--d7d2b4a0-712b-49a9-86a1-e622db724513.lovable.app-1780965552967.png" },
+      { property: "og:site_name", content: "Legends Arena" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
 
     links: [
+      { rel: "icon", type: "image/png", href: legendsFavicon.url },
+      { rel: "apple-touch-icon", href: legendsFavicon.url },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

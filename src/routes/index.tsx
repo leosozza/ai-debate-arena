@@ -5,14 +5,21 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { Mic, Clapperboard, BookOpen, Play, Sparkles, Swords, ArrowRight, Menu, X } from "lucide-react";
+import { LegendsLogo } from "@/components/LegendsLogo";
+import logoAsset from "@/assets/legends-arena-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Arena IA — Meu Estúdio de Debates" },
-      { name: "description", content: "Ferramenta pessoal para criar debates entre IAs, gerar roteiros e gravar vídeos para o YouTube." },
-      { property: "og:title", content: "Arena IA — Meu Estúdio de Debates" },
-      { property: "og:description", content: "Meu estúdio pessoal de debates entre inteligências artificiais." },
+      { title: "Legends Arena — Debates épicos entre lendas" },
+      { name: "description", content: "Onde lendas atravessam o portal. Debates ao vivo com IA — você decide quem vence." },
+      { property: "og:title", content: "Legends Arena — Debates épicos entre lendas" },
+      { property: "og:description", content: "Onde lendas atravessam o portal. Debates ao vivo com IA — você decide quem vence." },
+      { property: "og:image", content: logoAsset.url },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Legends Arena" },
+      { name: "twitter:description", content: "Onde lendas atravessam o portal. Você decide quem vence." },
+      { name: "twitter:image", content: logoAsset.url },
     ],
   }),
   component: Landing,
@@ -37,11 +44,20 @@ function Landing() {
 
       <main className="container mx-auto px-4">
         {/* Hero */}
-        <section className="pt-36 pb-24 md:pt-44 md:pb-28 text-center max-w-3xl mx-auto">
+        <section className="pt-28 pb-24 md:pt-32 md:pb-28 text-center max-w-3xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+            className="flex justify-center mb-6"
+          >
+            <LegendsLogo size="xl" />
+          </motion.div>
+
           <Reveal>
             <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-4 py-1.5 text-xs text-muted-foreground backdrop-blur">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Meu estúdio pessoal de debates entre IAs
+              A arena dos debates impossíveis
             </div>
           </Reveal>
 
@@ -49,17 +65,16 @@ function Landing() {
             className="font-display text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.04] mt-7"
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            Dois <span className="text-side-a">cérebros</span>.<br />
-            Um <span className="text-side-b">tema</span>.{" "}
-            Um <span className="bg-gradient-to-r from-primary via-side-a to-primary bg-clip-text text-transparent">vídeo</span>.
+            <span className="bg-gradient-to-r from-primary via-side-a to-primary bg-clip-text text-transparent">Legends</span>{" "}
+            <span className="text-foreground">Arena</span>
           </motion.h1>
 
-          <Reveal delay={0.12}>
+          <Reveal delay={0.32}>
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mt-6">
-              Escolho o tema, defino os personagens e deixo as IAs debaterem. O mediador cria
-              as regras, o roteiro sai pronto e a tela cheia me deixa gravar direto para o YouTube.
+              Onde lendas atravessam o portal. Escolho o tema, invoco dois convidados e
+              deixo a IA conduzir o debate ao vivo. <span className="text-foreground font-semibold">Você decide quem vence.</span>
             </p>
           </Reveal>
 
@@ -121,7 +136,7 @@ function Landing() {
 
       <footer className="border-t border-border/50">
         <div className="container mx-auto px-4 h-14 flex items-center justify-center text-xs text-muted-foreground">
-          Arena IA — estúdio pessoal · feito para o meu canal
+          Legends Arena · debates épicos para o canal
         </div>
       </footer>
     </div>
@@ -149,11 +164,9 @@ function Navbar({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
       className="fixed top-0 left-0 w-full z-50 border-b border-border/40 glass"
     >
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-display font-bold">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
-            <Mic className="h-4 w-4" />
-          </span>
-          Arena IA
+        <Link to="/" className="flex items-center gap-2 font-display font-bold tracking-wide">
+          <LegendsLogo size="sm" />
+          Legends Arena
         </Link>
 
         <nav className="hidden md:flex items-center gap-7 text-sm text-muted-foreground">
