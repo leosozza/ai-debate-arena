@@ -189,7 +189,15 @@ function PresentMode() {
   }
 
   function slotFor(role: Side): VoiceSlot {
-    return role === "moderator" ? slotMod : role === "a" ? slotA : slotB;
+    if (role === "moderator") return slotMod;
+    if (role === "a") return slotA;
+    if (role === "b") return slotB;
+    if (typeof role === "string" && role.startsWith("ex")) {
+      const slot = Number(role.slice(2));
+      const e = extras.find((x) => x.slot === slot);
+      if (e) return { provider: ((e.voice_provider as VoiceProvider | null) ?? "browser"), voiceId: e.voice_id ?? null, settings: DEFAULT_VOICE_SETTINGS };
+    }
+    return slotB;
   }
 
   function browserSpeak(text: string, role: Side, token: number, onEnd: () => void) {

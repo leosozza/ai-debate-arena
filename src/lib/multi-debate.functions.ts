@@ -84,9 +84,15 @@ function toneFor(formatId: string): string {
   return "Tom de mesa-redonda de TV — vivo, direto, com troca de ideias entre os convidados.";
 }
 
+// Convenção de role compatível com a apresentação (Lovable): slot 0 = "a",
+// slot 1 = "b", slot 2+ = "ex{slot}". Mediador = "moderator".
+function slotRole(slot: number): string {
+  return slot === 0 ? "a" : slot === 1 ? "b" : `ex${slot}`;
+}
+
 function labelMap(parts: Participant[]): Record<string, string> {
   const m: Record<string, string> = { moderator: "Mediador" };
-  for (const p of parts) m[`p${p.slot}`] = p.display_name;
+  for (const p of parts) m[slotRole(p.slot)] = p.display_name;
   return m;
 }
 
@@ -139,7 +145,7 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
 
     const isMod = next.speaker === "moderator";
     const speaker = isMod ? null : parts.find((p) => p.slot === next.speaker);
-    const roleMsg = isMod ? "moderator" : `p${next.speaker}`;
+    const roleMsg = isMod ? "moderator" : slotRole(next.speaker as number);
     const model = isMod ? debate.moderator_model : (speaker?.model || DEFAULT_MODEL);
 
     let sysPrompt: string;

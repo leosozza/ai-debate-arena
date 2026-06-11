@@ -51,7 +51,7 @@ function DebateDetail() {
     if (role === "moderator") return "Mediador";
     if (role === "a") return data?.debate.debater_a_name ?? "A";
     if (role === "b") return data?.debate.debater_b_name ?? "B";
-    const slot = role.startsWith("p") ? Number(role.slice(1)) : NaN;
+    const slot = role.startsWith("ex") ? Number(role.slice(2)) : NaN;
     return extras?.find((x) => x.slot === slot)?.display_name ?? role;
   }
   const PALETTE = [
@@ -65,7 +65,7 @@ function DebateDetail() {
     if (role === "a") return PALETTE[0];
     if (role === "b") return PALETTE[1];
     if (role === "moderator") return { border: "border-l-primary", text: "text-primary" };
-    const slot = role.startsWith("p") ? Number(role.slice(1)) : 0;
+    const slot = role.startsWith("ex") ? Number(role.slice(2)) : 0;
     return PALETTE[slot % PALETTE.length];
   }
 
