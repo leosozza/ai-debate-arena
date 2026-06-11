@@ -60,9 +60,10 @@ function PresentMode() {
   const [currentAudioMs, setCurrentAudioMs] = useState<number | null>(null);
   // Aviso quando a voz clonada cai para o navegador
   const [voiceFallback, setVoiceFallback] = useState<{ msgId: string; reason: string } | null>(null);
-  // Phase machine: disclaimer (CTA) → preparing (gen voices+vignettes) → vignette (cinematic+music) → live (mediador narra aviso+intro)
+  // Phase machine: preparing (gen voices+vignettes) → disclaimer (aviso narrado) → vignette (cinematic+music) → live
   type Phase = "disclaimer" | "preparing" | "vignette" | "live";
-  const [phase, setPhase] = useState<Phase>("disclaimer");
+  const [phase, setPhase] = useState<Phase>("preparing");
+  const disclaimerStartedRef = useRef(false);
   const [prepVoices, setPrepVoices] = useState({ done: 0, total: 0, status: "idle" as "idle" | "running" | "done" | "error" });
   const [prepVigA, setPrepVigA] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
   const [prepVigB, setPrepVigB] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
@@ -132,32 +133,10 @@ function PresentMode() {
   }, [data, personas]);
 
 
-  // Inject 2 virtual moderator openings (AI disclaimer + guests intro) before the scripted debate.
-  const debateInfo = data?.debate;
+  // Sem mensagens virtuais: o AVISO é narrado uma vez no card de abertura, e a
+  // APRESENTAÇÃO DOS CONVIDADOS já é feita pela vinheta do mediador (bloco 0).
   const rawMessages = data?.messages ?? [];
-  const virtualOpening = debateInfo
-    ? [
-        {
-          id: "__opening_disclaimer__",
-          role: "moderator" as const,
-          phase: "abertura",
-          block_index: 0,
-          content: AI_DISCLAIMER_TEXT,
-        },
-        {
-          id: "__opening_guests__",
-          role: "moderator" as const,
-          phase: "abertura",
-          block_index: 0,
-          content:
-            `Boa noite, e bem-vindos à Legends Arena. Hoje na arena, o tema é: ${debateInfo.topic}. ` +
-            `À minha direita, ${debateInfo.debater_a_name}. ` +
-            `À minha esquerda, ${debateInfo.debater_b_name}. ` +
-            `Que vença o melhor argumento.`,
-        },
-      ]
-    : [];
-  const messages = [...virtualOpening, ...rawMessages];
+  const messages = rawMessages;
   const current = messages[index];
   const verdict = (data?.debate?.verdict as Verdict | null) ?? null;
   const slideCount = messages.length + (verdict ? 1 : 0);
@@ -550,7 +529,7 @@ function PresentMode() {
   useEffect(() => {
     if (phase !== "preparing") return;
     if (prepVoices.status === "done") {
-      const t = setTimeout(() => setPhase("vignette"), 600);
+      const t = setTimeout(() => setPhase("disclaimer"), 600);
       return () => clearTimeout(t);
     }
   }, [phase, prepVoices.status]);
@@ -642,11 +621,16 @@ function PresentMode() {
         <button
           type="button"
           onClick={() => {
+            if (disclaimerStartedRef.current) return;
+            disclaimerStartedRef.current = true;
             // Prime audio element dentro do gesto → libera autoplay no iOS Safari.
             const a = ensureAudioEl();
             a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
             a.play().then(() => a.pause()).catch(() => { /* ignore */ });
-            setPhase("preparing");
+            // Narra o AVISO uma única vez; ao terminar, entra na vinheta cinematográfica.
+            void speak("__disclaimer__", AI_DISCLAIMER_TEXT, "moderator", () => setPhase("vignette"));
+            // Segurança: se a narração falhar/travar, avança mesmo assim.
+            window.setTimeout(() => setPhase((p) => (p === "disclaimer" ? "vignette" : p)), 30000);
           }}
           className="fixed inset-0 z-[60] flex items-center justify-center bg-background/95 backdrop-blur-md cursor-pointer"
           aria-label="Continuar"
@@ -658,7 +642,7 @@ function PresentMode() {
         <PreparationScreen
           tasks={prepTasks}
           canSkip
-          onSkip={() => setPhase("vignette")}
+          onSkip={() => setPhase("disclaimer")}
         />
       )}
       {phase === "vignette" && (
