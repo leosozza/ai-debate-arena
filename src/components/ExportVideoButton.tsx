@@ -67,6 +67,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
     if (slot.provider === "eleven") {
       const res = await elTts({ data: { text: clean, voiceId: slot.voiceId } });
+      if ("error" in res && res.error) throw new Error(res.error);
       return `data:${res.mime};base64,${res.audio}`;
     }
     if (slot.provider === "minimax") {
@@ -79,6 +80,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       return `data:${res.mime};base64,${res.audioBase64}`;
     }
     const res = await rpTts({ data: { text: clean, voiceId: slot.voiceId } });
+    if ("error" in res && res.error) throw new Error(res.error);
     return `data:${res.mime};base64,${res.audioBase64}`;
   }
 
