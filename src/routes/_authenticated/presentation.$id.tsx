@@ -649,17 +649,11 @@ function PresentMode() {
         <OpeningVignette
           topic={data.debate.topic}
           audioPrimed
-          onDone={() => setPhase("opening")}
-        />
-      )}
-      {phase === "opening" && (
-        <OpeningSequence
-          topic={data.debate.topic}
-          a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved, videoUrl: vignetteA, description: aDescription }}
-          b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, videoUrl: vignetteB, description: bDescription }}
+          compact
           onDone={() => { setPhase("live"); setPlaying(true); }}
         />
       )}
+
       {introBlock !== null && subtopicsList[introBlock] && (
         <BlockIntroCard
           blockIndex={introBlock}
