@@ -609,7 +609,14 @@ function PresentMode() {
         <PreparationScreen
           tasks={prepTasks}
           canSkip
-          onSkip={() => setPhase("opening")}
+          onSkip={() => setPhase("vignette")}
+        />
+      )}
+      {phase === "vignette" && (
+        <OpeningVignette
+          topic={data.debate.topic}
+          audioPrimed
+          onDone={() => setPhase("opening")}
         />
       )}
       {phase === "opening" && (
