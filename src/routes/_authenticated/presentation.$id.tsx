@@ -14,7 +14,7 @@ import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
 import { AIDisclaimer, AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
-import { OpeningSequence } from "@/components/OpeningSequence";
+// OpeningSequence removido: apresentação dos convidados agora é narrada pelo mediador no palco.
 import { OpeningVignette } from "@/components/OpeningVignette";
 import { PreparationScreen } from "@/components/PreparationScreen";
 import { Teleprompter } from "@/components/Teleprompter";
@@ -59,8 +59,8 @@ function PresentMode() {
   const [currentAudioMs, setCurrentAudioMs] = useState<number | null>(null);
   // Aviso quando a voz clonada cai para o navegador
   const [voiceFallback, setVoiceFallback] = useState<{ msgId: string; reason: string } | null>(null);
-  // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → vignette (cinematic+music) → opening (A/B/VS) → live (debate)
-  type Phase = "disclaimer" | "preparing" | "vignette" | "opening" | "live";
+  // Phase machine: disclaimer (CTA) → preparing (gen voices+vignettes) → vignette (cinematic+music) → live (mediador narra aviso+intro)
+  type Phase = "disclaimer" | "preparing" | "vignette" | "live";
   const [phase, setPhase] = useState<Phase>("disclaimer");
   const [prepVoices, setPrepVoices] = useState({ done: 0, total: 0, status: "idle" as "idle" | "running" | "done" | "error" });
   const [prepVigA, setPrepVigA] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
@@ -252,7 +252,14 @@ function PresentMode() {
     const slot = slotFor(role);
     const clean = stripMarkdownForTts(text);
     setVoiceFallback((f) => (f?.msgId === msgId ? null : f));
-    if (slot.provider === "browser") {
+    if (slot.provider === "browser" || !slot.voiceId) {
+      // Avisa quando um debatedor (A/B) cai para voz do navegador por falta de voiceId —
+      // sintoma típico do "a voz do convidado não tocou".
+      if (role !== "moderator" && slot.provider !== "browser" && !slot.voiceId) {
+        const who = role === "a" ? "Convidado A" : role === "b" ? "Convidado B" : "Participante";
+        toast.warning(`${who} sem voz configurada — usando voz do navegador. Ajuste em Configurações.`, { duration: 5000 });
+        setVoiceFallback({ msgId, reason: "Nenhuma voz selecionada para este participante." });
+      }
       browserSpeak(clean, role, token, onEnd);
       return;
     }
@@ -649,17 +656,11 @@ function PresentMode() {
         <OpeningVignette
           topic={data.debate.topic}
           audioPrimed
-          onDone={() => setPhase("opening")}
-        />
-      )}
-      {phase === "opening" && (
-        <OpeningSequence
-          topic={data.debate.topic}
-          a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved, videoUrl: vignetteA, description: aDescription }}
-          b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved, videoUrl: vignetteB, description: bDescription }}
+          compact
           onDone={() => { setPhase("live"); setPlaying(true); }}
         />
       )}
+
       {introBlock !== null && subtopicsList[introBlock] && (
         <BlockIntroCard
           blockIndex={introBlock}

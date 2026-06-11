@@ -9,24 +9,27 @@ interface Props {
   onDone: () => void;
   /** Whether the audio element was primed inside a user gesture upstream. */
   audioPrimed?: boolean;
+  /** Shorter sequence (~3.8s) for when narration starts right after. */
+  compact?: boolean;
 }
 
-const TOTAL_MS = 8200;
-
 /** Cinematic news-broadcast intro: scanlines → particles → flash → logo → topic reveal. */
-export function OpeningVignette({ topic, onDone, audioPrimed = false }: Props) {
+export function OpeningVignette({ topic, onDone, audioPrimed = false, compact = false }: Props) {
+  const TOTAL_MS = compact ? 3800 : 8200;
+  const LOGO_AT = compact ? 600 : 1800;
+  const TOPIC_AT = compact ? 1500 : 3800;
   const [muted, setMuted] = useState(false);
   const [stage, setStage] = useState(0); // 0 boot, 1 logo, 2 topic, 3 fade out
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Choreography
   useEffect(() => {
-    const t1 = setTimeout(() => setStage(1), 1800); // logo in
-    const t2 = setTimeout(() => setStage(2), 3800); // topic in
-    const t3 = setTimeout(() => setStage(3), TOTAL_MS - 600); // fade out
+    const t1 = setTimeout(() => setStage(1), LOGO_AT); // logo in
+    const t2 = setTimeout(() => setStage(2), TOPIC_AT); // topic in
+    const t3 = setTimeout(() => setStage(3), TOTAL_MS - 500); // fade out
     const t4 = setTimeout(() => onDone(), TOTAL_MS);
     return () => { [t1, t2, t3, t4].forEach(clearTimeout); };
-  }, [onDone]);
+  }, [onDone, LOGO_AT, TOPIC_AT, TOTAL_MS]);
 
   // Audio
   useEffect(() => {
@@ -50,7 +53,7 @@ export function OpeningVignette({ topic, onDone, audioPrimed = false }: Props) {
       }, 60);
     }, TOTAL_MS - 900);
     return () => { clearInterval(fadeIn); clearTimeout(fadeOutAt); try { a.pause(); } catch { /* ignore */ } };
-  }, [muted]);
+  }, [muted, TOTAL_MS]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted;
