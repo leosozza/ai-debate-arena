@@ -1,71 +1,64 @@
+## Problema
 
-## O que vamos resolver
+Hoje o fluxo de abertura está assim:
 
-1. **Voz do Enéas ficou muda** — quando uma persona usa voz clonada (Replicate), às vezes o áudio não toca e o usuário não entende por quê.
-2. **Texto fica estático e cortado** — falas longas não cabem na tela; o usuário quer rolagem automática estilo **teleprompter**, acompanhando a fala.
-3. **Início do MP4 exportado fica mudo** — os primeiros 4 segundos (aviso de IA) não têm som.
+```text
+1. Card de aviso de IA (sem áudio)
+2. Preparing (carrega vozes/vinhetas)
+3. Vinheta cinemática (só música)
+4. OpeningSequence visual (A → B → VS, sem narração)
+5. Live: mediador narra o aviso + apresenta os convidados (de novo!)
+6. Debate
+```
 
----
+Resultado: começo mudo, ordem confusa, convidados são apresentados duas vezes (uma só visual, outra só voz).
 
-## 1. Voz clonada (Enéas) — diagnóstico + correção
+## Objetivo
 
-**Causa provável:** o `voiceId` salvo é uma URL "crua" (sem prefixo), que cai no modelo legado **XTTS v2**. XTTS v2 às vezes devolve áudio vazio ou expira sem erro claro. O `catch` engole o erro e tenta o navegador, mas no celular o `play()` falha em silêncio porque o gesto inicial já se "perdeu" após o await longo.
+Carregar tudo primeiro e só depois o apresentador entra no ar narrando aviso + apresentação dos convidados — uma vez só.
 
-**Mudanças:**
+```text
+1. Tela inicial "Iniciar transmissão" (única coisa que precisa de clique, libera autoplay)
+2. Preparing — gera todas as vozes e vinhetas (tela de loader, sem som)
+3. Vinheta cinemática Legends Arena + tema (música, sem narração — curta)
+4. Live (mediador no ar):
+   a) Mediador narra o aviso de IA (com card visual de aviso ao fundo)
+   b) Mediador apresenta o tema e os dois convidados (com card visual A/B/VS ao fundo)
+   c) Segue o debate normalmente
+```
 
-- **`src/lib/voice-replicate.functions.ts`** — quando o `voiceId` é uma URL sem prefixo, mudar o **default de XTTS → Chatterbox** (`cb:`). Chatterbox é o modelo nativo em PT-BR e é o que recomendamos no seletor.
-- **`src/lib/replicate.server.ts`** (ou onde está `runPrediction`) — validar que `output` tem áudio real (tamanho > 1KB depois do `fetchAsBase64`); caso contrário, lançar erro explícito `"Modelo devolveu áudio vazio"`.
-- **`src/routes/_authenticated/presentation.$id.tsx`**:
-  - Quando o TTS falhar e cair para o navegador, mostrar **um toast persistente com o motivo real** (não só "indisponível") e exibir um pequeno aviso ⚠ no painel do debatedor ativo: "Voz clonada falhou — usando voz do navegador".
-  - No `speak()`, se o provider falhar, NÃO usar `browserSpeak` em silêncio: tocar um beep curto antes para o usuário perceber a troca.
-  - Adicionar botão "🔁 Tentar de novo" no painel do debatedor quando a última fala falhou.
+## Mudanças
 
----
+### `src/routes/_authenticated/presentation.$id.tsx`
 
-## 2. Teleprompter (texto rolando junto com a fala)
+- Remover a fase `"opening"` da máquina de estados. Nova sequência: `disclaimer-cta → preparing → vignette → live`.
+- Não renderizar mais `<OpeningSequence>`. A apresentação visual dos convidados passa a ser feita pelo próprio palco (stage) enquanto o mediador fala — usando as duas mensagens virtuais que já existem (`__opening_disclaimer__` e `__opening_guests__`).
+- No final da `vignette` (`onDone`), ir direto para `live` e `setPlaying(true)` para o mediador começar a falar imediatamente.
+- Garantir que `ensureAudioEl()` é chamado no clique inicial "Iniciar transmissão" (preserva permissão de autoplay no iOS mesmo após o preparing longo).
+- Encurtar a vinheta (~3,5s) para não atrasar a entrada do mediador.
 
-Hoje a fala do mediador e dos debatedores aparece como um `<p>` único — se for longa, parte do texto fica escondida.
+### `src/routes/_authenticated/presentation.$id.tsx` — diagnóstico das vozes dos debatedores
 
-**Novo componente:** `src/components/Teleprompter.tsx`
-- Recebe `text`, `active` (está falando agora?), `durationMs` (duração do áudio quando disponível).
-- Quebra o texto em **palavras/sentenças**, destaca a sentença "atual" (highlight amarelo suave) e faz auto-scroll suave do contêiner para manter o destaque no centro.
-- Quando `durationMs` é conhecido (áudio TTS pré-gerado): scroll linear baseado em tempo.
-- Quando não há duração (voz do navegador): scroll baseado em estimativa (≈ 14 caracteres/segundo em PT-BR) + sync com `SpeechSynthesisUtterance.onboundary` para palavras quando disponível.
-- Sempre exibe o **texto inteiro** rolável (sem corte).
+- Quando uma fala de A/B cair para voz do navegador por falta de `voiceId`, mostrar um toast com link claro ("Definir voz") em vez de só falhar silenciosamente. Isso explica o "voz do Enéas não funcionou".
+- Garantir que `hydrate` aplique `persona.voice_id` sempre que a persona tiver voz definida (já faz, mas blindar caso `personas` chegue depois de `debate`, re-hidratando uma vez).
 
-**Integração em `presentation.$id.tsx`:**
-- Substituir os `<p>{speakerContent}</p>` (mediador e `StageDebaterPanel`) por `<Teleprompter text={speakerContent} active={…} durationMs={currentAudioDurationMs} />`.
-- Expor `currentAudioDurationMs` a partir do `<audio>`: quando carrega o `src` no `speak()`, ler `audio.duration` no `onloadedmetadata` e guardar em state.
-- Para a voz do navegador, usar `utterance.onboundary` para emitir um "tick" de palavra → o teleprompter avança.
+### `src/components/OpeningSequence.tsx`
 
-**Visual:** caixa com altura limitada (~3 linhas md/4 linhas mobile), `overflow-hidden`, gradiente de fade nas bordas superior/inferior, fonte ligeiramente maior, kerning de notícia.
+- Mantido no repositório mas não usado mais pela apresentação (pode ficar para futuro reaproveitamento). Sem edição.
 
----
+### Visual durante a narração de abertura
 
-## 3. Áudio na abertura do MP4 exportado
+- Quando `current.id === "__opening_disclaimer__"`: o palco mostra o card de **Aviso de IA** em destaque enquanto o mediador narra.
+- Quando `current.id === "__opening_guests__"`: o palco mostra **A / VS / B** com fotos e descrições enquanto o mediador apresenta.
+- A partir da terceira mensagem, palco normal de debate.
 
-Hoje `seg_disclaimer.mp4` tem 4s de **silêncio** (`anullsrc`). Solução:
+## Não muda
 
-- Embutir a **música de abertura** (`src/assets/legends-opening.mp3.asset.json`, já presente) no segmento de disclaimer e também num novo segmento **"vinheta"** de ~6s (logo + tema), igual ao que toca ao vivo no `OpeningVignette`.
-- Em `src/lib/video-export.ts`:
-  - Buscar a URL da música via `import musicAsset from "@/assets/legends-opening.mp3.asset.json"`, fazer `fetchBytes(musicAsset.url)`, gravar como `opening.mp3` no FFmpeg.
-  - Trocar o `-f lavfi -i anullsrc` do segmento `seg_disclaimer` por `-i opening.mp3` (com fade in/out para não cortar bruscamente).
-  - Adicionar novo segmento `seg_vignette.mp4` (~6s) com um frame "LEGENDS ARENA · tema" (função nova `drawVignetteFrame`) e a continuação da música.
-  - Ordem final dos segmentos: `disclaimer (4s) → vignette (6s) → intro (msg 0) → demais falas`.
-- Garantir que `-c copy` no concat ainda funcione: todos os segmentos devem usar **mesmo codec/sample rate/fps** (já são `libx264/aac/24fps/44100Hz`).
+- Exportação MP4 (a sequência lá já reflete: disclaimer narrado → vinheta → intro guests → debate).
+- Lógica de TTS, cache, fallback e providers.
+- Estrutura de mensagens no banco.
 
----
+## Validação
 
-## Arquivos tocados
-
-- **Editar** `src/lib/voice-replicate.functions.ts` — default Chatterbox para URLs sem prefixo.
-- **Editar** `src/lib/replicate.server.ts` — validação de áudio vazio.
-- **Criar** `src/components/Teleprompter.tsx`.
-- **Editar** `src/routes/_authenticated/presentation.$id.tsx` — usar Teleprompter, expor duração do áudio, aviso visual quando voz cai para navegador, botão "tentar de novo".
-- **Editar** `src/lib/video-export.ts` — música no disclaimer + novo segmento vinheta.
-
-## Fora do escopo (não vou mexer agora)
-
-- Renderizar a animação completa do `OpeningVignette` (partículas, scanlines) dentro do MP4 — só um frame estático com a música, porque animar tudo em canvas seria ~10× mais lento de exportar.
-- Sincronização palavra-por-palavra perfeita em vozes clonadas (Replicate não devolve word timestamps); usaremos o scroll linear baseado em duração do áudio, que é o padrão dos teleprompters de TV.
-- Trocar o motor de TTS do Enéas para outro provider (mantemos Replicate; só corrigimos o default).
+- Clicar "Iniciar transmissão" → ver loader de preparação → ver vinheta curta com música → ouvir mediador narrar aviso → ouvir mediador apresentar os convidados → ouvir A e B falarem normalmente.
+- Sem duplicação de apresentação. Sem trechos mudos no começo.
