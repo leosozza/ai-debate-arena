@@ -53,7 +53,7 @@ export function OpeningVignette({ topic, onDone, audioPrimed = false, compact = 
       }, 60);
     }, TOTAL_MS - 900);
     return () => { clearInterval(fadeIn); clearTimeout(fadeOutAt); try { a.pause(); } catch { /* ignore */ } };
-  }, [muted]);
+  }, [muted, TOTAL_MS]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted;
