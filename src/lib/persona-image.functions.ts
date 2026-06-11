@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
 
 const BUCKET = "persona-images";
@@ -12,6 +11,7 @@ async function uploadAndSign(
   contentType: string,
   ext: string,
 ): Promise<string> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const path = `${userId}/${crypto.randomUUID()}.${ext}`;
   const { error: upErr } = await supabaseAdmin.storage
     .from(BUCKET)
@@ -41,8 +41,8 @@ async function callImageGateway(body: object): Promise<string> {
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    if (res.status === 429) throw new Error("Limite de uso atingido. Tente em instantes.");
-    if (res.status === 402) throw new Error("Créditos de IA esgotados.");
+    if (res.status === 429) throw new Error("AI_RATE_LIMIT:Limite de uso atingido. Tente em instantes.");
+    if (res.status === 402) throw new Error("AI_CREDITS_EXHAUSTED:Créditos de IA esgotados. Use Enviar imagem ou adicione créditos para gerar com IA.");
     throw new Error(`Geração de imagem falhou (${res.status}): ${txt.slice(0, 200)}`);
   }
   const json = (await res.json()) as { data?: Array<{ b64_json?: string }> };
@@ -109,34 +109,44 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
     }. Square framing, neutral studio background, soft lighting, dignified expression, ultra-high detail.`;
 
     let b64: string;
-    if (refDataUrls.length > 0) {
-      const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person. Reproduce their actual face, features, ethnicity, age range, hair, and overall likeness as faithfully as possible — do not invent a different person. Use the references as ground truth for the identity; only the framing, lighting, and background should be standardized.`;
-      b64 = await callImageGateway({
-        model: "google/gemini-3.1-flash-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: instruction },
-              ...refDataUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
-            ],
-          },
-        ],
-        modalities: ["image", "text"],
-      });
-    } else {
-      // fallback: sem referências, gera um avatar fictício baseado só na descrição
-      b64 = await callImageGateway({
-        model: "openai/gpt-image-2",
-        prompt: baseInstruction,
-        size: "1024x1024",
-        quality: "low",
-        n: 1,
-      });
+    try {
+      if (refDataUrls.length > 0) {
+        const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person. Reproduce their actual face, features, ethnicity, age range, hair, and overall likeness as faithfully as possible — do not invent a different person. Use the references as ground truth for the identity; only the framing, lighting, and background should be standardized.`;
+        b64 = await callImageGateway({
+          model: "google/gemini-3.1-flash-image-preview",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: instruction },
+                ...refDataUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+              ],
+            },
+          ],
+          modalities: ["image", "text"],
+        });
+      } else {
+        // fallback: sem referências, gera um avatar fictício baseado só na descrição
+        b64 = await callImageGateway({
+          model: "openai/gpt-image-2",
+          prompt: baseInstruction,
+          size: "1024x1024",
+          quality: "low",
+          n: 1,
+        });
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("AI_CREDITS_EXHAUSTED:")) {
+        return { imageUrl: null, referencesUsed: refDataUrls.length, error: error.message.replace("AI_CREDITS_EXHAUSTED:", "") };
+      }
+      if (error instanceof Error && error.message.startsWith("AI_RATE_LIMIT:")) {
+        return { imageUrl: null, referencesUsed: refDataUrls.length, error: error.message.replace("AI_RATE_LIMIT:", "") };
+      }
+      throw error;
     }
 
     const url = await uploadAndSign(context.userId, b64ToBytes(b64), "image/png", "png");
-    return { imageUrl: url, referencesUsed: refDataUrls.length };
+    return { imageUrl: url, referencesUsed: refDataUrls.length, error: null as string | null };
   });
 
 /** Upload direto de imagem da persona. */
@@ -176,19 +186,30 @@ export const enhancePersonaImage = createServerFn({ method: "POST" })
       data.prompt && data.prompt.length > 2
         ? data.prompt
         : "Enhance this portrait into a clean head-and-shoulders avatar: sharpen details, fix lighting to soft studio light, neutral background, photorealistic, ultra-high detail. Keep the person's identity unchanged.";
-    const b64 = await callImageGateway({
-      model: "google/gemini-3.1-flash-image-preview",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: instruction },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-      modalities: ["image", "text"],
-    });
+    let b64: string;
+    try {
+      b64 = await callImageGateway({
+        model: "google/gemini-3.1-flash-image-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: instruction },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        modalities: ["image", "text"],
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("AI_CREDITS_EXHAUSTED:")) {
+        return { imageUrl: null, error: error.message.replace("AI_CREDITS_EXHAUSTED:", "") };
+      }
+      if (error instanceof Error && error.message.startsWith("AI_RATE_LIMIT:")) {
+        return { imageUrl: null, error: error.message.replace("AI_RATE_LIMIT:", "") };
+      }
+      throw error;
+    }
     const url = await uploadAndSign(context.userId, b64ToBytes(b64), "image/png", "png");
-    return { imageUrl: url };
+    return { imageUrl: url, error: null as string | null };
   });
