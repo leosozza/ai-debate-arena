@@ -86,15 +86,20 @@ export const replicateTts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => TtsInput.parse(d))
   .handler(async ({ data }) => {
-    const { model, voiceParam } = resolveReplicateVoice(data.voiceId);
-    const { input, useVersion, maxMs } = buildInput(model, voiceParam, data.text);
-    const modelPath = REPLICATE_MODELS[model];
+    try {
+      const { model, voiceParam } = resolveReplicateVoice(data.voiceId);
+      const { input, useVersion, maxMs } = buildInput(model, voiceParam, data.text);
+      const modelPath = REPLICATE_MODELS[model];
 
-    const output = await runPrediction(modelPath, input, { maxMs, useVersion });
-    const url = pickUrl(output);
-    if (!url) throw new Error("Replicate TTS: resposta sem áudio.");
-    const { base64, mime } = await fetchAsBase64(url);
-    return { audioBase64: base64, mime };
+      const output = await runPrediction(modelPath, input, { maxMs, useVersion });
+      const url = pickUrl(output);
+      if (!url) throw new Error("Replicate TTS: resposta sem áudio.");
+      const { base64, mime } = await fetchAsBase64(url);
+      return { audioBase64: base64, mime };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "Replicate TTS falhou.";
+      return { audioBase64: "", mime: "audio/mpeg" as const, error };
+    }
   });
 
 /** Clone (zero-shot) — upload reference audio, get a persistent URL used as "voiceId". */
