@@ -826,9 +826,31 @@ function PresentMode() {
                   <VoiceWave active={moderatorSpeaking && playing && !loading} colorClass="bg-primary" bars={24} />
                 </div>
               </div>
-              <p className={`mt-3 text-base leading-relaxed md:text-xl ${moderatorSpeaking ? "text-foreground" : "text-muted-foreground"}`}>
-                {moderatorSpeaking ? speakerContent : currentSubtopic?.focus ?? data.debate.topic}
-              </p>
+              {moderatorSpeaking ? (
+                <div className="mt-3">
+                  <Teleprompter
+                    text={speakerContent}
+                    active={playing && !loading}
+                    durationMs={currentAudioMs}
+                    heightRem={6}
+                  />
+                  {voiceFallback && current?.id === voiceFallback.msgId && (
+                    <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Voz clonada falhou — usando voz do navegador. <span className="opacity-70">({voiceFallback.reason.slice(0, 80)})</span></span>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={retryCurrent}>
+                        <RotateCcw className="h-3 w-3 mr-1" /> Tentar de novo
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-3 text-base leading-relaxed md:text-xl text-muted-foreground">
+                  {currentSubtopic?.focus ?? data.debate.topic}
+                </p>
+              )}
             </section>
 
             <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
