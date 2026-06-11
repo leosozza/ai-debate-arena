@@ -24,12 +24,12 @@ export function OpeningVignette({ topic, onDone, audioPrimed = false, compact = 
 
   // Choreography
   useEffect(() => {
-    const t1 = setTimeout(() => setStage(1), 1800); // logo in
-    const t2 = setTimeout(() => setStage(2), 3800); // topic in
-    const t3 = setTimeout(() => setStage(3), TOTAL_MS - 600); // fade out
+    const t1 = setTimeout(() => setStage(1), LOGO_AT); // logo in
+    const t2 = setTimeout(() => setStage(2), TOPIC_AT); // topic in
+    const t3 = setTimeout(() => setStage(3), TOTAL_MS - 500); // fade out
     const t4 = setTimeout(() => onDone(), TOTAL_MS);
     return () => { [t1, t2, t3, t4].forEach(clearTimeout); };
-  }, [onDone]);
+  }, [onDone, LOGO_AT, TOPIC_AT, TOTAL_MS]);
 
   // Audio
   useEffect(() => {
