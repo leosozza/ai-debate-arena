@@ -59,8 +59,8 @@ function PresentMode() {
   const [currentAudioMs, setCurrentAudioMs] = useState<number | null>(null);
   // Aviso quando a voz clonada cai para o navegador
   const [voiceFallback, setVoiceFallback] = useState<{ msgId: string; reason: string } | null>(null);
-  // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → vignette (cinematic+music) → opening (A/B/VS) → live (debate)
-  type Phase = "disclaimer" | "preparing" | "vignette" | "opening" | "live";
+  // Phase machine: disclaimer (CTA) → preparing (gen voices+vignettes) → vignette (cinematic+music) → live (mediador narra aviso+intro)
+  type Phase = "disclaimer" | "preparing" | "vignette" | "live";
   const [phase, setPhase] = useState<Phase>("disclaimer");
   const [prepVoices, setPrepVoices] = useState({ done: 0, total: 0, status: "idle" as "idle" | "running" | "done" | "error" });
   const [prepVigA, setPrepVigA] = useState({ status: "idle" as "idle" | "running" | "done" | "error", message: "" });
