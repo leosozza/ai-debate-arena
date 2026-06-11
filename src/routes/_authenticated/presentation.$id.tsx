@@ -126,7 +126,32 @@ function PresentMode() {
   }, [data, personas]);
 
 
-  const messages = data?.messages ?? [];
+  // Inject 2 virtual moderator openings (AI disclaimer + guests intro) before the scripted debate.
+  const debateInfo = data?.debate;
+  const rawMessages = data?.messages ?? [];
+  const virtualOpening = debateInfo
+    ? [
+        {
+          id: "__opening_disclaimer__",
+          role: "moderator" as const,
+          phase: "abertura",
+          block_index: 0,
+          content: AI_DISCLAIMER_TEXT,
+        },
+        {
+          id: "__opening_guests__",
+          role: "moderator" as const,
+          phase: "abertura",
+          block_index: 0,
+          content:
+            `Boa noite, e bem-vindos à Legends Arena. Hoje na arena, o tema é: ${debateInfo.topic}. ` +
+            `À minha direita, ${debateInfo.debater_a_name}. ` +
+            `À minha esquerda, ${debateInfo.debater_b_name}. ` +
+            `Que vença o melhor argumento.`,
+        },
+      ]
+    : [];
+  const messages = [...virtualOpening, ...rawMessages];
   const current = messages[index];
   const verdict = (data?.debate?.verdict as Verdict | null) ?? null;
   const slideCount = messages.length + (verdict ? 1 : 0);
