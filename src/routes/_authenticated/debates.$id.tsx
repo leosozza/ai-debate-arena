@@ -46,6 +46,14 @@ function DebateDetail() {
     queryKey: ["debate-participants", id],
     queryFn: () => listParts({ data: { debateId: id } }),
   });
+  const listPersonasFn = useServerFn(listPersonas);
+  const { data: personas = [] } = useQuery({
+    queryKey: ["personas"],
+    queryFn: () => listPersonasFn(),
+  });
+  const personaIdByName = new Map(personas.map((p) => [p.name.trim().toLowerCase(), p.id]));
+  const findPersonaId = (name: string | null | undefined) =>
+    name ? personaIdByName.get(name.trim().toLowerCase()) ?? null : null;
   const isMulti = !!data && (data.debate.format ?? "duel") !== "duel";
 
   function roleName(role: string): string {
