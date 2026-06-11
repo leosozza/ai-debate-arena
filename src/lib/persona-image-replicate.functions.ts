@@ -31,9 +31,9 @@ export const generatePersonaImageReplicate = createServerFn({ method: "POST" })
     const { runPrediction } = await import("./replicate.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const prompt = `Photorealistic head-and-shoulders portrait avatar of "${data.name}"${
+    const prompt = `Cinematic translucent blue holographic bust of "${data.name}"${
       data.description ? `, ${data.description}` : ""
-    }. Square framing, neutral studio background, soft lighting, dignified expression, sharp focus, ultra-high detail, 85mm lens.`;
+    }, emerging from a circular metallic projector disc on the floor, beams of bright cyan-blue light shooting upward forming the figure, glowing particles and digital scan lines, dignified expression, head-and-shoulders framing, set inside a dark futuristic amphitheater with distant warm ambient lights, deep black background, dramatic rim light, sci-fi hologram aesthetic, ultra-detailed, photorealistic render, 85mm, cinematic, 'Legends Arena' style.`;
 
     const modelName = FLUX_MODELS[data.model];
     const input: Record<string, unknown> =
