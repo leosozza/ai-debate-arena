@@ -3,6 +3,7 @@
 
 import { stripMarkdownForTts } from "./text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
+import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 
 export type ExportSide = "moderator" | "a" | "b";
 
@@ -228,6 +229,60 @@ function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
   const bodyLines = wrapText(ctx, AI_DISCLAIMER_TEXT, W - 280).slice(0, 6);
   const startY = 290 + titleLines.length * 42 + 30;
   bodyLines.forEach((ln, i) => ctx.fillText(ln, W / 2, startY + i * 26));
+}
+
+/** Cinematic vignette frame: LEGENDS ARENA + topic. */
+function drawVignetteFrame(ctx: CanvasRenderingContext2D, topic: string) {
+  // Deep radial gradient bg
+  const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W);
+  bg.addColorStop(0, "#1a1845");
+  bg.addColorStop(0.6, "#0a0a1f");
+  bg.addColorStop(1, "#000000");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Concentric rings
+  ctx.strokeStyle = "rgba(124,58,237,0.25)";
+  ctx.lineWidth = 1.5;
+  for (const r of [180, 240, 310, 400]) {
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Top-left dot
+  ctx.fillStyle = "#7c3aed";
+  ctx.shadowColor = "#7c3aed";
+  ctx.shadowBlur = 30;
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2 - 240, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Logo placeholder: stylized "LA" mark
+  ctx.fillStyle = "#a78bfa";
+  ctx.font = "900 90px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("⚔", W / 2, H / 2 - 80);
+
+  // LEGENDS ARENA title
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 64px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.shadowColor = "rgba(124,58,237,0.6)";
+  ctx.shadowBlur = 30;
+  ctx.fillText("LEGENDS ARENA", W / 2, H / 2 + 10);
+  ctx.shadowBlur = 0;
+
+  // "Hoje no programa"
+  ctx.fillStyle = "#f59e0b";
+  ctx.font = "700 14px system-ui";
+  ctx.fillText("HOJE  NO  PROGRAMA", W / 2, H / 2 + 70);
+
+  // Topic
+  ctx.fillStyle = "#e2e8f0";
+  ctx.font = "800 32px system-ui";
+  const lines = wrapText(ctx, topic, W - 200).slice(0, 2);
+  lines.forEach((ln, i) => ctx.fillText(ln, W / 2, H / 2 + 130 + i * 40));
 }
 
 /** Opening frame: two guests side-by-side with bios, Roda Viva style. */
@@ -526,7 +581,17 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
   const segments: string[] = [];
   const total = messages.length;
 
-  // ── Disclaimer segment (4s, silent audio) ──
+  // Pré-carrega a música de abertura (compartilhada entre disclaimer e vinheta).
+  let openingMusicLoaded = false;
+  try {
+    const musicBytes = await fetchBytes(musicAsset.url);
+    await ffmpeg.writeFile("opening.mp3", musicBytes);
+    openingMusicLoaded = true;
+  } catch {
+    // sem música — segmentos de abertura ficam em silêncio
+  }
+
+  // ── Disclaimer segment (4s, com música de abertura se disponível) ──
   log("Renderizando aviso de IA", 0.08);
   drawDisclaimerFrame(ctx);
   {
@@ -535,12 +600,17 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     );
     const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
     await ffmpeg.writeFile("disclaimer.png", pngBytes);
+    const audioInputs = openingMusicLoaded
+      ? ["-i", "opening.mp3"]
+      : ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"];
+    const audioFilter = openingMusicLoaded
+      ? ["-af", "afade=t=in:st=0:d=0.5,afade=t=out:st=3.3:d=0.7,volume=0.6"]
+      : [];
     await ffmpeg.exec([
       "-loop", "1",
       "-framerate", "2",
       "-i", "disclaimer.png",
-      "-f", "lavfi",
-      "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+      ...audioInputs,
       "-t", "4",
       "-c:v", "libx264",
       "-tune", "stillimage",
@@ -550,6 +620,7 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
       "-c:a", "aac",
       "-b:a", "160k",
       "-ar", "44100",
+      ...audioFilter,
       "-shortest",
       "-movflags", "+faststart",
       "seg_disclaimer.mp4",
@@ -557,6 +628,43 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     await ffmpeg.deleteFile("disclaimer.png").catch(() => {});
     segments.push("seg_disclaimer.mp4");
   }
+
+  // ── Vignette segment (6s, música de abertura) — só se temos música ──
+  if (openingMusicLoaded) {
+    log("Renderizando vinheta", 0.1);
+    drawVignetteFrame(ctx, topic);
+    const pngBlob: Blob = await new Promise((res) =>
+      canvas.toBlob((b) => res(b!), "image/png"),
+    );
+    const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
+    await ffmpeg.writeFile("vignette.png", pngBytes);
+    await ffmpeg.exec([
+      "-loop", "1",
+      "-framerate", "2",
+      "-i", "vignette.png",
+      "-i", "opening.mp3",
+      "-t", "6",
+      "-c:v", "libx264",
+      "-tune", "stillimage",
+      "-pix_fmt", "yuv420p",
+      "-vf", "scale=1280:720",
+      "-r", "24",
+      "-c:a", "aac",
+      "-b:a", "160k",
+      "-ar", "44100",
+      "-af", "afade=t=in:st=0:d=0.4,afade=t=out:st=5.2:d=0.8,volume=0.85",
+      "-shortest",
+      "-movflags", "+faststart",
+      "seg_vignette.mp4",
+    ]);
+    await ffmpeg.deleteFile("vignette.png").catch(() => {});
+    segments.push("seg_vignette.mp4");
+  }
+
+  if (openingMusicLoaded) {
+    await ffmpeg.deleteFile("opening.mp3").catch(() => {});
+  }
+
 
 
   for (let i = 0; i < total; i++) {

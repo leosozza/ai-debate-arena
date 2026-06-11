@@ -17,11 +17,12 @@ import { AIDisclaimer, AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import { OpeningSequence } from "@/components/OpeningSequence";
 import { OpeningVignette } from "@/components/OpeningVignette";
 import { PreparationScreen } from "@/components/PreparationScreen";
+import { Teleprompter } from "@/components/Teleprompter";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Loader2, Radio, Bot, Mic2, Download, Film } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
 
 
 export const Route = createFileRoute("/_authenticated/presentation/$id")({
@@ -54,6 +55,10 @@ function PresentMode() {
   const [playing, setPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Duração do áudio atual (para teleprompter)
+  const [currentAudioMs, setCurrentAudioMs] = useState<number | null>(null);
+  // Aviso quando a voz clonada cai para o navegador
+  const [voiceFallback, setVoiceFallback] = useState<{ msgId: string; reason: string } | null>(null);
   // Phase machine: disclaimer (4s) → preparing (gen voices+vignettes) → vignette (cinematic+music) → opening (A/B/VS) → live (debate)
   type Phase = "disclaimer" | "preparing" | "vignette" | "opening" | "live";
   const [phase, setPhase] = useState<Phase>("disclaimer");
@@ -197,6 +202,9 @@ function PresentMode() {
     u.rate = Math.max(0.1, Math.min(10, slot.settings.speed));
     u.pitch = Math.max(0, Math.min(2, 1 + slot.settings.pitch / 12));
     u.volume = Math.max(0, Math.min(1, slot.settings.volume));
+    // Estima duração para teleprompter
+    const estMs = Math.round((Math.max(20, text.length) / 14) * 1000 / Math.max(0.5, u.rate));
+    setCurrentAudioMs(estMs);
     u.onend = () => {
       clearKeepAlive();
       if (token === playTokenRef.current) setTimeout(onEnd, 0);
@@ -243,6 +251,7 @@ function PresentMode() {
     const token = playTokenRef.current;
     const slot = slotFor(role);
     const clean = stripMarkdownForTts(text);
+    setVoiceFallback((f) => (f?.msgId === msgId ? null : f));
     if (slot.provider === "browser") {
       browserSpeak(clean, role, token, onEnd);
       return;
@@ -253,6 +262,12 @@ function PresentMode() {
       if (token !== playTokenRef.current) return;
       const audio = ensureAudioEl();
       audio.onended = null;
+      audio.onloadedmetadata = () => {
+        if (token !== playTokenRef.current) return;
+        if (isFinite(audio.duration) && audio.duration > 0) {
+          setCurrentAudioMs(Math.round(audio.duration * 1000));
+        }
+      };
       audio.src = url;
       // Para providers que não aceitam settings server-side, aplica no player.
       if (slot.provider === "replicate" || slot.provider === "eleven") {
@@ -266,14 +281,32 @@ function PresentMode() {
       await audio.play();
       // Prefetch das próximas 2 falas em background (não bloqueia).
       void prefetchUpcoming(2);
-    } catch {
+    } catch (err) {
       if (token !== playTokenRef.current) return;
       const label = slot.provider === "eleven" ? "ElevenLabs" : slot.provider === "minimax" ? "MiniMax" : "Replicate";
-      toast.error(`${label} indisponível — usando voz do navegador.`);
+      const reason = err instanceof Error ? err.message : "erro desconhecido";
+      toast.error(`${label} falhou: ${reason.slice(0, 120)} — usando voz do navegador.`, { duration: 6000 });
+      setVoiceFallback({ msgId, reason });
       browserSpeak(clean, role, token, onEnd);
     } finally {
       setLoading(false);
     }
+  }
+
+  /** Retenta a fala atual (útil quando a voz clonada falhou). */
+  function retryCurrent() {
+    if (!current) return;
+    // Invalida cache desta mensagem para forçar nova chamada.
+    const slot = slotFor((current.role ?? "moderator") as Side);
+    const cacheKeyPrefix = `${slot.provider}:${current.id}:`;
+    for (const k of Array.from(audioCache.current.keys())) {
+      if (k.startsWith(cacheKeyPrefix)) audioCache.current.delete(k);
+    }
+    setVoiceFallback(null);
+    stopAll();
+    // Re-dispara o efeito de speak
+    setPlaying(false);
+    setTimeout(() => setPlaying(true), 50);
   }
 
   async function prefetchUpcoming(count: number) {
@@ -793,9 +826,31 @@ function PresentMode() {
                   <VoiceWave active={moderatorSpeaking && playing && !loading} colorClass="bg-primary" bars={24} />
                 </div>
               </div>
-              <p className={`mt-3 text-base leading-relaxed md:text-xl ${moderatorSpeaking ? "text-foreground" : "text-muted-foreground"}`}>
-                {moderatorSpeaking ? speakerContent : currentSubtopic?.focus ?? data.debate.topic}
-              </p>
+              {moderatorSpeaking ? (
+                <div className="mt-3">
+                  <Teleprompter
+                    text={speakerContent}
+                    active={playing && !loading}
+                    durationMs={currentAudioMs}
+                    heightRem={6}
+                  />
+                  {voiceFallback && current?.id === voiceFallback.msgId && (
+                    <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Voz clonada falhou — usando voz do navegador. <span className="opacity-70">({voiceFallback.reason.slice(0, 80)})</span></span>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={retryCurrent}>
+                        <RotateCcw className="h-3 w-3 mr-1" /> Tentar de novo
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-3 text-base leading-relaxed md:text-xl text-muted-foreground">
+                  {currentSubtopic?.focus ?? data.debate.topic}
+                </p>
+              )}
             </section>
 
             <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
@@ -808,6 +863,9 @@ function PresentMode() {
                 active={role === "a"}
                 speaking={role === "a" && playing && !loading}
                 loading={role === "a" && loading}
+                durationMs={role === "a" ? currentAudioMs : null}
+                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "a" ? voiceFallback.reason : null}
+                onRetry={retryCurrent}
               />
               <div className="hidden items-center justify-center md:flex">
                 <div className="relative flex h-full w-20 items-center justify-center">
@@ -826,6 +884,9 @@ function PresentMode() {
                 active={role === "b"}
                 speaking={role === "b" && playing && !loading}
                 loading={role === "b" && loading}
+                durationMs={role === "b" ? currentAudioMs : null}
+                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "b" ? voiceFallback.reason : null}
+                onRetry={retryCurrent}
               />
             </section>
           </div>
@@ -916,6 +977,9 @@ function StageDebaterPanel({
   active,
   speaking,
   loading,
+  durationMs,
+  fallbackReason,
+  onRetry,
 }: {
   side: "a" | "b";
   name: string;
@@ -925,6 +989,9 @@ function StageDebaterPanel({
   active: boolean;
   speaking: boolean;
   loading: boolean;
+  durationMs?: number | null;
+  fallbackReason?: string | null;
+  onRetry?: () => void;
 }) {
   const theme = sideTheme(side);
   const align = side === "a" ? "md:text-left" : "md:text-right";
@@ -972,9 +1039,33 @@ function StageDebaterPanel({
           <div className={`mb-2 text-xs font-semibold uppercase tracking-[0.24em] ${active ? theme.text : "text-muted-foreground"}`}>
             {active ? phase : "Aguardando"}
           </div>
-          <p className={`mx-auto max-w-xl text-base leading-relaxed md:text-xl ${active ? "text-foreground" : "text-muted-foreground"}`}>
-            {active ? content : ""}
-          </p>
+          {active ? (
+            <div className="mx-auto max-w-xl">
+              <Teleprompter
+                text={content}
+                active={speaking}
+                durationMs={durationMs ?? null}
+                heightRem={7}
+              />
+              {fallbackReason && (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">Voz clonada falhou — usando navegador.</span>
+                  </div>
+                  {onRetry && (
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={onRetry}>
+                      <RotateCcw className="h-3 w-3 mr-1" /> Tentar
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="mx-auto max-w-xl text-base leading-relaxed md:text-xl text-muted-foreground">
+              {""}
+            </p>
+          )}
         </div>
       </div>
     </article>

@@ -1,111 +1,71 @@
 
-# Abertura "Legends Arena" estilo Jornal Nacional + falas iniciais do apresentador
+## O que vamos resolver
 
-Hoje o programa abre assim: card silencioso de aviso (clique para continuar) → tela de "Preparando" → `OpeningSequence` (título / convidado A / convidado B / VS, sem música) → primeira mensagem do roteiro. Faltam: (1) **vinheta cinematográfica com música**, (2) **apresentador anuncia o aviso de IA falando**, (3) **apresentador apresenta os convidados falando** antes do debate começar.
+1. **Voz do Enéas ficou muda** — quando uma persona usa voz clonada (Replicate), às vezes o áudio não toca e o usuário não entende por quê.
+2. **Texto fica estático e cortado** — falas longas não cabem na tela; o usuário quer rolagem automática estilo **teleprompter**, acompanhando a fala.
+3. **Início do MP4 exportado fica mudo** — os primeiros 4 segundos (aviso de IA) não têm som.
 
-## 1. Vinheta cinematográfica com áudio — novo `OpeningVignette`
+---
 
-Novo componente `src/components/OpeningVignette.tsx` que **substitui a fase "opening"** atual (a `OpeningSequence` vira o fallback silencioso para usuários que pularem o áudio).
+## 1. Voz clonada (Enéas) — diagnóstico + correção
 
-Estrutura visual (≈ 8s, inspirada em JN/Everest):
+**Causa provável:** o `voiceId` salvo é uma URL "crua" (sem prefixo), que cai no modelo legado **XTTS v2**. XTTS v2 às vezes devolve áudio vazio ou expira sem erro claro. O `catch` engole o erro e tenta o navegador, mas no celular o `play()` falha em silêncio porque o gesto inicial já se "perdeu" após o await longo.
 
-```text
-0.0s  bg preto absoluto + linhas de scan azuis varrem da borda
-0.6s  partículas douradas/azuis sobem em paralaxe (3 camadas)
-1.2s  shapes geométricos giram em órbita ao redor do centro
-2.0s  raio de luz vertical "explode" no centro com flash branco
-2.4s  logo "LEGENDS ARENA" entra letra a letra (kinetic typography)
-        — cada glifo: blur→sharp + scale 1.3→1 + stagger 60ms
-3.6s  subtítulo "HOJE NO PROGRAMA" desliza de baixo
-4.2s  TÍTULO DO DEBATE aparece em font display gigantesca,
-        máscara horizontal revelando da esquerda
-6.0s  câmera "afasta" (transform scale 1→0.85) e abre para
-        a `OpeningSequence` existente (A → B → VS)
-```
+**Mudanças:**
 
-Técnica: tudo em CSS keyframes + Tailwind animations (já temos `animate-in`, `kenburns`, etc.). Adiciono keyframes novos em `src/styles.css`: `scanline`, `particles-rise`, `orbit`, `flash-burst`, `letter-reveal`, `mask-wipe`.
+- **`src/lib/voice-replicate.functions.ts`** — quando o `voiceId` é uma URL sem prefixo, mudar o **default de XTTS → Chatterbox** (`cb:`). Chatterbox é o modelo nativo em PT-BR e é o que recomendamos no seletor.
+- **`src/lib/replicate.server.ts`** (ou onde está `runPrediction`) — validar que `output` tem áudio real (tamanho > 1KB depois do `fetchAsBase64`); caso contrário, lançar erro explícito `"Modelo devolveu áudio vazio"`.
+- **`src/routes/_authenticated/presentation.$id.tsx`**:
+  - Quando o TTS falhar e cair para o navegador, mostrar **um toast persistente com o motivo real** (não só "indisponível") e exibir um pequeno aviso ⚠ no painel do debatedor ativo: "Voz clonada falhou — usando voz do navegador".
+  - No `speak()`, se o provider falhar, NÃO usar `browserSpeak` em silêncio: tocar um beep curto antes para o usuário perceber a troca.
+  - Adicionar botão "🔁 Tentar de novo" no painel do debatedor quando a última fala falhou.
 
-### Música da vinheta
+---
 
-Música cinematográfica curta (~8s) tocada com `<audio>` HTML5, disparada no mesmo gesto do clique do disclaimer (preserva autoplay no iOS — mesmo padrão que já usamos com `ensureAudioEl`).
+## 2. Teleprompter (texto rolando junto com a fala)
 
-Duas opções para a trilha:
+Hoje a fala do mediador e dos debatedores aparece como um `<p>` único — se for longa, parte do texto fica escondida.
 
-- **A. Arquivo estático curado (recomendado, custo zero, instantâneo)** — adiciono `public/audio/legends-opening.mp3` (faixa orquestral cinematográfica de domínio público / Creative Commons, ~8s). Carrega via `staticFile`/URL relativa. Sem dependência externa, sem latência.
-- **B. Geração via ElevenLabs Music** — chama `/api/elevenlabs/music` com prompt `"cinematic news broadcast opening fanfare, orchestral strings and brass, dramatic timpani hits, 8 seconds, epic and prestigious"`. Cacheia no bucket `persona-videos` (ou novo `media-cache`) para não regerar. Custo por geração + ~3-5s de espera na primeira execução do projeto.
+**Novo componente:** `src/components/Teleprompter.tsx`
+- Recebe `text`, `active` (está falando agora?), `durationMs` (duração do áudio quando disponível).
+- Quebra o texto em **palavras/sentenças**, destaca a sentença "atual" (highlight amarelo suave) e faz auto-scroll suave do contêiner para manter o destaque no centro.
+- Quando `durationMs` é conhecido (áudio TTS pré-gerado): scroll linear baseado em tempo.
+- Quando não há duração (voz do navegador): scroll baseado em estimativa (≈ 14 caracteres/segundo em PT-BR) + sync com `SpeechSynthesisUtterance.onboundary` para palavras quando disponível.
+- Sempre exibe o **texto inteiro** rolável (sem corte).
 
-**Default:** opção A. Se o usuário quiser, troco para B em uma segunda iteração.
+**Integração em `presentation.$id.tsx`:**
+- Substituir os `<p>{speakerContent}</p>` (mediador e `StageDebaterPanel`) por `<Teleprompter text={speakerContent} active={…} durationMs={currentAudioDurationMs} />`.
+- Expor `currentAudioDurationMs` a partir do `<audio>`: quando carrega o `src` no `speak()`, ler `audio.duration` no `onloadedmetadata` e guardar em state.
+- Para a voz do navegador, usar `utterance.onboundary` para emitir um "tick" de palavra → o teleprompter avança.
 
-Controle de volume: prop `muted` do componente espelha o estado mudo da `OpeningSequence` (botão de mute reaproveitado). Música cai em fade-out nos últimos 800ms.
+**Visual:** caixa com altura limitada (~3 linhas md/4 linhas mobile), `overflow-hidden`, gradiente de fade nas bordas superior/inferior, fonte ligeiramente maior, kerning de notícia.
 
-## 2. Apresentador fala o aviso de IA + apresenta os convidados
+---
 
-Em `presentation.$id.tsx`, **inserir 2 falas virtuais do mediador no início** do array `messages` em runtime (sem salvar no banco, sem mudar schema):
+## 3. Áudio na abertura do MP4 exportado
 
-```ts
-const virtualOpening = [
-  {
-    id: "__disclaimer__",
-    role: "moderator",
-    phase: "abertura",
-    block_index: 0,
-    content: AI_DISCLAIMER_TEXT, // já exportado de AIDisclaimer.tsx
-  },
-  {
-    id: "__guests__",
-    role: "moderator",
-    phase: "abertura",
-    block_index: 0,
-    content:
-      `Boa noite. Hoje na arena, o tema é: ${topic}. ` +
-      `À minha direita, ${A.name}${A.description ? `, ${A.description}` : ""}. ` +
-      `À minha esquerda, ${B.name}${B.description ? `, ${B.description}` : ""}. ` +
-      `Que vença o melhor argumento.`,
-  },
-];
-const messages = [...virtualOpening, ...(data?.messages ?? [])];
-```
+Hoje `seg_disclaimer.mp4` tem 4s de **silêncio** (`anullsrc`). Solução:
 
-Essas falas:
-- Usam a voz já configurada para o mediador (TTS Replicate/MiniMax/Eleven/Browser — qualquer uma).
-- Entram no mesmo pipeline (`speak`, `prefetchUpcoming`, `pregenerateAll`, `exportVideo`) — ou seja, **aparecem no MP4 exportado também**, com o aviso obrigatório de IA falado, atendendo ao requisito legal/ético.
-- Disclaimer é o primeiro slide do programa "ao vivo" (depois da vinheta). UI mostra o texto na tela com o componente `<AIDisclaimer variant="card">` em vez do card de fala normal quando `current.id === "__disclaimer__"`.
-- Para a fala de apresentação dos convidados, mostro um card especial com foto + nome dos dois lado a lado enquanto o mediador fala (similar ao que `OpeningSequence` faz no slide "VS", mas estático).
+- Embutir a **música de abertura** (`src/assets/legends-opening.mp3.asset.json`, já presente) no segmento de disclaimer e também num novo segmento **"vinheta"** de ~6s (logo + tema), igual ao que toca ao vivo no `OpeningVignette`.
+- Em `src/lib/video-export.ts`:
+  - Buscar a URL da música via `import musicAsset from "@/assets/legends-opening.mp3.asset.json"`, fazer `fetchBytes(musicAsset.url)`, gravar como `opening.mp3` no FFmpeg.
+  - Trocar o `-f lavfi -i anullsrc` do segmento `seg_disclaimer` por `-i opening.mp3` (com fade in/out para não cortar bruscamente).
+  - Adicionar novo segmento `seg_vignette.mp4` (~6s) com um frame "LEGENDS ARENA · tema" (função nova `drawVignetteFrame`) e a continuação da música.
+  - Ordem final dos segmentos: `disclaimer (4s) → vignette (6s) → intro (msg 0) → demais falas`.
+- Garantir que `-c copy` no concat ainda funcione: todos os segmentos devem usar **mesmo codec/sample rate/fps** (já são `libx264/aac/24fps/44100Hz`).
 
-## 3. Fluxo final
+---
 
-```text
-1. Clique no aviso (silencioso) → libera autoplay + dispara música
-2. Tela de "Preparando" (vozes + vinhetas de IA)
-3. OpeningVignette (8s) com música + animação cinematográfica
-   └─ encadeia em OpeningSequence (A→B→VS, igual hoje)
-4. Mediador fala o aviso de IA (slide com AIDisclaimer card)
-5. Mediador apresenta os convidados (slide com foto dos dois)
-6. Debate começa (fluxo atual)
-```
+## Arquivos tocados
 
-## 4. Arquivos afetados
+- **Editar** `src/lib/voice-replicate.functions.ts` — default Chatterbox para URLs sem prefixo.
+- **Editar** `src/lib/replicate.server.ts` — validação de áudio vazio.
+- **Criar** `src/components/Teleprompter.tsx`.
+- **Editar** `src/routes/_authenticated/presentation.$id.tsx` — usar Teleprompter, expor duração do áudio, aviso visual quando voz cai para navegador, botão "tentar de novo".
+- **Editar** `src/lib/video-export.ts` — música no disclaimer + novo segmento vinheta.
 
-- **novo** `src/components/OpeningVignette.tsx` (vinheta cinematográfica + `<audio>`)
-- **novo** `public/audio/legends-opening.mp3` (faixa curada, ~8s, ≤200KB)
-- editar `src/styles.css` — keyframes `scanline`, `letter-reveal`, `mask-wipe`, `orbit`, `flash-burst`, `particles-rise`
-- editar `src/routes/_authenticated/presentation.$id.tsx`:
-  - inserir 2 falas virtuais no início de `messages`
-  - novo render condicional para os slides `__disclaimer__` e `__guests__`
-  - fase `opening` agora renderiza `<OpeningVignette>` que ao terminar chama `<OpeningSequence>` (ou: vinheta + sequence viram um único componente "OpeningShow" com etapas internas — vou fundir)
-- editar `src/components/AIDisclaimer.tsx` — sem mudança de API (já exporta `AI_DISCLAIMER_TEXT`)
-- editar `src/lib/video-export.ts` — adiciona suporte para renderizar os 2 novos slides no MP4 (a vinheta cinematográfica em si fica fora do MP4 nesta v1; só as falas do mediador entram)
+## Fora do escopo (não vou mexer agora)
 
-## 5. Fora de escopo (v1)
-
-- Geração de música via ElevenLabs (fica como opção B futura)
-- Renderizar a vinheta cinematográfica completa (com música) dentro do MP4 exportado — exigiria pipeline Remotion ou canvas-record com áudio mixado; pode ser v2
-- Mudar texto do aviso de IA (continua o `AI_DISCLAIMER_TEXT` atual)
-- Personalizar a saudação do mediador via IA (texto é template fixo nesta v1)
-
-## 6. Riscos
-
-- **Tamanho do MP3 da vinheta:** manter ≤200KB para não pesar o load inicial. Mitigação: mp3 mono 64kbps + 8s = ~64KB.
-- **Autoplay no iOS:** já temos o padrão `ensureAudioEl` dentro do gesto do clique. A música usa o mesmo elemento ou um segundo `<audio>` priming no mesmo handler.
-- **Mediador sem voz não-navegador:** se o usuário não configurou voz pro mediador, as duas falas iniciais usam `speechSynthesis` do navegador (qualidade variável). Aceitável — é o mesmo comportamento de todo o resto do debate.
-- **Direitos da trilha:** uso faixa CC0/domínio público ou crio uma genérica simples; nunca faixa comercial.
+- Renderizar a animação completa do `OpeningVignette` (partículas, scanlines) dentro do MP4 — só um frame estático com a música, porque animar tudo em canvas seria ~10× mais lento de exportar.
+- Sincronização palavra-por-palavra perfeita em vozes clonadas (Replicate não devolve word timestamps); usaremos o scroll linear baseado em duração do áudio, que é o padrão dos teleprompters de TV.
+- Trocar o motor de TTS do Enéas para outro provider (mantemos Replicate; só corrigimos o default).
