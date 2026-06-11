@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
 import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil } from "lucide-react";
 import { ExportPackDialog } from "@/components/ExportPackDialog";
+import { ExportVideoButton } from "@/components/ExportVideoButton";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -220,6 +221,7 @@ function DebateDetail() {
         <Button onClick={exportMarkdown} variant="ghost" size="sm" disabled={data.messages.length === 0}>
           <Download className="h-4 w-4 mr-1" /> Exportar .md
         </Button>
+        <ExportVideoButton debateId={id} />
         <ExportPackDialog debateId={id} debateTopic={data.debate.topic} />
       </div>
 
