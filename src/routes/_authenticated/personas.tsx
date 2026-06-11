@@ -21,6 +21,7 @@ import { Sparkles, Trash2, Plus, Globe, Lock, Mic, User, Library } from "lucide-
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { VoiceClonePanel } from "@/components/VoiceClonePanel";
 import { PersonaImagePanel } from "@/components/PersonaImagePanel";
+import { PersonaVideoPanel } from "@/components/PersonaVideoPanel";
 import { attachVoiceToPersona } from "@/lib/voice-clone.functions";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { seedHistoricalPersonas } from "@/lib/persona-seed.functions";
@@ -39,6 +40,7 @@ type FormState = {
   voice_provider: VoiceProvider | null;
   voice_id: string | null;
   image_url: string | null;
+  vignette_url: string | null;
   voice_settings: VoiceSettings;
 };
 
@@ -50,6 +52,7 @@ const EMPTY_FORM: FormState = {
   voice_provider: null,
   voice_id: null,
   image_url: null,
+  vignette_url: null,
   voice_settings: DEFAULT_VOICE_SETTINGS,
 };
 
@@ -175,6 +178,7 @@ function PersonasPage() {
       voice_provider: (p.voice_provider as VoiceProvider | null) ?? null,
       voice_id: p.voice_id ?? null,
       image_url: p.image_url ?? null,
+      vignette_url: (p as { vignette_url?: string | null }).vignette_url ?? null,
       voice_settings: (p.voice_settings as VoiceSettings | null) ?? DEFAULT_VOICE_SETTINGS,
     });
     setSources([]);
