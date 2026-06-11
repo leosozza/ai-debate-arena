@@ -13,8 +13,20 @@ import { DEFAULT_VOICE_SETTINGS } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
+import { TimelineEditor, type TimelineClip, type TimelineMusic } from "@/components/TimelineEditor";
+import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 
 type Slot = { provider: VoiceProvider; voiceId: string | null };
+
+function getAudioDuration(url: string): Promise<number> {
+  return new Promise((resolve) => {
+    const a = new Audio();
+    a.preload = "metadata";
+    a.onloadedmetadata = () => resolve(isFinite(a.duration) ? a.duration : 5);
+    a.onerror = () => resolve(5);
+    a.src = url;
+  });
+}
 
 export function ExportVideoButton({ debateId }: { debateId: string }) {
   const get = useServerFn(getDebate);
@@ -26,6 +38,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
 
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [clips, setClips] = useState<TimelineClip[]>([]);
 
   function resolveSlot(
     provider: string | null | undefined,
@@ -63,7 +77,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     return `data:${res.mime};base64,${res.audioBase64}`;
   }
 
-  async function run() {
+  async function prepareAndOpen() {
     if (!data) return;
     const d = data.debate;
     const slotMod = resolveSlot(d.voice_provider_mod, d.voice_id_mod);
@@ -113,7 +127,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
             audioByMsg.set(m.id, url);
           } catch { /* ignore individual */ }
           done++;
-          setProgress({ label: `Gerando vozes ${done}/${todo.length}`, pct: (done / todo.length) * 0.35 });
+          setProgress({ label: `Gerando vozes ${done}/${todo.length}`, pct: done / todo.length });
         }
       };
       await Promise.all(Array.from({ length: concurrency }, worker));
@@ -125,6 +139,38 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         return;
       }
 
+      // Get durations
+      setProgress({ label: "Analisando áudios", pct: 0.95 });
+      const built: TimelineClip[] = [];
+      for (const m of all) {
+        const url = audioByMsg.get(m.id)!;
+        const dur = await getAudioDuration(url);
+        built.push({
+          id: m.id,
+          role: m.role,
+          phase: m.phase,
+          content: m.content,
+          audioUrl: url,
+          duration: dur,
+          trimStart: 0,
+          trimEnd: 0,
+          subtitle: true,
+        });
+      }
+      setClips(built);
+      setProgress(null);
+      setEditorOpen(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao preparar vídeo");
+      setProgress(null);
+    }
+  }
+
+  async function runExport(editedClips: TimelineClip[], music: TimelineMusic) {
+    if (!data) return;
+    const d = data.debate;
+    setProgress({ label: "Renderizando vídeo", pct: 0 });
+    try {
       const { exportDebateMp4 } = await import("@/lib/video-export");
       const findP = (name: string | null | undefined) => {
         const n = (name ?? "").trim().toLowerCase();
@@ -141,14 +187,19 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         bImageUrl: d.debater_b_image_url ?? pB?.image_url ?? null,
         aDescription: pA?.description ?? null,
         bDescription: pB?.description ?? null,
-        messages: all.map((m) => ({
-          id: m.id,
-          role: m.role,
-          phase: m.phase,
-          content: m.content,
-          audioUrl: audioByMsg.get(m.id)!,
+        messages: editedClips.map((c) => ({
+          id: c.id,
+          role: c.role,
+          phase: c.phase,
+          content: c.content,
+          audioUrl: c.audioUrl,
+          trimStart: c.trimStart,
+          trimEnd: c.trimEnd,
+          subtitle: c.subtitle,
         })),
-        onProgress: (label, pct) => setProgress({ label, pct: 0.35 + pct * 0.65 }),
+        musicUrl: music.enabled ? music.url : null,
+        musicVolume: music.volume,
+        onProgress: (label, pct) => setProgress({ label, pct }),
       });
 
       const url = URL.createObjectURL(blob);
@@ -160,6 +211,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast.success("Vídeo MP4 exportado!");
+      setEditorOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao exportar vídeo");
     } finally {
@@ -172,16 +224,24 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
 
   return (
     <div className="inline-flex flex-col gap-1">
-      <Button onClick={run} disabled={disabled} size="sm" variant="default">
-        {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Film className="h-4 w-4 mr-1" />}
-        {busy ? "Exportando…" : "Exportar vídeo MP4"}
+      <Button onClick={prepareAndOpen} disabled={disabled} size="sm" variant="default">
+        {busy && !editorOpen ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Film className="h-4 w-4 mr-1" />}
+        {busy && !editorOpen ? "Preparando…" : "Editor de vídeo"}
       </Button>
-      {progress && (
+      {progress && !editorOpen && (
         <div className="min-w-[220px]">
           <Progress value={Math.round(progress.pct * 100)} className="h-1.5" />
           <div className="text-[10px] text-muted-foreground mt-0.5">{progress.label}</div>
         </div>
       )}
+      <TimelineEditor
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        initialClips={clips}
+        musicUrl={musicAsset.url}
+        onExport={runExport}
+        progress={editorOpen ? progress : null}
+      />
     </div>
   );
 }
