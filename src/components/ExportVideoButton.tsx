@@ -58,6 +58,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   async function fetchAudioUrl(slot: Slot, text: string): Promise<string> {
+    // A voz do navegador não gera bytes de áudio → não pode entrar no vídeo.
+    if (slot.provider === "browser") throw new Error("navegador_nao_grava");
     if (!slot.voiceId) throw new Error("voz_nao_definida");
     const clean = stripMarkdownForTts(text).slice(0, 5000);
     if (slot.provider === "kokoro") {
@@ -91,11 +93,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const slotA = resolveSlot(d.voice_provider_a, d.voice_id_a, d.debater_a_name);
     const slotB = resolveSlot(d.voice_provider_b, d.voice_id_b, d.debater_b_name);
 
-    if ([slotMod, slotA, slotB].some((s) => s.provider === "browser" || !s.voiceId)) {
-      toast.error("O vídeo precisa de vozes reais (a do navegador não pode ser gravada). Defina Kokoro (grátis) ou uma voz premium para mediador e debatedores.", { duration: 7000 });
-      return;
-    }
-
+    // Não bloqueia mais: gera o que der e abre o editor com as falas que
+    // funcionaram (vozes de navegador / que falharem são puladas).
     const virtualOpening = [
       { id: "__opening_disclaimer__", role: "moderator" as const, phase: "abertura", content: AI_DISCLAIMER_TEXT },
       {
@@ -139,14 +138,16 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       };
       await Promise.all(Array.from({ length: concurrency }, worker));
 
+      // Abre com as falas que deram certo; pula as que falharam (voz do
+      // navegador, erro de rede, etc). Só falha de vez se TODAS falharem.
       const missing = all.filter((m) => !audioByMsg.get(m.id));
       if (missing.length === all.length) {
-        toast.error("Falha ao gerar todas as vozes. Verifique a conexão das vozes e tente de novo.");
+        toast.error("Nenhuma voz pôde ser gerada. Defina Kokoro (grátis) ou uma voz premium para os participantes.", { duration: 7000 });
         setProgress(null);
         return;
       }
       if (missing.length > 0) {
-        toast.warning(`${missing.length} fala(s) sem áudio foram puladas — você pode regenerá-las no editor.`);
+        toast.warning(`${missing.length} fala(s) sem áudio foram puladas — você pode regenerá-las no editor.`, { duration: 6000 });
       }
 
       // Get durations
