@@ -2,11 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { runPrediction, uploadFile, fetchAsBase64 } from "./replicate.server";
-import { REPLICATE_TTS_MODEL, REPLICATE_CLONE_TTS_MODEL } from "./replicate-voices";
+import { REPLICATE_MODELS, resolveReplicateVoice, type ReplicateModelKey } from "./replicate-voices";
 
 const TtsInput = z.object({
   text: z.string().trim().min(1).max(5000),
-  voiceId: z.string().trim().min(1).max(2048), // preset id OR URL (for XTTS clone)
+  voiceId: z.string().trim().min(1).max(2048),
 });
 
 function pickUrl(output: unknown): string | null {
@@ -20,21 +20,57 @@ function pickUrl(output: unknown): string | null {
   return null;
 }
 
-/** TTS via Replicate. If voiceId looks like a URL, route through XTTS-v2 (cloned). */
+function buildInput(model: ReplicateModelKey, voiceParam: string, text: string): {
+  input: Record<string, unknown>;
+  useVersion: boolean;
+  maxMs: number;
+} {
+  switch (model) {
+    case "minimax-hd":
+    case "minimax-turbo":
+      return {
+        input: { text, voice_id: voiceParam, speed: 1, language_boost: "Portuguese" },
+        useVersion: false,
+        maxMs: 180_000,
+      };
+    case "chatterbox": {
+      const input: Record<string, unknown> = {
+        prompt: text,
+        language_id: "pt",
+        exaggeration: 0.5,
+        cfg_weight: 0.5,
+      };
+      if (voiceParam && /^https?:\/\//i.test(voiceParam)) {
+        input.audio_prompt_path = voiceParam;
+      }
+      return { input, useVersion: false, maxMs: 180_000 };
+    }
+    case "fish": {
+      const input: Record<string, unknown> = { text };
+      if (voiceParam && /^https?:\/\//i.test(voiceParam)) {
+        input.reference_audio = voiceParam;
+      }
+      return { input, useVersion: true, maxMs: 240_000 };
+    }
+    case "xtts":
+      return {
+        input: { text, speaker: voiceParam, language: "pt" },
+        useVersion: true,
+        maxMs: 180_000,
+      };
+  }
+}
+
+/** TTS via Replicate. Modelo é resolvido pelo prefixo no voiceId. */
 export const replicateTts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => TtsInput.parse(d))
   .handler(async ({ data }) => {
-    const isCloned = /^https?:\/\//i.test(data.voiceId);
-    const model = isCloned ? REPLICATE_CLONE_TTS_MODEL : REPLICATE_TTS_MODEL;
-    const input: Record<string, unknown> = isCloned
-      ? { text: data.text, speaker: data.voiceId, language: "pt" }
-      : { text: data.text, voice_id: data.voiceId, speed: 1, language_boost: "Portuguese" };
+    const { model, voiceParam } = resolveReplicateVoice(data.voiceId);
+    const { input, useVersion, maxMs } = buildInput(model, voiceParam, data.text);
+    const modelPath = REPLICATE_MODELS[model];
 
-    const output = await runPrediction(model, input, {
-      maxMs: 180_000,
-      useVersion: isCloned, // xtts-v2 é community → precisa de version hash
-    });
+    const output = await runPrediction(modelPath, input, { maxMs, useVersion });
     const url = pickUrl(output);
     if (!url) throw new Error("Replicate TTS: resposta sem áudio.");
     const { base64, mime } = await fetchAsBase64(url);
