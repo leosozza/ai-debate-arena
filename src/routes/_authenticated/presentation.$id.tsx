@@ -252,7 +252,14 @@ function PresentMode() {
     const slot = slotFor(role);
     const clean = stripMarkdownForTts(text);
     setVoiceFallback((f) => (f?.msgId === msgId ? null : f));
-    if (slot.provider === "browser") {
+    if (slot.provider === "browser" || !slot.voiceId) {
+      // Avisa quando um debatedor (A/B) cai para voz do navegador por falta de voiceId —
+      // sintoma típico do "a voz do convidado não tocou".
+      if (role !== "moderator" && slot.provider !== "browser" && !slot.voiceId) {
+        const who = role === "a" ? "Convidado A" : role === "b" ? "Convidado B" : "Participante";
+        toast.warning(`${who} sem voz configurada — usando voz do navegador. Ajuste em Configurações.`, { duration: 5000 });
+        setVoiceFallback({ msgId, reason: "Nenhuma voz selecionada para este participante." });
+      }
       browserSpeak(clean, role, token, onEnd);
       return;
     }
