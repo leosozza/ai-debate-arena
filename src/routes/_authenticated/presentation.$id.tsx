@@ -8,7 +8,7 @@ import { listPersonas } from "@/lib/persona.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
 import { ensurePersonaVignette } from "@/lib/persona-video.functions";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
