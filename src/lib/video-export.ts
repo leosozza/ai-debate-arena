@@ -231,6 +231,60 @@ function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
   bodyLines.forEach((ln, i) => ctx.fillText(ln, W / 2, startY + i * 26));
 }
 
+/** Cinematic vignette frame: LEGENDS ARENA + topic. */
+function drawVignetteFrame(ctx: CanvasRenderingContext2D, topic: string) {
+  // Deep radial gradient bg
+  const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W);
+  bg.addColorStop(0, "#1a1845");
+  bg.addColorStop(0.6, "#0a0a1f");
+  bg.addColorStop(1, "#000000");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Concentric rings
+  ctx.strokeStyle = "rgba(124,58,237,0.25)";
+  ctx.lineWidth = 1.5;
+  for (const r of [180, 240, 310, 400]) {
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Top-left dot
+  ctx.fillStyle = "#7c3aed";
+  ctx.shadowColor = "#7c3aed";
+  ctx.shadowBlur = 30;
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2 - 240, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Logo placeholder: stylized "LA" mark
+  ctx.fillStyle = "#a78bfa";
+  ctx.font = "900 90px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("⚔", W / 2, H / 2 - 80);
+
+  // LEGENDS ARENA title
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 64px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.shadowColor = "rgba(124,58,237,0.6)";
+  ctx.shadowBlur = 30;
+  ctx.fillText("LEGENDS ARENA", W / 2, H / 2 + 10);
+  ctx.shadowBlur = 0;
+
+  // "Hoje no programa"
+  ctx.fillStyle = "#f59e0b";
+  ctx.font = "700 14px system-ui";
+  ctx.fillText("HOJE  NO  PROGRAMA", W / 2, H / 2 + 70);
+
+  // Topic
+  ctx.fillStyle = "#e2e8f0";
+  ctx.font = "800 32px system-ui";
+  const lines = wrapText(ctx, topic, W - 200).slice(0, 2);
+  lines.forEach((ln, i) => ctx.fillText(ln, W / 2, H / 2 + 130 + i * 40));
+}
+
 /** Opening frame: two guests side-by-side with bios, Roda Viva style. */
 function drawIntroFrame(
   ctx: CanvasRenderingContext2D,
