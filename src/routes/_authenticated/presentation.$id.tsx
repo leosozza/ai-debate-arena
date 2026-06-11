@@ -13,8 +13,9 @@ import { VoiceWave } from "@/components/VoiceWave";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
-import { AIDisclaimer } from "@/components/AIDisclaimer";
+import { AIDisclaimer, AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import { OpeningSequence } from "@/components/OpeningSequence";
+import { OpeningVignette } from "@/components/OpeningVignette";
 import { PreparationScreen } from "@/components/PreparationScreen";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { type VoiceProvider } from "@/lib/voice-catalog";
