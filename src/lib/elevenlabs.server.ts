@@ -20,7 +20,9 @@ export async function elevenTTS(text: string, voiceId: string): Promise<{ audio:
       body: JSON.stringify({
         text,
         model_id: MODEL,
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        // stability mais baixa = mais expressivo/natural; speaker_boost melhora
+        // a fidelidade da voz; similarity alta mantém o timbre.
+        voice_settings: { stability: 0.45, similarity_boost: 0.85, style: 0.0, use_speaker_boost: true },
       }),
       signal: ctrl.signal,
     });
