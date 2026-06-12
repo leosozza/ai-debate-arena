@@ -24,6 +24,9 @@ import {
   Volume2,
 } from "lucide-react";
 import { SFX_TYPES, playSfx, type SfxType } from "@/lib/sfx";
+import { ArenaScene } from "@/components/ArenaScene";
+import { getArenaTheme } from "@/lib/arena-themes";
+import { HologramAvatar } from "@/components/HologramAvatar";
 
 export interface TimelineClip {
   id: string;
@@ -49,6 +52,14 @@ export interface TimelineSfx {
   at: number;
 }
 
+export interface PreviewContext {
+  aName: string;
+  bName: string;
+  aImage?: string | null;
+  bImage?: string | null;
+  arenaThemeId?: string | null;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -56,6 +67,7 @@ interface Props {
   musicUrl: string;
   onExport: (clips: TimelineClip[], music: TimelineMusic, sfx: TimelineSfx[]) => Promise<void>;
   progress: { label: string; pct: number } | null;
+  preview?: PreviewContext;
 }
 
 const PX_PER_SEC = 40;
@@ -78,10 +90,11 @@ const SNAP_OPTIONS: { value: string; label: string; seconds: number }[] = [
   { value: "1", label: "1s", seconds: 1 },
 ];
 
-export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onExport, progress }: Props) {
+export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onExport, progress, preview }: Props) {
   const [clips, setClips] = useState<TimelineClip[]>(initialClips);
   const [music, setMusic] = useState<TimelineMusic>({ enabled: true, url: musicUrl, volume: 0.25 });
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const [snapKey, setSnapKey] = useState<string>("0.25");
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [sfx, setSfx] = useState<TimelineSfx[]>([]);
@@ -255,12 +268,41 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
 
   const busy = progress !== null;
 
+  // Dados do painel de preview (clip selecionado).
+  const selClip = clips[Math.min(selectedIdx, clips.length - 1)] ?? clips[0] ?? null;
+  const previewTheme = getArenaTheme(preview?.arenaThemeId);
+  const selName = !selClip ? "" : selClip.role === "a" ? (preview?.aName ?? "Lado A") : selClip.role === "b" ? (preview?.bName ?? "Lado B") : "Mediador";
+  const selImg = !selClip ? null : selClip.role === "a" ? preview?.aImage ?? null : selClip.role === "b" ? preview?.bImage ?? null : null;
+  const selTone: "blue" | "gold" | "neutral" = !selClip ? "neutral" : selClip.role === "a" ? "blue" : selClip.role === "b" ? "gold" : "neutral";
+
   return (
     <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-6xl">
         <DialogHeader>
-          <DialogTitle>Editor de timeline</DialogTitle>
+          <DialogTitle>Editor de vídeo</DialogTitle>
         </DialogHeader>
+
+        {preview && (
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
+            {previewTheme && <ArenaScene theme={previewTheme} />}
+            {selClip && (
+              <>
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pb-16 pt-4">
+                  <HologramAvatar src={selImg} name={selName} tone={selTone} size={130} />
+                  <div className="font-display text-2xl font-extrabold text-white drop-shadow">{selName}</div>
+                </div>
+                {selClip.subtitle && selClip.content && (
+                  <div className="absolute inset-x-6 bottom-4 z-10 rounded-lg border border-white/10 bg-black/70 px-4 py-2 text-center text-sm md:text-base font-medium text-white backdrop-blur-sm line-clamp-3">
+                    {selClip.content}
+                  </div>
+                )}
+                <div className="absolute left-3 top-3 z-10 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/80">
+                  Fala {Math.min(selectedIdx, clips.length - 1) + 1} / {clips.length}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="space-y-4">
           {/* Top controls */}
@@ -370,7 +412,7 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                       trimStart={c.trimStart}
                       trimEnd={c.trimEnd}
                       duration={c.duration}
-                      onPlay={() => (playingId === c.id ? stop() : play(c))}
+                      onPlay={() => { setSelectedIdx(i); return playingId === c.id ? stop() : play(c); }}
                       onPreviewLeft={() => previewEdge(c, "left")}
                       onPreviewRight={() => previewEdge(c, "right")}
                       onTrimLeft={(deltaPx) => {

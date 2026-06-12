@@ -260,6 +260,13 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         musicUrl={musicAsset.url}
         onExport={runExport}
         progress={editorOpen ? progress : null}
+        preview={data ? {
+          aName: data.debate.debater_a_name,
+          bName: data.debate.debater_b_name,
+          aImage: data.debate.debater_a_image_url ?? null,
+          bImage: data.debate.debater_b_image_url ?? null,
+          arenaThemeId: (data.debate as { arena_theme?: string | null }).arena_theme ?? null,
+        } : undefined}
       />
     </div>
   );
