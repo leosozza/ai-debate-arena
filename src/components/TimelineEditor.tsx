@@ -245,6 +245,15 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
     audioRef.current?.pause();
     setPlayingId(null);
   }
+  /** Pula o cabeçote para um instante e seleciona a fala correspondente. */
+  function seekTo(sec: number) {
+    const t = clamp(sec, 0, totalSec);
+    if (playAllRef.current) { playAllRef.current = false; setPlayingAll(false); audioRef.current?.pause(); setPlayingId(null); }
+    setPlayheadSec(t);
+    let idx = segs.findIndex((s) => t >= s.start && t < s.start + s.eff);
+    if (idx < 0) idx = segs.length - 1;
+    setSelectedIdx(Math.max(0, idx));
+  }
 
   /** Preview a short window around the new trim edge. */
   function previewEdge(c: TimelineClip, side: "left" | "right") {
@@ -442,8 +451,15 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                 </div>
               )}
 
-              {/* Ruler */}
-              <div className="relative h-6 border-b bg-background/60 z-10">
+              {/* Ruler (clicável para pular o cabeçote) */}
+              <div
+                className="relative h-6 border-b bg-background/60 z-10 cursor-pointer"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  seekTo((e.clientX - rect.left - 120) / PX_PER_SEC);
+                }}
+                title="Clique para pular o cabeçote para este ponto"
+              >
                 {ticks.map((s) => (
                   <div key={s} className="absolute top-0 h-full flex flex-col items-start" style={{ left: 120 + s * PX_PER_SEC }}>
                     <div className="w-px h-2 bg-border" />
