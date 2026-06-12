@@ -95,6 +95,9 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
   const [music, setMusic] = useState<TimelineMusic>({ enabled: true, url: musicUrl, volume: 0.25 });
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [playingAll, setPlayingAll] = useState(false);
+  const [playheadSec, setPlayheadSec] = useState(0);
+  const playAllRef = useRef(false);
   const [snapKey, setSnapKey] = useState<string>("0.25");
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [sfx, setSfx] = useState<TimelineSfx[]>([]);
@@ -198,11 +201,50 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
     a.play().catch(() => setPlayingId(null));
   }
   function stop() {
+    playAllRef.current = false;
+    setPlayingAll(false);
     audioRef.current?.pause();
     audioRef.current = null;
     setPlayingId(null);
   }
   useEffect(() => () => audioRef.current?.pause(), []);
+
+  // ── Play-through (Tocar tudo) + playhead sincronizado ──
+  function playClipAt(i: number) {
+    if (!playAllRef.current) return;
+    if (i < 0 || i >= clips.length) { pauseAll(); return; }
+    setSelectedIdx(i);
+    const c = clips[i];
+    const seg = segs[i];
+    if (audioRef.current) audioRef.current.pause();
+    const a = new Audio(c.audioUrl);
+    a.currentTime = c.trimStart;
+    audioRef.current = a;
+    setPlayingId(c.id);
+    const stopAt = c.duration - c.trimEnd;
+    function advance() {
+      a.removeEventListener("timeupdate", tick);
+      if (playAllRef.current) playClipAt(i + 1);
+    }
+    function tick() {
+      setPlayheadSec(seg.start + Math.max(0, a.currentTime - c.trimStart));
+      if (a.currentTime >= stopAt) { a.pause(); advance(); }
+    }
+    a.addEventListener("timeupdate", tick);
+    a.addEventListener("ended", advance);
+    a.play().catch(advance);
+  }
+  function playAll() {
+    playAllRef.current = true;
+    setPlayingAll(true);
+    playClipAt(Math.min(selectedIdx, Math.max(0, clips.length - 1)));
+  }
+  function pauseAll() {
+    playAllRef.current = false;
+    setPlayingAll(false);
+    audioRef.current?.pause();
+    setPlayingId(null);
+  }
 
   /** Preview a short window around the new trim edge. */
   function previewEdge(c: TimelineClip, side: "left" | "right") {
@@ -299,6 +341,14 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                 <div className="absolute left-3 top-3 z-10 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white/80">
                   Fala {Math.min(selectedIdx, clips.length - 1) + 1} / {clips.length}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => (playingAll ? pauseAll() : playAll())}
+                  className="absolute bottom-3 right-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 hover:bg-primary/90"
+                  title={playingAll ? "Pausar" : "Tocar tudo"}
+                >
+                  {playingAll ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 translate-x-0.5" />}
+                </button>
               </>
             )}
           </div>
@@ -381,6 +431,14 @@ export function TimelineEditor({ open, onOpenChange, initialClips, musicUrl, onE
                       style={{ left: 120 + s * PX_PER_SEC }}
                     />
                   ))}
+                </div>
+              )}
+
+              {/* Playhead (cabeçote de reprodução) */}
+              {(playingAll || playheadSec > 0.01) && (
+                <div className="pointer-events-none absolute top-0 bottom-0 z-20" style={{ left: 120 + playheadSec * PX_PER_SEC }}>
+                  <div className="absolute top-0 bottom-0 w-0.5 -translate-x-1/2 bg-primary shadow-[0_0_8px_var(--color-primary)]" />
+                  <div className="absolute -top-0.5 h-2.5 w-2.5 -translate-x-1/2 rotate-45 bg-primary" />
                 </div>
               )}
 
