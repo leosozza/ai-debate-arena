@@ -814,6 +814,21 @@ function PresentMode() {
             onSettingsChange={(settings) => setSlotB((s) => ({ ...s, settings }))}
           />
 
+          {isMulti && extras.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border/40 bg-background/30 p-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Convidados extras (voz vinda da persona)</p>
+              {extras.map((e) => (
+                <div key={e.id} className="flex items-center gap-2 text-xs">
+                  <div className="h-6 w-6 overflow-hidden rounded-full bg-muted/40 border border-border/40">
+                    {e.image_url ? <img src={e.image_url} alt={e.display_name} className="h-full w-full object-cover" /> : null}
+                  </div>
+                  <span className="font-medium text-foreground truncate flex-1">{e.display_name}</span>
+                  <span className="text-muted-foreground tabular-nums">{(e.voice_provider as string | null) ?? "browser"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="border-t border-border/50 pt-3 space-y-2">
             <Button
               onClick={saveVoicesToDebate}
