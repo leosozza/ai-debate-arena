@@ -847,110 +847,14 @@ export const generateNextTurn = createServerFn({ method: "POST" })
     const existing = messages ?? [];
     const subtopics = await ensureBlockSubtopics(debate, context.supabase as never, chatComplete);
 
-    // ====== MULTI-PARTICIPANT BRANCH ======
+    // Esta função SÓ atende o motor duel. Formatos multi têm seu próprio engine
+    // em `multi-debate.functions.ts:generateParticipantTurn` (chamado pela UI).
     if (formatId !== "duel") {
-      const parts = await loadParticipants(context.supabase, debate);
-      const seq = multiSeq(debate, parts);
-      const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
-      const next = seq[seqCount];
-      if (!next) return { done: true, message: null };
-
-      const transcript = existing
-        .map((m) => `[${labelForMulti(m.role, parts)}] (${m.phase}): ${m.content}`)
-        .join("\n\n");
-
-      const block = subtopics[next.block_index] ?? subtopics[0];
-      const blocksTotal = subtopics.length;
-      const sysPrompt = buildSystemPromptMulti(next.role, parts, debate, formatId);
-
-      const speakerLabel = labelForMulti(next.role, parts);
-      const castSummary = parts
-        .map((p) => `- ${p.displayName} (${p.participantRole})`)
-        .join("\n");
-
-      let userPrompt: string;
-      if (next.phase.startsWith("vinheta")) {
-        if (next.block_index === 0) {
-          userPrompt = `Você abre um programa de TV no formato ${formatId}.
-Tema: ${debate.topic}
-Elenco:
-${castSummary}
-
-Primeiro bloco — "${block.title}". Foco: ${block.focus}.
-
-Em até 140 palavras (texto corrido, sem markdown), saúde a audiência, apresente o formato em uma frase, apresente cada participante em UMA frase (nome + quem é), e anuncie quem começa formulando a primeira pergunta do bloco.`;
-        } else {
-          userPrompt = `Tema geral: ${debate.topic}
-Bloco ${next.block_index + 1}/${blocksTotal} — "${block.title}"
-Foco: ${block.focus}
-
-Faça a vinheta de abertura desse bloco em 2-3 frases, em tom de programa de TV. Sem veredito. Máximo 80 palavras.`;
-        }
-      } else if (next.phase === "veredito") {
-        userPrompt = `Tema: ${debate.topic}
-Regras:
-${debate.rules}
-
-Histórico:
-${transcript}
-
-Encerre o programa conforme o formato ${formatId}. ${
-  formatId === "century_problem"
-    ? "Síntese da SOLUÇÃO COLABORATIVA construída pelo elenco."
-    : formatId === "sages_council"
-    ? "Síntese reflexiva e novas perguntas levantadas pelos sábios."
-    : formatId === "tribunal"
-    ? "Anuncie o VEREDITO coletivo dos jurados com base nas deliberações."
-    : formatId === "interview"
-    ? "Encerramento curto agradecendo o entrevistado."
-    : "Avalie quem foi mais convincente."
-} Máximo 200 palavras.`;
-      } else if (next.phase === "deliberação") {
-        userPrompt = `Tema: ${debate.topic}
-Histórico:
-${transcript}
-
-Como JURADO, dê sua deliberação curta (3-5 frases): quem te convenceu mais e por quê. Sem decretar veredito final — só sua leitura. Português.`;
-      } else {
-        const semanticHint = SEMANTIC_ROLE_HINT[parts.find((p) => p.role === next.role)?.participantRole ?? ""] ?? "";
-        userPrompt = `Tema: ${debate.topic}
-Bloco ${next.block_index + 1}/${blocksTotal} — "${block.title}"
-Foco: ${block.focus}
-${semanticHint}
-
-Histórico:
-${transcript || "(início)"}
-
-Você é ${speakerLabel}. Produza sua fala da fase "${next.phase}". Em até 180 palavras, português, texto corrido, sem prefixo de nome.`;
-      }
-
-      const model = modelForMulti(next.role, parts, debate);
-      const content = await chatComplete(
-        [
-          { role: "system", content: sysPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        model,
+      throw new Error(
+        "generateNextTurn é apenas para duel. Use generateParticipantTurn para formatos multi.",
       );
-
-      const { data: inserted, error: iErr } = await context.supabase
-        .from("debate_messages").insert({
-          debate_id: data.debateId,
-          user_id: context.userId,
-          role: next.role,
-          phase: next.phase,
-          block_index: next.block_index,
-          content,
-          order_index: existing.length,
-        }).select().single();
-      if (iErr) throw new Error(iErr.message);
-
-      const willDone = next.phase === "veredito" || seqCount + 1 >= seq.length;
-      if (willDone) {
-        await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
-      }
-      return { done: false, message: inserted };
     }
+
 
     // ====== LEGACY DUEL PATH ======
     const next = await decideNextTurn(debate, existing, chatComplete);
