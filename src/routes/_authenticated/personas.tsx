@@ -43,6 +43,7 @@ type FormState = {
   image_url: string | null;
   vignette_url: string | null;
   voice_settings: VoiceSettings;
+  gender: "m" | "f" | null;
 };
 
 const EMPTY_FORM: FormState = {
@@ -55,6 +56,7 @@ const EMPTY_FORM: FormState = {
   image_url: null,
   vignette_url: null,
   voice_settings: DEFAULT_VOICE_SETTINGS,
+  gender: null,
 };
 
 function PersonasPage() {
@@ -171,6 +173,7 @@ function PersonasPage() {
 
   function loadIntoForm(p: typeof personas[number]) {
     setEditingId(p.id);
+    const g = (p as { gender?: string | null }).gender;
     setForm({
       name: p.name,
       description: p.description ?? "",
@@ -181,6 +184,7 @@ function PersonasPage() {
       image_url: p.image_url ?? null,
       vignette_url: (p as { vignette_url?: string | null }).vignette_url ?? null,
       voice_settings: (p.voice_settings as VoiceSettings | null) ?? DEFAULT_VOICE_SETTINGS,
+      gender: g === "m" || g === "f" ? g : null,
     });
     setSources([]);
     setShowForm(true);
@@ -309,6 +313,30 @@ function PersonasPage() {
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label>Gênero <span className="text-muted-foreground font-normal">(define a voz padrão sugerida)</span></Label>
+                <div className="flex gap-2">
+                  {([
+                    { v: "m" as const, label: "👨 Masculino" },
+                    { v: "f" as const, label: "👩 Feminino" },
+                    { v: null, label: "Não definido" },
+                  ]).map((o) => {
+                    const active = form.gender === o.v;
+                    return (
+                      <button
+                        key={String(o.v)}
+                        type="button"
+                        onClick={() => setForm({ ...form, gender: o.v })}
+                        className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${active ? "border-primary bg-primary/10 ring-1 ring-primary/40 font-semibold" : "border-border/60 hover:border-border"}`}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
 
               <PersonaImagePanel
                 name={form.name}

@@ -10,7 +10,7 @@ import type { DebateFormat, ParticipantRole } from "@/lib/debate-formats";
 import type { VoiceProvider } from "@/lib/voice-catalog";
 import { PersonaSelectItems } from "@/components/PersonaSelectItems";
 import { VoicePicker } from "@/components/VoicePicker";
-import { personaGender, defaultVoiceForGender } from "@/lib/persona-gender";
+import { personaGenderFrom, defaultVoiceForGender } from "@/lib/persona-gender";
 
 export type ExtraParticipantDraft = {
   slot: number;
@@ -33,6 +33,7 @@ type PersonaLite = {
   image_url: string | null;
   voice_provider: string | null;
   voice_id: string | null;
+  gender?: string | null;
 };
 
 export function makeEmptyExtra(slot: number, role: ParticipantRole = "debater"): ExtraParticipantDraft {
@@ -93,7 +94,7 @@ export function ExtraParticipantsPanel({ format, extras, setExtras, personas }: 
     let vp = (p.voice_provider as VoiceProvider | null) ?? null;
     let vid = p.voice_id ?? null;
     if (!vp || vp === "browser" || !vid) {
-      const g = personaGender(p.name);
+      const g = personaGenderFrom(p);
       if (g) { const d = defaultVoiceForGender(g); vp = d.provider; vid = d.voiceId; }
     }
     update(i, {

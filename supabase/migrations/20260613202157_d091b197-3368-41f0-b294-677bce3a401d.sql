@@ -1,0 +1,1 @@
+ALTER TABLE public.personas ADD COLUMN gender text CHECK (gender IN ('m','f') OR gender IS NULL);

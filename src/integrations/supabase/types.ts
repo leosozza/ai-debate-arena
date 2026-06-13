@@ -249,6 +249,7 @@ export type Database = {
           category: string | null
           created_at: string
           description: string
+          gender: string | null
           id: string
           image_url: string | null
           is_public: boolean
@@ -268,6 +269,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string
+          gender?: string | null
           id?: string
           image_url?: string | null
           is_public?: boolean
@@ -287,6 +289,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string
+          gender?: string | null
           id?: string
           image_url?: string | null
           is_public?: boolean
