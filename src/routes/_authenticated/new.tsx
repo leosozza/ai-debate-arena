@@ -282,7 +282,6 @@ function NewDebate() {
                     // Já cria a quantidade mínima de convidados do formato (além de A/B).
                     const need = Math.max(0, f.minDebaters - 2);
                     setExtras(Array.from({ length: need }, (_, idx) => makeEmptyExtra(2 + idx)));
-                    if (f.id !== "duel") setCommentators([]); // comentaristas só no duelo
                   }}
                   className={`group relative text-left rounded-lg border p-3 transition-all ${
                     active
@@ -525,7 +524,6 @@ function NewDebate() {
             onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
         </Card>
 
-        {form.format === "duel" && (
         <Card className="p-6 space-y-4">
           <div className="flex items-start gap-3">
             <Switch id="comm" checked={commentators.length > 0} onCheckedChange={toggleCommentators} />
@@ -552,7 +550,7 @@ function NewDebate() {
             </div>
           ))}
         </Card>
-        )}
+
 
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
           <Sparkles className="h-4 w-4 mr-2" />
