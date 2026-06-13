@@ -925,42 +925,57 @@ function PresentMode() {
               )}
             </section>
 
-            <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
-              <StageDebaterPanel
-                side="a"
-                name={data.debate.debater_a_name}
-                imageUrl={aImageResolved}
+            {isMulti ? (
+              <MultiSpeakerStage
+                speakers={speakers}
+                current={currentSpeaker}
+                role={role}
                 phase={current?.phase ?? ""}
-                content={role === "a" ? speakerContent : ""}
-                active={role === "a"}
-                speaking={role === "a" && playing && !loading}
-                loading={role === "a" && loading}
-                durationMs={role === "a" ? currentAudioMs : null}
-                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "a" ? voiceFallback.reason : null}
+                content={speakerContent}
+                speaking={playing && !loading && !!currentSpeaker}
+                loading={loading && !!currentSpeaker}
+                durationMs={currentAudioMs}
+                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId ? voiceFallback.reason : null}
                 onRetry={retryCurrent}
               />
-              <div className="hidden items-center justify-center md:flex">
-                <div className="relative flex h-full w-20 items-center justify-center">
-                  <div className="absolute inset-y-10 w-px bg-gradient-to-b from-transparent via-border to-transparent" aria-hidden />
-                  <div className="z-10 rounded-full border border-border/70 bg-background/80 px-3 py-2 text-xs font-extrabold text-muted-foreground shadow-2xl">
-                    VS
+            ) : (
+              <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+                <StageDebaterPanel
+                  side="a"
+                  name={data.debate.debater_a_name}
+                  imageUrl={aImageResolved}
+                  phase={current?.phase ?? ""}
+                  content={role === "a" ? speakerContent : ""}
+                  active={role === "a"}
+                  speaking={role === "a" && playing && !loading}
+                  loading={role === "a" && loading}
+                  durationMs={role === "a" ? currentAudioMs : null}
+                  fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "a" ? voiceFallback.reason : null}
+                  onRetry={retryCurrent}
+                />
+                <div className="hidden items-center justify-center md:flex">
+                  <div className="relative flex h-full w-20 items-center justify-center">
+                    <div className="absolute inset-y-10 w-px bg-gradient-to-b from-transparent via-border to-transparent" aria-hidden />
+                    <div className="z-10 rounded-full border border-border/70 bg-background/80 px-3 py-2 text-xs font-extrabold text-muted-foreground shadow-2xl">
+                      VS
+                    </div>
                   </div>
                 </div>
-              </div>
-              <StageDebaterPanel
-                side="b"
-                name={data.debate.debater_b_name}
-                imageUrl={bImageResolved}
-                phase={current?.phase ?? ""}
-                content={role === "b" ? speakerContent : ""}
-                active={role === "b"}
-                speaking={role === "b" && playing && !loading}
-                loading={role === "b" && loading}
-                durationMs={role === "b" ? currentAudioMs : null}
-                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "b" ? voiceFallback.reason : null}
-                onRetry={retryCurrent}
-              />
-            </section>
+                <StageDebaterPanel
+                  side="b"
+                  name={data.debate.debater_b_name}
+                  imageUrl={bImageResolved}
+                  phase={current?.phase ?? ""}
+                  content={role === "b" ? speakerContent : ""}
+                  active={role === "b"}
+                  speaking={role === "b" && playing && !loading}
+                  loading={role === "b" && loading}
+                  durationMs={role === "b" ? currentAudioMs : null}
+                  fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "b" ? voiceFallback.reason : null}
+                  onRetry={retryCurrent}
+                />
+              </section>
+            )}
           </div>
         )}
       </div>
