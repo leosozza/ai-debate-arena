@@ -280,11 +280,9 @@ function DebateDetail() {
         <Button onClick={openSubtemaRoulette} variant="outline" size="sm" disabled={data.messages.length === 0}>
           <Dices className="h-4 w-4 mr-1" /> Sortear subtema
         </Button>
-        {!isMulti && (
-          <Button onClick={handleVerdict} variant="outline" size="sm" disabled={verdictLoading || data.messages.length === 0}>
-            <Gavel className="h-4 w-4 mr-1" /> {verdictLoading ? "Julgando…" : verdict ? "Rejulgar" : "Veredito + placar"}
-          </Button>
-        )}
+        <Button onClick={handleVerdict} variant="outline" size="sm" disabled={verdictLoading || data.messages.length === 0}>
+          <Gavel className="h-4 w-4 mr-1" /> {verdictLoading ? "Julgando…" : (isMulti ? verdictMulti : verdict) ? "Rejulgar" : "Veredito + placar"}
+        </Button>
         <Button onClick={exportMarkdown} variant="ghost" size="sm" disabled={data.messages.length === 0}>
           <Download className="h-4 w-4 mr-1" /> Exportar .md
         </Button>
