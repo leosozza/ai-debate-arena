@@ -1,59 +1,45 @@
-# Plano — 7 correções e melhorias
+# Plano — Persona com gênero, mediador, arenas e comentaristas
 
-## 🔴 Crítico
+## 1. Gênero manual na persona (corrige voz dos extras)
 
-### 1. Vazamento de memória nos caches de TTS
-**Arquivos:** `src/lib/kokoro-tts.ts`, `src/lib/piper-tts.ts`
-- Adicionar LRU simples: `Map` com limite de **200** entradas.
-- Ao despejar entrada antiga, chamar `URL.revokeObjectURL(blobUrl)` para liberar memória do navegador.
-- Aplicar tanto no cache de áudio gerado quanto em qualquer cache de modelo/voz que segure blobs.
+**Banco** (migration): adicionar coluna `gender` em `public.personas` — `text check (gender in ('m','f') or gender is null)`, default `null`.
 
-### 2. Toggle "comentaristas" vazando para formatos multi
-**Arquivo:** `src/routes/_authenticated/new.tsx` (e `debates.$id.edit.tsx` se aplicável)
-- Renderizar o toggle `enable_commentators` **somente quando `format === "duel"`**.
-- Ao trocar para qualquer formato multi: forçar `enable_commentators = false` no estado para não persistir lixo.
-- Garantir que `presentation.$id.tsx` ignore comentaristas em multi (defesa em profundidade).
+**UI** (`src/routes/_authenticated/personas.tsx`): no formulário de criar/editar persona, adicionar radio "Gênero" → Masculino / Feminino / Não definido. Salva via `updatePersona`/`createPersona`.
 
-## 🟠 Importante
+**Server** (`src/lib/persona.functions.ts`): aceitar `gender` nas duas server fns + retornar no `listPersonas`.
 
-### 3. Segurança em deletes (ownership explícita)
-**Arquivos:** `src/lib/debate.functions.ts`, `src/lib/debate-participants.functions.ts`, `src/lib/persona.functions.ts`, `src/lib/voice-presets.functions.ts` (4 alvos)
-- Em cada server fn de `delete*`, adicionar `.eq("user_id", context.userId)` na query do delete (mesmo já tendo RLS — defesa em profundidade).
-- Para `debate_participants` (que não tem `user_id` direto), validar via `assertOwnsDebate(debateId, userId)` antes do delete.
-- Retornar erro claro ("Não autorizado") quando `count === 0`.
+**Auto-seleção de voz** (`src/lib/persona-gender.ts` + `ExtraParticipantsPanel.tsx` + `new.tsx`):
+- Nova função `personaGenderFrom(persona)` que primeiro lê `persona.gender` e só cai na heurística atual como fallback.
+- Em `applyPersona` (A/B e extras): se voz da persona for `browser`/nula, usa `defaultVoiceForGender` com o gênero da persona.
 
-### 4. Retry com backoff no AI Gateway
-**Arquivo:** `src/lib/ai-gateway.server.ts`
-- Envolver `fetch` em `chatComplete` com retry: **3 tentativas**, backoff exponencial (500ms → 1500ms → 4500ms) + jitter.
-- Retentar apenas em: `AbortError`/timeout, status `429`, `500-599`.
-- Não retentar `4xx` (exceto 429) — falha permanente.
-- Timeout por tentativa: 60s via `AbortController`.
+## 2. Mediador — só ajustes visuais (catálogo já existe)
 
-## ✨ UX
+`src/routes/_authenticated/new.tsx`:
+- Mover a seção "Mediador do programa" para **logo após o formato**, em destaque (hoje vem no fim, fácil de não notar).
+- Adicionar emoji + voz-preview rápido no card (botão ▶ usa o `VoicePicker` já existente). Sem mudança no `mediators.ts`.
 
-### 5. Tons por papel (tribunal/multi)
-**Arquivo:** `src/components/CastStrip.tsx` (função `accentForSlot` + lookup novo)
-- Adicionar `accentForRole(role)`:
-  - `prosecutor` → `side-b` (azul)
-  - `defender` → `chart-4` (dourado)
-  - `judge` → `primary` (neutro/destaque)
-  - `interviewer` → `accent`
-  - resto → cai no `accentForSlot` atual
-- Em `MultiScoreboard`, `ClosingCardMulti` e `presentation.$id.tsx`, preferir `accentForRole(role)` quando disponível, com fallback para slot.
+## 3. Arenas — 2 por formato (mantido)
 
-### 6. Botão "Refazer última" fala
-**Arquivos:** `src/routes/_authenticated/presentation.$id.tsx` + nova server fn em `src/lib/debate.functions.ts`
-- Nova server fn `redoLastTurn({ debateId })`:
-  - Verifica ownership.
-  - Pega última mensagem (`order_index` desc).
-  - Deleta.
-  - Roteia para `generateNextTurn` (duel) ou `generateParticipantTurn` (multi) conforme `debate.format`.
-- UI: botão discreto "↻ Refazer última" no painel de controle do apresentador, ao lado do play/pause. Desabilitado quando não há mensagens ou `status === "completed"`.
+Sem alteração. Já temos 18 cenários (2 × 9 formatos). Não vou criar arenas novas — confirma se quer fica nas 18 atuais, mas pelo seu "2 por formato" entendi que está OK como está.
 
-## Pendências já confirmadas pelo usuário
-- ✅ Migrations já aplicadas (types.ts atualizado).
+## 4. Comentaristas em todos os formatos
+
+**UI** (`src/routes/_authenticated/new.tsx`):
+- Tirar o `form.format === "duel"` que esconde o card de comentaristas.
+- Remover o `setCommentators([])` no `onClick` dos formatos não-duelo.
+
+**Engine multi** (`src/lib/multi-debate.functions.ts`):
+- Após cada `veredito` parcial OU ao final de cada `bloco` (último turno do bloco antes do próximo `vinheta`), se `debate.commentators?.length > 0` e `!dynamic_flow`, inserir 1-2 turnos `role="commentator_1"/"commentator_2"`, `phase="comentário bloco N"`.
+- Reaproveita o mesmo padrão já usado em `generateNextTurn` do duelo (procurar no código atual o `commentator_*` para reusar o helper de prompt; se não houver helper, espelhar o prompt do duelo).
+- Atualizar `buildSequence` para inserir os slots de comentaristas entre blocos.
 
 ## Ordem de execução
-1. (#1, #2) críticos primeiro — código pequeno e isolado.
-2. (#3, #4) segurança/robustez backend.
-3. (#5, #6) UX por cima.
+1. Migration `gender` em personas (pede aprovação).
+2. Após aprovação, atualizar server fns + UI da persona + auto-voz.
+3. UI do mediador em destaque.
+4. Comentaristas em multi (UI + engine).
+
+## Fora de escopo (não vou mexer)
+- Refactor A/B → painel único por formato.
+- Criar arenas novas.
+- IA inferindo gênero automaticamente.
