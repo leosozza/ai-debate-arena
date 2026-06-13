@@ -457,7 +457,7 @@ function NewDebate() {
           <div className="space-y-2">
             <Label>Mediador do programa</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {MEDIATORS.map((m) => {
+              {mediators.map((m: MediatorRow) => {
                 const active = mediatorId === m.id;
                 return (
                   <button
