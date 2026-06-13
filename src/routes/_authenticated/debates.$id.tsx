@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, deleteLastTurn, type Verdict } from "@/lib/debate.functions";
 import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
-import { CastStrip, roleLabel, type CastMember } from "@/components/CastStrip";
+import { CastStrip, roleLabel, accentForSlot, type CastMember } from "@/components/CastStrip";
 import { generateParticipantTurn } from "@/lib/multi-debate.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
