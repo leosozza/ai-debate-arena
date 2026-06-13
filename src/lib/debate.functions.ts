@@ -1154,12 +1154,17 @@ function blockTurnsCount(rounds: number, isFinal: boolean, cCount: number): numb
   return 1 + 2 + rounds * 2 + cCount; // vinheta + 2 aberturas + réplicas + comentários
 }
 
-function fullSeqLength(debate: Pick<Debate, "rounds" | "blocks_count" | "commentators">): number {
+function fullSeqLengthInternal(debate: Pick<Debate, "rounds" | "blocks_count" | "commentators">): number {
   const n = debate.blocks_count ?? 4;
   const c = commentatorCount(debate);
   let total = 0;
   for (let i = 0; i < n; i++) total += blockTurnsCount(debate.rounds, i === n - 1, c);
   return total;
+}
+
+/** Total de turnos esperados no formato duel — útil para barra de progresso e endpoint SSE. */
+export function fullSeqLength(debate: Pick<Debate, "rounds" | "blocks_count" | "commentators">): number {
+  return fullSeqLengthInternal(debate);
 }
 
 function fixedSeq(debate: Pick<Debate, "rounds" | "blocks_count" | "commentators">) {
