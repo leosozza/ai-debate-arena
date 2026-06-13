@@ -28,6 +28,7 @@ function DebateDetail() {
   const genParticipant = useServerFn(generateParticipantTurn);
   const listParts = useServerFn(listParticipants);
   const genVerdict = useServerFn(generateVerdict);
+  const genVerdictMulti = useServerFn(generateMultiVerdict);
   const drawSubtemasFn = useServerFn(drawSubtemas);
   const injectSubtemaFn = useServerFn(injectSubtema);
   const [verdictLoading, setVerdictLoading] = useState(false);
