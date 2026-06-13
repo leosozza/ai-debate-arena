@@ -226,13 +226,29 @@ function DebateDetail() {
   return (
     <main className="container mx-auto px-4 py-10 max-w-4xl">
       <button onClick={() => router.navigate({ to: "/dashboard" })} className="text-sm text-muted-foreground hover:text-foreground mb-4">← Voltar</button>
-      <h1 className="font-display text-3xl md:text-4xl font-bold mb-3">{data.debate.topic}</h1>
-      <p className="text-muted-foreground mb-6 flex items-center gap-2 flex-wrap">
-        <span className="font-medium text-side-a">{data.debate.debater_a_name}</span>
-        <span className="text-xs uppercase tracking-wide">vs</span>
-        <span className="font-medium text-side-b">{data.debate.debater_b_name}</span>
-        {data.debate.dynamic_flow && <span className="ml-1 text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary">fluxo dinâmico</span>}
-      </p>
+      {(() => {
+        const fmt = getFormat(data.debate.format ?? "duel");
+        const isDuel = (data.debate.format ?? "duel") === "duel";
+        return (
+          <>
+            <h1 className="font-display text-3xl md:text-4xl font-bold mb-3">{data.debate.topic}</h1>
+            <p className="text-muted-foreground mb-6 flex items-center gap-2 flex-wrap">
+              {isDuel ? (
+                <>
+                  <span className="font-medium text-side-a">{data.debate.debater_a_name}</span>
+                  <span className="text-xs uppercase tracking-wide">vs</span>
+                  <span className="font-medium text-side-b">{data.debate.debater_b_name}</span>
+                </>
+              ) : (
+                <span className="text-xs uppercase tracking-wider">
+                  {fmt ? `${fmt.emoji} ${fmt.label}` : "Programa"} · {2 + extras.length} participantes
+                </span>
+              )}
+              {data.debate.dynamic_flow && <span className="ml-1 text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary">fluxo dinâmico</span>}
+            </p>
+          </>
+        );
+      })()}
 
       <div className="flex flex-wrap gap-2 mb-6">
         <Button onClick={handleNext} disabled={generating || done} variant="outline" size="sm">
