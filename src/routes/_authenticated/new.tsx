@@ -516,14 +516,26 @@ function NewDebate() {
         <Card className="p-6 space-y-4">
           <div>
             <h3 className="font-display font-semibold mb-1">Vozes</h3>
-            <p className="text-xs text-muted-foreground">As vozes podem vir das personas, mas você pode trocar aqui — vale só para este debate.</p>
+            <p className="text-xs text-muted-foreground">As vozes podem vir das personas, mas você pode trocar aqui — vale só para este debate. As vozes são filtradas pelo gênero da persona/mediador para evitar trocas.</p>
           </div>
-          <VoicePicker label="Mediador" provider={form.voiceProviderMod} voiceId={form.voiceIdMod}
-            onChange={(p, v) => setForm({ ...form, voiceProviderMod: p, voiceIdMod: v })} />
-          <VoicePicker label={form.debaterAName || "Debatedor A"} provider={form.voiceProviderA} voiceId={form.voiceIdA}
-            onChange={(p, v) => setForm({ ...form, voiceProviderA: p, voiceIdA: v })} />
-          <VoicePicker label={form.debaterBName || "Debatedor B"} provider={form.voiceProviderB} voiceId={form.voiceIdB}
-            onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
+          {(() => {
+            const med = mediators.find((m: MediatorRow) => m.id === mediatorId) ?? null;
+            const genderA = personaGenderFrom({ name: form.debaterAName, gender: null });
+            const genderB = personaGenderFrom({ name: form.debaterBName, gender: null });
+            return (
+              <>
+                <VoicePicker label="Mediador" provider={form.voiceProviderMod} voiceId={form.voiceIdMod}
+                  filterGender={med?.gender ?? null}
+                  onChange={(p, v) => setForm({ ...form, voiceProviderMod: p, voiceIdMod: v })} />
+                <VoicePicker label={form.debaterAName || "Debatedor A"} provider={form.voiceProviderA} voiceId={form.voiceIdA}
+                  filterGender={genderA}
+                  onChange={(p, v) => setForm({ ...form, voiceProviderA: p, voiceIdA: v })} />
+                <VoicePicker label={form.debaterBName || "Debatedor B"} provider={form.voiceProviderB} voiceId={form.voiceIdB}
+                  filterGender={genderB}
+                  onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
+              </>
+            );
+          })()}
         </Card>
 
         <Card className="p-6 space-y-4">
