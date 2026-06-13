@@ -1,38 +1,17 @@
-# Revisar e regerar os 3 debates existentes
+## Encurtar tela de AVISO
 
-## Debates afetados
-1. `o que é o amor` — roundtable (status: ready, sem falas geradas até o fim)
-2. `Dinheiro compra felicidade?` — duel dinâmico (completed)
-3. `Socialismo x Capitalismo` — duel (completed)
+A tela de aviso atualmente narra via TTS o parágrafo inteiro do disclaimer (~50 palavras), o que leva 10-20s gerando + tocando. Vamos narrar só uma frase curta.
 
-## Passos
+### Mudança
 
-### 1. Backfill de configuração (via INSERT/UPDATE)
-- Em cada debate, setar:
-  - `moderator_id = 'helena'` (Helena Costa — âncora padrão, voz Kokoro `pf_dora`)
-  - `moderator_name`, `moderator_style`, `moderator_voice_provider`, `moderator_voice_id` derivados do catálogo `MEDIATORS`
-  - `commentators = [{name:"Marina Reis", persona:"Repórter política sagaz, comenta o bloco com ironia fina e leitura de bastidor."}, {name:"Caio Lemos", persona:"Analista esportivo-político: enxerga o debate como jogo, aponta quem mandou bem e quem vacilou."}]`
-- Não mexer em `dynamic_flow`, `format`, debaters, blocos, rounds — fica como o usuário configurou.
+Em `src/routes/_authenticated/presentation.$id.tsx` (linha ~716), trocar o texto passado para `speak()`:
 
-### 2. Reset de mensagens
-- `DELETE FROM debate_messages WHERE debate_id IN (...)` nos 3 IDs.
-- `UPDATE debates SET status='ready' WHERE id IN (...)`.
+- **Antes:** `AI_DISCLAIMER_TEXT` (parágrafo completo)
+- **Depois:** `"Aviso: este programa é uma simulação por inteligência artificial."` (uma frase, ~3s de áudio)
 
-### 3. Regerar todas as falas agora
-- Para cada debate, chamar `generateParticipantTurn` (multi: roundtable) ou `generateTurn` (duel) em loop até `done=true` ou `status='completed'`.
-- Usar `invoke-server-function` apontando para as fns existentes, autenticando como o dono dos debates.
-- Limite de segurança: 200 turnos por debate (corta loop infinito).
+O texto visual na tela (`<AIDisclaimer variant="card" />`) continua mostrando o disclaimer completo — só a narração fica curta. Fallback de 30s mantido como segurança.
 
-### 4. Verificação
-- `SELECT count(*) FROM debate_messages GROUP BY debate_id` para confirmar que cada um terminou.
-- Conferir que os papéis `c0`/`c1` aparecem no roundtable e que o duel tem comentaristas entre blocos.
+### Fora de escopo
 
-## Detalhes técnicos
-
-- **Sem migration**: só UPDATE/DELETE (insert tool) — colunas `moderator_id`, `commentators` etc. já existem.
-- **Mediator catálogo**: ler `MEDIATORS` em `src/lib/mediators.ts` para preencher os campos derivados corretamente.
-- **Auth**: as server fns exigem `requireSupabaseAuth`. Vou precisar do bearer do usuário dono — se `invoke-server-function` não anexar sessão automaticamente, faço o loop direto via SQL+chatComplete não é viável (lógica está dentro da fn). Plano B: deixar status `ready` e você dispara cada um na UI (botão de gerar), o que evita problema de auth. Confirmo no momento da execução.
-
-## Fora de escopo
-- Mudar formato, debatedores, blocos, rounds ou personas dos 3 debates.
-- Criar novos comentaristas no catálogo — uso 2 personas inline simples.
+- Texto exibido na tela (continua completo, por compliance visual)
+- Disclaimers de outras telas (footer, inline, export)
