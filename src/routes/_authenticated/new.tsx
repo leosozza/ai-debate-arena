@@ -291,11 +291,6 @@ function NewDebate() {
                       : "border-border/60 hover:border-border bg-card/40"
                   }`}
                 >
-                  {f.isNew && (
-                    <span className="absolute top-1.5 right-1.5 text-[9px] uppercase tracking-widest font-bold text-primary">
-                      Novo
-                    </span>
-                  )}
                   <div className="text-lg mb-1">{f.emoji}</div>
                   <div className="font-display font-bold text-sm leading-tight">{f.label}</div>
                   <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{f.tagline}</div>
