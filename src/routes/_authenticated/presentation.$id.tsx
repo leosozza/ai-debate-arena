@@ -772,6 +772,11 @@ function PresentMode() {
             <VoiceWave active={playing && !loading} colorClass="bg-amber-400" bars={16} />
           </div>
           <p className="mt-3 text-sm md:text-base leading-relaxed text-foreground/90">{speakerContent}</p>
+          <div className="mt-3 flex justify-end">
+            <Button size="sm" variant="ghost" className="h-8 text-xs text-amber-200 hover:text-amber-100" onClick={() => { stopAll(); go(1); }}>
+              <SkipForward className="h-3.5 w-3.5 mr-1" /> Pular intervalo
+            </Button>
+          </div>
         </div>
       )}
       <div className="pointer-events-none absolute inset-0 transition-all duration-700" style={{ background: theme.glow }} />
