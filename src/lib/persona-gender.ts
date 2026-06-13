@@ -32,6 +32,15 @@ export function personaGender(name: string | null | undefined): "m" | "f" | null
   return null;
 }
 
+/** Resolve o gênero de uma persona: campo explícito > heurística por nome. */
+export function personaGenderFrom(
+  p: { gender?: "m" | "f" | null; name?: string | null } | null | undefined,
+): "m" | "f" | null {
+  if (!p) return null;
+  if (p.gender === "m" || p.gender === "f") return p.gender;
+  return personaGender(p.name);
+}
+
 /** Voz GRÁTIS padrão (Kokoro) do gênero indicado. */
 export function defaultVoiceForGender(g: "m" | "f"): { provider: VoiceProvider; voiceId: string } {
   return g === "f"
