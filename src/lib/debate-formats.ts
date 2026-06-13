@@ -36,8 +36,6 @@ export type DebateFormat = {
   maxDebaters: number;
   /** Papéis fixos exigidos além dos debatedores (ex.: 1 entrevistador). */
   fixedRoles?: Array<{ role: ParticipantRole; label: string; min: number; max: number }>;
-  /** Se true, ainda não tem engine própria — usa pipeline "duelo" como fallback. */
-  isNew?: boolean;
 };
 
 export const DEBATE_FORMATS: DebateFormat[] = [
