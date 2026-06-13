@@ -1,64 +1,72 @@
 ## Problema
 
-Hoje o fluxo de abertura está assim:
+O debate `5ec60ae8…` está em formato **Mesa Redonda** com 5 debatedores (Jesus, Buda, Dalai Lama, Confúcio, Lao‑Tsé) — confirmado em `debates.format='roundtable'` e 3 linhas em `debate_participants` (slots 2/3/4). O engine multi‑participante já gerou 40 mensagens com roles `a`, `b`, `ex2`, `ex3`, `ex4`. A UI, porém, continua tratando como duelo:
 
-```text
-1. Card de aviso de IA (sem áudio)
-2. Preparing (carrega vozes/vinhetas)
-3. Vinheta cinemática (só música)
-4. OpeningSequence visual (A → B → VS, sem narração)
-5. Live: mediador narra o aviso + apresenta os convidados (de novo!)
-6. Debate
-```
+- **`debates.$id.tsx`** rotula os dois primeiros como "Lado A / Lado B", aplica cores `side-a` / `side-b` e mostra o placar binário A×B (Scoreboard).
+- **`presentation.$id.tsx`** (Modo Apresentação): cabeçalho com ícone `Swords`, palco fixo em 2 colunas A `VS` B (`StageDebaterPanel side="a"|"b"`), VoicePicker só de A/B, vinheta `OpeningVignette` só com A/B, `ClosingCard` só com A/B, glow/badge "IA A/B".
+- **Veredito**: `generateVerdict` retorna `winner: a|b|empate` + `scoreA/scoreB` — impossível ranquear N participantes.
 
-Resultado: começo mudo, ordem confusa, convidados são apresentados duas vezes (uma só visual, outra só voz).
+## Escopo aprovado
 
-## Objetivo
-
-Carregar tudo primeiro e só depois o apresentador entra no ar narrando aviso + apresentação dos convidados — uma vez só.
-
-```text
-1. Tela inicial "Iniciar transmissão" (única coisa que precisa de clique, libera autoplay)
-2. Preparing — gera todas as vozes e vinhetas (tela de loader, sem som)
-3. Vinheta cinemática Legends Arena + tema (música, sem narração — curta)
-4. Live (mediador no ar):
-   a) Mediador narra o aviso de IA (com card visual de aviso ao fundo)
-   b) Mediador apresenta o tema e os dois convidados (com card visual A/B/VS ao fundo)
-   c) Segue o debate normalmente
-```
+Tudo: tela de detalhe + Modo Apresentação + veredito multi‑participante.
 
 ## Mudanças
 
-### `src/routes/_authenticated/presentation.$id.tsx`
+### 1) `src/routes/_authenticated/debates.$id.tsx`
 
-- Remover a fase `"opening"` da máquina de estados. Nova sequência: `disclaimer-cta → preparing → vignette → live`.
-- Não renderizar mais `<OpeningSequence>`. A apresentação visual dos convidados passa a ser feita pelo próprio palco (stage) enquanto o mediador fala — usando as duas mensagens virtuais que já existem (`__opening_disclaimer__` e `__opening_guests__`).
-- No final da `vignette` (`onDone`), ir direto para `live` e `setPlaying(true)` para o mediador começar a falar imediatamente.
-- Garantir que `ensureAudioEl()` é chamado no clique inicial "Iniciar transmissão" (preserva permissão de autoplay no iOS mesmo após o preparing longo).
-- Encurtar a vinheta (~3,5s) para não atrasar a entrada do mediador.
+- Construir uma lista única `speakers[]` (a, b, ex2…exN) a partir de `debate` + `extras`, com `displayRoleLabel` vindo de `getFormat(format).fixedRoles` quando aplicável (Acusação/Defesa/Réu/Jurado/Entrevistador/Entrevistado) e caindo em "Convidado N" para `roundtable` / `presidential` / `era_clash` / `sages_council` / `ideas_war` / `century_problem`.
+- Substituir as cores fixas `side-a` / `side-b` por uma paleta indexada por slot (já existe `PALETTE` em `roleColor`); aplicar a mesma paleta ao `CastStrip` (hoje só A/B usam `accent: "side-a|b"` e o restante `"accent"`).
+- Esconder o botão **"Veredito + placar"** e o componente `Scoreboard` quando `format !== "duel"`, exibindo no lugar `MultiScoreboard` (novo, ver item 3).
 
-### `src/routes/_authenticated/presentation.$id.tsx` — diagnóstico das vozes dos debatedores
+### 2) `src/routes/_authenticated/presentation.$id.tsx`
 
-- Quando uma fala de A/B cair para voz do navegador por falta de `voiceId`, mostrar um toast com link claro ("Definir voz") em vez de só falhar silenciosamente. Isso explica o "voz do Enéas não funcionou".
-- Garantir que `hydrate` aplique `persona.voice_id` sempre que a persona tiver voz definida (já faz, mas blindar caso `personas` chegue depois de `debate`, re-hidratando uma vez).
+- Reusar o mesmo `speakers[]` (a, b, ex2…exN). Render condicional pelo formato:
+  - **Duel (atual)**: mantém o palco 2‑col `A VS B` e `Swords`.
+  - **Não‑duel**: novo `MultiStage` que:
+    - mostra **um único painel grande de quem fala agora** (avatar + Teleprompter + VoiceWave) — substitui a régua VS, e absorve o overlay `extraSpeaker` que hoje fica flutuando sobre o palco;
+    - mostra **strip inferior com todos os participantes em miniatura** (HologramAvatar pequeno, nome, "falando agora" destacado);
+    - troca o ícone `Swords` por um ícone neutro (`Users` ou o emoji do formato vindo de `getFormat`).
+  - `OpeningVignette` recebe `participants[]` ao invés de `aName/bName` (apresenta os N nomes).
+  - `ClosingCard` recebe `winners[]` (top‑3) ao invés de `a/b` no formato não‑duelo.
+- `VoicePicker` em Settings: gerar dinamicamente um picker por participante (Mediador + A + B + cada `extra`). Persistir os extras em `debate_participants.voice_provider/voice_id` via novo `setParticipantVoice` server fn (já existe coluna).
+- Manter o `prepTasks` cobrindo vinhetas dos N debatedores (não só A/B).
 
-### `src/components/OpeningSequence.tsx`
+### 3) Veredito multi‑participante
 
-- Mantido no repositório mas não usado mais pela apresentação (pode ficar para futuro reaproveitamento). Sem edição.
+- Novo tipo `MultiVerdict` em `src/lib/debate.functions.ts`:
+  ```ts
+  type MultiVerdict = {
+    ranking: Array<{ key: "a"|"b"|`ex${number}`; name: string; score: number }>;
+    criteria: Array<{ name: string; weight?: number; scores: Record<string, number> }>;
+    summary: string;
+    mvp_quote?: string;
+  };
+  ```
+- Novo server fn `generateMultiVerdict({ debateId })` — espelha `generateVerdict`, mas o prompt pede notas por participante (lista derivada de `debate_participants`) e o pós‑processamento monta `ranking[]` ordenado.
+- Persistir em uma coluna nova `debates.verdict_multi jsonb` (migration). O `verdict` atual fica intocado para retrocompatibilidade dos duelos.
+- Novo componente `MultiScoreboard` (em `src/components/MultiScoreboard.tsx`) com barras horizontais ordenadas por score, medalha 🥇🥈🥉 nos três primeiros, e tabela de critérios N‑colunas.
+- `debates.$id.tsx` decide qual gerar/exibir pelo `format`.
 
-### Visual durante a narração de abertura
+### 4) Limpezas pequenas
 
-- Quando `current.id === "__opening_disclaimer__"`: o palco mostra o card de **Aviso de IA** em destaque enquanto o mediador narra.
-- Quando `current.id === "__opening_guests__"`: o palco mostra **A / VS / B** com fotos e descrições enquanto o mediador apresenta.
-- A partir da terceira mensagem, palco normal de debate.
+- `roleTone(role, slot)` (já existe) passa a ser a fonte de verdade do tom do holograma — remover usos diretos de "blue/gold" presos a A/B fora dela.
+- `CastStrip`: aceitar `accent: "palette"` com índice de slot, mapeando para as 5 cores já definidas (`side-a`, `side-b`, `chart-4`, `chart-5`, `primary`).
 
-## Não muda
+## Migration
 
-- Exportação MP4 (a sequência lá já reflete: disclaimer narrado → vinheta → intro guests → debate).
-- Lógica de TTS, cache, fallback e providers.
-- Estrutura de mensagens no banco.
+```sql
+ALTER TABLE public.debates ADD COLUMN IF NOT EXISTS verdict_multi jsonb;
+```
+(Sem novas policies/grants — herda as da tabela.)
 
-## Validação
+## Fora de escopo (proponho para depois)
 
-- Clicar "Iniciar transmissão" → ver loader de preparação → ver vinheta curta com música → ouvir mediador narrar aviso → ouvir mediador apresentar os convidados → ouvir A e B falarem normalmente.
-- Sem duplicação de apresentação. Sem trechos mudos no começo.
+- Reescrever o engine de geração (já está OK — mensagens com role `ex<slot>` chegam corretas).
+- Refazer `ExportVideoButton` / `ExportPackDialog` para N participantes — hoje exportam A×B; manter como está e abrir issue separada.
+- Edit page (`debates.$id.edit.tsx`) — já permite gerenciar `debate_participants`; nada a mudar aqui agora.
+
+## Validação após implementar
+
+1. Abrir `/debates/5ec60ae8-04fd-423e-94c1-d409396a9f4a`: cast strip mostra 5 nomes com 5 cores distintas, sem rótulos "Lado A/B"; botão "Veredito + placar" gera `MultiScoreboard` com 5 linhas ordenadas.
+2. Abrir `🎬 Modo apresentação`: palco mostra 1 falante por vez (Jesus → Buda → Dalai Lama → Confúcio → Lao‑Tsé), strip inferior com os 5; Settings tem 6 VoicePickers (mediador + 5).
+3. Conferir que um debate antigo em `format='duel'` continua idêntico (palco A×B, Scoreboard binário).

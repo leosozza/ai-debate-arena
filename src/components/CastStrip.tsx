@@ -1,12 +1,13 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+export type CastAccent = "side-a" | "side-b" | "accent" | "primary" | "chart-4" | "chart-5";
 export type CastMember = {
   key: string;
   name: string;
   imageUrl: string | null;
   roleLabel: string;
-  accent: "side-a" | "side-b" | "accent" | "primary";
+  accent: CastAccent;
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -25,12 +26,25 @@ export function roleLabel(role: string): string {
   return ROLE_LABELS[role] ?? role;
 }
 
-function Avatar({ name, src, accent }: { name: string; src: string | null; accent: CastMember["accent"] }) {
-  const ring =
-    accent === "side-a" ? "ring-side-a/60"
-    : accent === "side-b" ? "ring-side-b/60"
-    : accent === "primary" ? "ring-primary/60"
-    : "ring-accent/60";
+/** Paleta cíclica por índice de slot — usada quando o formato não é "duelo". */
+export const ACCENT_PALETTE: CastAccent[] = ["side-a", "side-b", "chart-4", "chart-5", "primary", "accent"];
+export function accentForSlot(slot: number): CastAccent {
+  return ACCENT_PALETTE[((slot % ACCENT_PALETTE.length) + ACCENT_PALETTE.length) % ACCENT_PALETTE.length];
+}
+
+function ringClass(accent: CastAccent): string {
+  switch (accent) {
+    case "side-a": return "ring-side-a/60";
+    case "side-b": return "ring-side-b/60";
+    case "primary": return "ring-primary/60";
+    case "chart-4": return "ring-chart-4/60";
+    case "chart-5": return "ring-chart-5/60";
+    default: return "ring-accent/60";
+  }
+}
+
+function Avatar({ name, src, accent }: { name: string; src: string | null; accent: CastAccent }) {
+  const ring = ringClass(accent);
   const initials = name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
   return (
     <div className={`h-14 w-14 rounded-full overflow-hidden ring-2 ${ring} bg-muted/40 flex items-center justify-center shrink-0`}>

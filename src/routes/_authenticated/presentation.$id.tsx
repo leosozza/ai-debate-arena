@@ -25,7 +25,8 @@ import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/compo
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Users, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
+import { accentForSlot, roleLabel as participantRoleLabel } from "@/components/CastStrip";
 
 
 export const Route = createFileRoute("/_authenticated/presentation/$id")({
@@ -633,6 +634,33 @@ function PresentMode() {
   const aDescription = personaA?.description ?? null;
   const bDescription = personaB?.description ?? null;
 
+  // Multi-participant mode: format !== "duel" → palco N-up.
+  const formatId = (data.debate.format ?? "duel") as string;
+  const isMulti = formatId !== "duel";
+  type Speaker = { key: "a" | "b" | string; slot: number; name: string; imageUrl: string | null; accent: ReturnType<typeof accentForSlot>; roleText: string };
+  const speakers: Speaker[] = [
+    { key: "a", slot: 0, name: data.debate.debater_a_name, imageUrl: aImageResolved, accent: isMulti ? accentForSlot(0) : "side-a", roleText: isMulti ? "Convidado" : "Lado A" },
+    { key: "b", slot: 1, name: data.debate.debater_b_name, imageUrl: bImageResolved, accent: isMulti ? accentForSlot(1) : "side-b", roleText: isMulti ? "Convidado" : "Lado B" },
+    ...extras.map((e) => ({
+      key: `ex${e.slot}` as const,
+      slot: e.slot,
+      name: e.display_name,
+      imageUrl: e.image_url ?? null,
+      accent: accentForSlot(e.slot),
+      roleText: participantRoleLabel(e.role),
+    })),
+  ];
+  const currentSpeaker: Speaker | null = (() => {
+    if (!current) return null;
+    if (current.role === "a") return speakers[0];
+    if (current.role === "b") return speakers[1];
+    if (typeof current.role === "string" && current.role.startsWith("ex")) {
+      const slot = Number(current.role.slice(2));
+      return speakers.find((s) => s.slot === slot) ?? null;
+    }
+    return null;
+  })();
+
   // N-up extra speaker: when current role is `ex<slot>`, find matching participant.
   const extraSpeaker = (() => {
     if (!current || typeof current.role !== "string" || !current.role.startsWith("ex")) return null;
@@ -704,7 +732,7 @@ function PresentMode() {
           onDone={() => setIntroBlock(null)}
         />
       )}
-      {extraSpeaker && !isWinner && (
+      {!isMulti && extraSpeaker && !isWinner && (
         <div className="absolute inset-x-0 top-20 z-30 mx-auto w-[min(92%,42rem)] rounded-2xl border border-primary/40 bg-card/90 p-4 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-top-2 duration-500">
           <div className="flex items-center gap-3">
             <HologramAvatar src={extraSpeaker.image_url} name={extraSpeaker.display_name} tone={roleTone(extraSpeaker.role, extraSpeaker.slot)} size={72} />
@@ -735,7 +763,7 @@ function PresentMode() {
 
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground min-w-0">
-          <Swords className="h-4 w-4 text-primary shrink-0" />
+          {isMulti ? <Users className="h-4 w-4 text-primary shrink-0" /> : <Swords className="h-4 w-4 text-primary shrink-0" />}
           <span className="truncate max-w-[30vw]">{data.debate.topic}</span>
           {blocksTotal > 1 && currentSubtopic && (
             <>
@@ -785,6 +813,21 @@ function PresentMode() {
             settings={slotB.settings}
             onSettingsChange={(settings) => setSlotB((s) => ({ ...s, settings }))}
           />
+
+          {isMulti && extras.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border/40 bg-background/30 p-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Convidados extras (voz vinda da persona)</p>
+              {extras.map((e) => (
+                <div key={e.id} className="flex items-center gap-2 text-xs">
+                  <div className="h-6 w-6 overflow-hidden rounded-full bg-muted/40 border border-border/40">
+                    {e.image_url ? <img src={e.image_url} alt={e.display_name} className="h-full w-full object-cover" /> : null}
+                  </div>
+                  <span className="font-medium text-foreground truncate flex-1">{e.display_name}</span>
+                  <span className="text-muted-foreground tabular-nums">{(e.voice_provider as string | null) ?? "browser"}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="border-t border-border/50 pt-3 space-y-2">
             <Button
@@ -897,42 +940,57 @@ function PresentMode() {
               )}
             </section>
 
-            <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
-              <StageDebaterPanel
-                side="a"
-                name={data.debate.debater_a_name}
-                imageUrl={aImageResolved}
+            {isMulti ? (
+              <MultiSpeakerStage
+                speakers={speakers}
+                current={currentSpeaker}
+                role={role}
                 phase={current?.phase ?? ""}
-                content={role === "a" ? speakerContent : ""}
-                active={role === "a"}
-                speaking={role === "a" && playing && !loading}
-                loading={role === "a" && loading}
-                durationMs={role === "a" ? currentAudioMs : null}
-                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "a" ? voiceFallback.reason : null}
+                content={speakerContent}
+                speaking={playing && !loading && !!currentSpeaker}
+                loading={loading && !!currentSpeaker}
+                durationMs={currentAudioMs}
+                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId ? voiceFallback.reason : null}
                 onRetry={retryCurrent}
               />
-              <div className="hidden items-center justify-center md:flex">
-                <div className="relative flex h-full w-20 items-center justify-center">
-                  <div className="absolute inset-y-10 w-px bg-gradient-to-b from-transparent via-border to-transparent" aria-hidden />
-                  <div className="z-10 rounded-full border border-border/70 bg-background/80 px-3 py-2 text-xs font-extrabold text-muted-foreground shadow-2xl">
-                    VS
+            ) : (
+              <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+                <StageDebaterPanel
+                  side="a"
+                  name={data.debate.debater_a_name}
+                  imageUrl={aImageResolved}
+                  phase={current?.phase ?? ""}
+                  content={role === "a" ? speakerContent : ""}
+                  active={role === "a"}
+                  speaking={role === "a" && playing && !loading}
+                  loading={role === "a" && loading}
+                  durationMs={role === "a" ? currentAudioMs : null}
+                  fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "a" ? voiceFallback.reason : null}
+                  onRetry={retryCurrent}
+                />
+                <div className="hidden items-center justify-center md:flex">
+                  <div className="relative flex h-full w-20 items-center justify-center">
+                    <div className="absolute inset-y-10 w-px bg-gradient-to-b from-transparent via-border to-transparent" aria-hidden />
+                    <div className="z-10 rounded-full border border-border/70 bg-background/80 px-3 py-2 text-xs font-extrabold text-muted-foreground shadow-2xl">
+                      VS
+                    </div>
                   </div>
                 </div>
-              </div>
-              <StageDebaterPanel
-                side="b"
-                name={data.debate.debater_b_name}
-                imageUrl={bImageResolved}
-                phase={current?.phase ?? ""}
-                content={role === "b" ? speakerContent : ""}
-                active={role === "b"}
-                speaking={role === "b" && playing && !loading}
-                loading={role === "b" && loading}
-                durationMs={role === "b" ? currentAudioMs : null}
-                fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "b" ? voiceFallback.reason : null}
-                onRetry={retryCurrent}
-              />
-            </section>
+                <StageDebaterPanel
+                  side="b"
+                  name={data.debate.debater_b_name}
+                  imageUrl={bImageResolved}
+                  phase={current?.phase ?? ""}
+                  content={role === "b" ? speakerContent : ""}
+                  active={role === "b"}
+                  speaking={role === "b" && playing && !loading}
+                  loading={role === "b" && loading}
+                  durationMs={role === "b" ? currentAudioMs : null}
+                  fallbackReason={voiceFallback && current?.id === voiceFallback.msgId && role === "b" ? voiceFallback.reason : null}
+                  onRetry={retryCurrent}
+                />
+              </section>
+            )}
           </div>
         )}
       </div>
@@ -1115,4 +1173,142 @@ function StageDebaterPanel({
     </article>
   );
 }
+
+function accentToText(a: string): string {
+  switch (a) {
+    case "side-a": return "text-side-a";
+    case "side-b": return "text-side-b";
+    case "chart-4": return "text-chart-4";
+    case "chart-5": return "text-chart-5";
+    case "primary": return "text-primary";
+    default: return "text-accent";
+  }
+}
+function accentToBorder(a: string): string {
+  switch (a) {
+    case "side-a": return "border-side-a/70";
+    case "side-b": return "border-side-b/70";
+    case "chart-4": return "border-chart-4/70";
+    case "chart-5": return "border-chart-5/70";
+    case "primary": return "border-primary/70";
+    default: return "border-accent/70";
+  }
+}
+function accentToBg(a: string): string {
+  switch (a) {
+    case "side-a": return "bg-side-a";
+    case "side-b": return "bg-side-b";
+    case "chart-4": return "bg-chart-4";
+    case "chart-5": return "bg-chart-5";
+    case "primary": return "bg-primary";
+    default: return "bg-accent";
+  }
+}
+
+type StageSpeaker = { key: string; slot: number; name: string; imageUrl: string | null; accent: string; roleText: string };
+
+function MultiSpeakerStage({
+  speakers,
+  current,
+  role,
+  phase,
+  content,
+  speaking,
+  loading,
+  durationMs,
+  fallbackReason,
+  onRetry,
+}: {
+  speakers: StageSpeaker[];
+  current: StageSpeaker | null;
+  role: string;
+  phase: string;
+  content: string;
+  speaking: boolean;
+  loading: boolean;
+  durationMs?: number | null;
+  fallbackReason?: string | null;
+  onRetry?: () => void;
+}) {
+  const moderatorSpeaking = role === "moderator";
+  const active = current;
+  const activeBorder = active ? accentToBorder(active.accent) : "border-border/60";
+  const activeText = active ? accentToText(active.accent) : "text-muted-foreground";
+  const activeDot = active ? accentToBg(active.accent) : "bg-primary";
+  return (
+    <section className="relative flex min-h-0 flex-1 flex-col gap-4">
+      <article className={`relative flex flex-1 overflow-hidden rounded-2xl border p-4 md:p-6 transition-all duration-500 ${active ? `${activeBorder} bg-card/80 shadow-2xl` : "border-border/60 bg-card/40"}`}>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/70 to-transparent" aria-hidden />
+        <div className="relative z-10 flex h-full w-full flex-col items-center justify-between gap-4 text-center">
+          <div className="flex w-full flex-col items-center gap-3">
+            <div className={`relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 md:h-32 md:w-32 ${active ? `${activeText} border-current bg-background/70` : "border-border text-muted-foreground bg-secondary/50"}`}>
+              {active && <span className={`absolute inset-[-8px] rounded-full border ${activeText} opacity-30 animate-ping`} />}
+              {active?.imageUrl ? (
+                <img src={active.imageUrl} alt={active.name} className="h-full w-full object-cover" />
+              ) : (
+                <Bot className="h-12 w-12 md:h-16 md:w-16" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className={`mb-1 text-xs font-semibold uppercase tracking-[0.28em] ${active ? activeText : "text-muted-foreground"}`}>
+                {moderatorSpeaking ? "Mediador" : active?.roleText ?? "Aguardando"}
+              </div>
+              <h3 className={`font-display text-2xl font-extrabold md:text-4xl ${active ? activeText : "text-foreground"}`}>
+                {active?.name ?? (moderatorSpeaking ? "Estúdio Central" : "—")}
+              </h3>
+            </div>
+          </div>
+          <div className="w-full">
+            <div className="mb-3 flex min-h-16 items-center justify-center">
+              <VoiceWave active={speaking} colorClass={activeDot} bars={28} />
+            </div>
+            {loading && (
+              <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Preparando voz
+              </div>
+            )}
+            <div className={`mb-2 text-xs font-semibold uppercase tracking-[0.24em] ${active ? activeText : "text-muted-foreground"}`}>
+              {active ? phase : "Aguardando"}
+            </div>
+            {active ? (
+              <div className="mx-auto max-w-3xl">
+                <Teleprompter text={content} active={speaking} durationMs={durationMs ?? null} heightRem={7} />
+                {fallbackReason && (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Voz clonada falhou — usando navegador.</span>
+                    </div>
+                    {onRetry && (
+                      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={onRetry}>
+                        <RotateCcw className="h-3 w-3 mr-1" /> Tentar
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </article>
+      {/* Roster strip — todos os participantes */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {speakers.map((s) => {
+          const isActive = current?.key === s.key;
+          const ring = isActive ? accentToBorder(s.accent) : "border-border/40";
+          const txt = isActive ? accentToText(s.accent) : "text-muted-foreground";
+          return (
+            <div key={s.key} className={`flex items-center gap-2 rounded-full border ${ring} bg-card/60 backdrop-blur-sm px-2 py-1 transition-all ${isActive ? "scale-105 shadow-lg" : "opacity-70"}`}>
+              <div className={`h-8 w-8 overflow-hidden rounded-full border ${isActive ? accentToBorder(s.accent) : "border-border/50"} bg-muted/40`}>
+                {s.imageUrl ? <img src={s.imageUrl} alt={s.name} className="h-full w-full object-cover" /> : <Bot className="h-4 w-4 m-auto text-muted-foreground" />}
+              </div>
+              <span className={`text-xs font-semibold pr-2 ${txt}`}>{s.name}</span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 
