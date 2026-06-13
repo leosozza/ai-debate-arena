@@ -18,7 +18,9 @@ const VoiceProviderSchema = z.enum(["browser", "kokoro", "piper", "eleven", "min
 
 const ParticipantInput = z.object({
   debateId: z.string().uuid(),
-  slot: z.number().int().min(0).max(20),
+  // slots 0/1 são reservados aos colunistas A/B do duelo; convidados extras
+  // começam no slot 2 para evitar colisão silenciosa no upsert.
+  slot: z.number().int().min(2).max(20),
   role: RoleSchema.default("debater"),
   displayName: z.string().trim().min(1).max(120),
   personaId: z.string().uuid().nullable().optional(),
@@ -49,10 +51,12 @@ export const listParticipants = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ debateId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    await assertOwnsDebate(context.supabase as unknown as { from: (t: "debates") => unknown }, data.debateId, context.userId);
     const { data: rows, error } = await context.supabase
       .from("debate_participants")
       .select("*")
       .eq("debate_id", data.debateId)
+      .gte("slot", 2)
       .order("slot", { ascending: true });
     if (error) throw new Error(error.message);
     return rows ?? [];

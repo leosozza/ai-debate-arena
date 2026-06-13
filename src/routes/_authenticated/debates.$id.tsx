@@ -7,6 +7,7 @@ import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
 import { CastStrip, roleLabel, accentForSlot, type CastMember } from "@/components/CastStrip";
 import { generateParticipantTurn } from "@/lib/multi-debate.functions";
+import { multiSequenceLength } from "@/lib/multi-sequence";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
@@ -209,10 +210,20 @@ function DebateDetail() {
 
   const blocksCount = data.debate.blocks_count ?? 4;
   const subtopics = (data.debate.block_subtopics as Array<{ title: string; focus: string }> | null) ?? [];
-  // Aproximação do total de falas: blocos × (vinheta + 2 aberturas + rounds×2 réplicas), bloco final tem (vinheta + 2 fim + veredito)
-  const perBlock = 1 + 2 + data.debate.rounds * 2;
-  const lastBlock = 1 + 2 + 1;
-  const totalTurns = (blocksCount - 1) * perBlock + lastBlock;
+  let totalTurns: number;
+  if (isMulti) {
+    const partsForSeq = [
+      { slot: 0, role: "debater" },
+      { slot: 1, role: "debater" },
+      ...extras.map((e) => ({ slot: e.slot, role: e.role })),
+    ];
+    totalTurns = multiSequenceLength(data.debate.format ?? "duel", partsForSeq, blocksCount, data.debate.rounds);
+  } else {
+    // duel: blocos intermediários (vinheta + 2 aberturas + rounds×2) + bloco final (vinheta + 2 fim + veredito)
+    const perBlock = 1 + 2 + data.debate.rounds * 2;
+    const lastBlock = 1 + 2 + 1;
+    totalTurns = (blocksCount - 1) * perBlock + lastBlock;
+  }
   const progress = Math.min(data.messages.length, totalTurns);
   const done = data.debate.status === "completed" || progress >= totalTurns;
   const verdict = (data.debate.verdict as Verdict | null) ?? null;

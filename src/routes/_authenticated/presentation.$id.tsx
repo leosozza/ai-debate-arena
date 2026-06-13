@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getDebate, ttsSpeak, updateDebate, type Verdict, type MultiVerdict } from "@/lib/debate.functions";
-import { listParticipants } from "@/lib/debate-participants.functions";
+import { listParticipants, upsertParticipant } from "@/lib/debate-participants.functions";
 import { listPersonas } from "@/lib/persona.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
@@ -61,8 +61,11 @@ function PresentMode() {
   const lp = useServerFn(listPersonas);
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
   const listExtrasFn = useServerFn(listParticipants);
-  const { data: extras = [] } = useQuery({ queryKey: ["debate-participants", id], queryFn: () => listExtrasFn({ data: { debateId: id } }) });
+  const upsertExtraFn = useServerFn(upsertParticipant);
+  const { data: extras = [], refetch: refetchExtras } = useQuery({ queryKey: ["debate-participants", id], queryFn: () => listExtrasFn({ data: { debateId: id } }) });
   const [savingVoices, setSavingVoices] = useState(false);
+  // Override local de voz por participante extra (id → slot) — persistido no banco via upsert.
+  const [extraVoiceOverrides, setExtraVoiceOverrides] = useState<Record<string, { provider: VoiceProvider; voiceId: string | null }>>({});
 
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -195,7 +198,14 @@ function PresentMode() {
     if (typeof role === "string" && role.startsWith("ex")) {
       const slot = Number(role.slice(2));
       const e = extras.find((x) => x.slot === slot);
-      if (e) return { provider: ((e.voice_provider as VoiceProvider | null) ?? "browser"), voiceId: e.voice_id ?? null, settings: DEFAULT_VOICE_SETTINGS };
+      if (e) {
+        const ov = extraVoiceOverrides[e.id];
+        return {
+          provider: ov?.provider ?? ((e.voice_provider as VoiceProvider | null) ?? "browser"),
+          voiceId: ov?.voiceId ?? e.voice_id ?? null,
+          settings: DEFAULT_VOICE_SETTINGS,
+        };
+      }
     }
     if (role === "c0" || role === "c1") {
       const c = commentatorList[role === "c0" ? 0 : 1];
@@ -821,17 +831,41 @@ function PresentMode() {
           />
 
           {isMulti && extras.length > 0 && (
-            <div className="space-y-2 rounded-md border border-border/40 bg-background/30 p-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Convidados extras (voz vinda da persona)</p>
-              {extras.map((e) => (
-                <div key={e.id} className="flex items-center gap-2 text-xs">
-                  <div className="h-6 w-6 overflow-hidden rounded-full bg-muted/40 border border-border/40">
-                    {e.image_url ? <img src={e.image_url} alt={e.display_name} className="h-full w-full object-cover" /> : null}
-                  </div>
-                  <span className="font-medium text-foreground truncate flex-1">{e.display_name}</span>
-                  <span className="text-muted-foreground tabular-nums">{(e.voice_provider as string | null) ?? "browser"}</span>
-                </div>
-              ))}
+            <div className="space-y-3 rounded-md border border-border/40 bg-background/30 p-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Convidados extras</p>
+              {extras.map((e) => {
+                const ov = extraVoiceOverrides[e.id];
+                const provider = (ov?.provider ?? ((e.voice_provider as VoiceProvider | null) ?? "browser")) as VoiceProvider;
+                const voiceId = ov?.voiceId ?? e.voice_id ?? null;
+                return (
+                  <VoicePicker
+                    key={e.id}
+                    label={e.display_name}
+                    provider={provider}
+                    voiceId={voiceId}
+                    onChange={(p, v) => {
+                      setExtraVoiceOverrides((prev) => ({ ...prev, [e.id]: { provider: p, voiceId: v } }));
+                      upsertExtraFn({ data: {
+                        debateId: id,
+                        slot: e.slot,
+                        role: e.role as never,
+                        displayName: e.display_name,
+                        personaId: e.persona_id ?? null,
+                        personaPrompt: e.persona_prompt ?? "",
+                        imageUrl: e.image_url ?? null,
+                        voiceProvider: p,
+                        voiceId: v,
+                        model: e.model ?? null,
+                        team: e.team ?? null,
+                      } })
+                        .then(() => { refetchExtras(); })
+                        .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Falha ao salvar voz do convidado"));
+                    }}
+                    settings={DEFAULT_VOICE_SETTINGS}
+                    onSettingsChange={() => { /* settings por extra ainda não persistidos */ }}
+                  />
+                );
+              })}
             </div>
           )}
 
