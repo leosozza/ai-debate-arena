@@ -732,7 +732,7 @@ function PresentMode() {
           onDone={() => setIntroBlock(null)}
         />
       )}
-      {extraSpeaker && !isWinner && (
+      {!isMulti && extraSpeaker && !isWinner && (
         <div className="absolute inset-x-0 top-20 z-30 mx-auto w-[min(92%,42rem)] rounded-2xl border border-primary/40 bg-card/90 p-4 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-top-2 duration-500">
           <div className="flex items-center gap-3">
             <HologramAvatar src={extraSpeaker.image_url} name={extraSpeaker.display_name} tone={roleTone(extraSpeaker.role, extraSpeaker.slot)} size={72} />
