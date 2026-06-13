@@ -328,6 +328,7 @@ function DebateDetail() {
       })()}
 
       {!isMulti && verdict && <Scoreboard verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />}
+      {isMulti && verdictMulti && <MultiScoreboard verdict={verdictMulti} />}
 
 
       {data.debate.rules && (
