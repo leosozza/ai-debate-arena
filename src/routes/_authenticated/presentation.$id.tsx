@@ -763,7 +763,7 @@ function PresentMode() {
 
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground min-w-0">
-          <Swords className="h-4 w-4 text-primary shrink-0" />
+          {isMulti ? <Users className="h-4 w-4 text-primary shrink-0" /> : <Swords className="h-4 w-4 text-primary shrink-0" />}
           <span className="truncate max-w-[30vw]">{data.debate.topic}</span>
           {blocksTotal > 1 && currentSubtopic && (
             <>
