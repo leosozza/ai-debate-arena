@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { getDebate, ttsSpeak, updateDebate, type Verdict } from "@/lib/debate.functions";
+import { getDebate, ttsSpeak, updateDebate, type Verdict, type MultiVerdict } from "@/lib/debate.functions";
 import { listParticipants } from "@/lib/debate-participants.functions";
 import { listPersonas } from "@/lib/persona.functions";
 import { minimaxTts } from "@/lib/tts.functions";
@@ -16,6 +16,7 @@ import { getArenaTheme } from "@/lib/arena-themes";
 import { BlockIntroCard } from "@/components/BlockIntroCard";
 // DebaterIntroCard substituído por OpeningSequence.
 import { ClosingCard } from "@/components/ClosingCard";
+import { ClosingCardMulti } from "@/components/ClosingCardMulti";
 import { AIDisclaimer, AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 // OpeningSequence removido: apresentação dos convidados agora é narrada pelo mediador no palco.
 import { OpeningVignette } from "@/components/OpeningVignette";
@@ -152,12 +153,13 @@ function PresentMode() {
   const messages = rawMessages;
   const current = messages[index];
   const verdict = (data?.debate?.verdict as Verdict | null) ?? null;
+  const verdictMulti = ((data?.debate as { verdict_multi?: MultiVerdict | null } | undefined)?.verdict_multi ?? null) as MultiVerdict | null;
   const arenaTheme = getArenaTheme((data?.debate as { arena_theme?: string | null } | undefined)?.arena_theme);
   const commentatorList = (() => {
     const cs = (data?.debate as { commentators?: unknown } | undefined)?.commentators;
     return Array.isArray(cs) ? (cs as Array<{ name?: string; voiceProvider?: string | null; voiceId?: string | null }>) : [];
   })();
-  const slideCount = messages.length + (verdict ? 1 : 0);
+  const slideCount = messages.length + ((verdict || verdictMulti) ? 1 : 0);
 
   function clearKeepAlive() {
     if (keepAliveRef.current) {
