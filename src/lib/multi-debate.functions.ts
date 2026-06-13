@@ -130,7 +130,7 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     const seq = buildSequence(debate.format, parts, blocks, debate.rounds);
 
     const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
-    const next = seq[seqCount];
+    let next = seq[seqCount];
     if (!next) {
       await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
       return { done: true, message: null };
@@ -140,6 +140,46 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     const transcript = existing
       .map((m) => `[${labels[m.role] ?? m.role}] (${m.phase}): ${m.content}`)
       .join("\n\n");
+
+    // Fluxo dinâmico em formatos multi: o mediador decide o próximo movimento
+    // durante réplicas (mantém vinheta/abertura/considerações finais/veredito fixos).
+    let dynamicGuidance: string | null = null;
+    if (debate.dynamic_flow && next.speaker !== "moderator" && /^réplica/i.test(next.phase)) {
+      const speakerList = parts
+        .map((p) => `- slot ${p.slot} → ${p.display_name} (${p.role})`)
+        .join("\n");
+      const lastNonMod = [...existing].reverse().find((m) => m.role !== "moderator" && m.phase !== "reviravolta");
+      const lastSlot = lastNonMod
+        ? (lastNonMod.role === "a" ? 0 : lastNonMod.role === "b" ? 1 : Number(String(lastNonMod.role).replace(/^ex/, "")) || -1)
+        : -1;
+      try {
+        const decision = await chatComplete(
+          [
+            { role: "system", content: `Você é o MEDIADOR de um programa de TV ao vivo conduzindo um bate-rebate ágil entre vários convidados. Decida o PRÓXIMO movimento:
+- "slot:<n>": qual participante rebate agora. A instrução deve ser AFIADA — mandar a pessoa rebater DIRETAMENTE um ponto, contradição ou exagero específico de alguém (citando pelo nome), provocar, expor fragilidade. NUNCA escolha o participante que acabou de falar.
+- "moderator": DE VEZ EM QUANDO (talvez 1 em cada 4 turnos), VOCÊ interrompe com uma pergunta incisiva.
+Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` },
+            { role: "user", content: `Tema: ${debate.topic}\nBloco: "${(subtopics[next.block_index] ?? subtopics[0]).title}"\nParticipantes:\n${speakerList}\nÚltimo a falar: slot ${lastSlot}\n\nHistórico:\n${transcript}\n\nQual o próximo movimento?` },
+          ],
+          debate.moderator_model,
+        );
+        const cleaned = decision.replace(/^```json\s*|\s*```$/g, "").trim();
+        const parsed = JSON.parse(cleaned) as { speaker?: string; instruction?: string };
+        if (parsed.speaker === "moderator") {
+          next = { speaker: "moderator", phase: "pergunta-incisiva", block_index: next.block_index };
+        } else {
+          const m = /^slot:(\d+)$/.exec(String(parsed.speaker ?? ""));
+          const chosen = m ? Number(m[1]) : NaN;
+          if (parts.some((p) => p.slot === chosen) && chosen !== lastSlot) {
+            next = { ...next, speaker: chosen };
+          }
+        }
+        dynamicGuidance = parsed.instruction ?? null;
+      } catch {
+        // fallback: mantém o turno determinístico
+      }
+    }
+
     const block = subtopics[next.block_index] ?? subtopics[0];
     const tone = toneFor(debate.format);
 
