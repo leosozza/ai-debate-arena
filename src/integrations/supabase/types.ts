@@ -244,6 +244,57 @@ export type Database = {
         }
         Relationships: []
       }
+      mediators: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          gender: string
+          id: string
+          is_default: boolean
+          name: string
+          slug: string
+          sort_order: number
+          style: string
+          tagline: string
+          tone: string
+          updated_at: string
+          voice_id: string
+          voice_provider: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          gender: string
+          id?: string
+          is_default?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+          style: string
+          tagline: string
+          tone?: string
+          updated_at?: string
+          voice_id: string
+          voice_provider: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          gender?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+          style?: string
+          tagline?: string
+          tone?: string
+          updated_at?: string
+          voice_id?: string
+          voice_provider?: string
+        }
+        Relationships: []
+      }
       personas: {
         Row: {
           category: string | null

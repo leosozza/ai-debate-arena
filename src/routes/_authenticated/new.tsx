@@ -24,7 +24,7 @@ import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-for
 import { Badge } from "@/components/ui/badge";
 import { ExtraParticipantsPanel, makeEmptyExtra, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
 import { personaGenderFrom, defaultVoiceForGender } from "@/lib/persona-gender";
-import { MEDIATORS, type Mediator } from "@/lib/mediators";
+import { listMediators, type MediatorRow } from "@/lib/mediators.functions";
 import { themesForFormat } from "@/lib/arena-themes";
 import { ArenaScene } from "@/components/ArenaScene";
 import { AIDisclaimer } from "@/components/AIDisclaimer";
@@ -81,7 +81,9 @@ function NewDebate() {
   const router = useRouter();
   const create = useServerFn(createDebate);
   const listP = useServerFn(listPersonas);
+  const listMed = useServerFn(listMediators);
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: () => listP() });
+  const { data: mediators = [] } = useQuery({ queryKey: ["mediators"], queryFn: () => listMed(), staleTime: 5 * 60_000 });
   const genTopicFn = useServerFn(generateDebateTopic);
   const genSidesFn = useServerFn(generateOpposingDebaters);
   const drawTopicsFn = useServerFn(drawTopics);
@@ -136,7 +138,7 @@ function NewDebate() {
   const currentFormat = getFormat(form.format)!;
   const [mediatorId, setMediatorId] = useState<string | null>(null);
 
-  function pickMediator(m: Mediator) {
+  function pickMediator(m: MediatorRow) {
     setMediatorId(m.id);
     setForm((f) => ({
       ...f,
@@ -455,7 +457,7 @@ function NewDebate() {
           <div className="space-y-2">
             <Label>Mediador do programa</Label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {MEDIATORS.map((m) => {
+              {mediators.map((m: MediatorRow) => {
                 const active = mediatorId === m.id;
                 return (
                   <button
@@ -514,14 +516,26 @@ function NewDebate() {
         <Card className="p-6 space-y-4">
           <div>
             <h3 className="font-display font-semibold mb-1">Vozes</h3>
-            <p className="text-xs text-muted-foreground">As vozes podem vir das personas, mas você pode trocar aqui — vale só para este debate.</p>
+            <p className="text-xs text-muted-foreground">As vozes podem vir das personas, mas você pode trocar aqui — vale só para este debate. As vozes são filtradas pelo gênero da persona/mediador para evitar trocas.</p>
           </div>
-          <VoicePicker label="Mediador" provider={form.voiceProviderMod} voiceId={form.voiceIdMod}
-            onChange={(p, v) => setForm({ ...form, voiceProviderMod: p, voiceIdMod: v })} />
-          <VoicePicker label={form.debaterAName || "Debatedor A"} provider={form.voiceProviderA} voiceId={form.voiceIdA}
-            onChange={(p, v) => setForm({ ...form, voiceProviderA: p, voiceIdA: v })} />
-          <VoicePicker label={form.debaterBName || "Debatedor B"} provider={form.voiceProviderB} voiceId={form.voiceIdB}
-            onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
+          {(() => {
+            const med = mediators.find((m: MediatorRow) => m.id === mediatorId) ?? null;
+            const genderA = personaGenderFrom({ name: form.debaterAName, gender: null });
+            const genderB = personaGenderFrom({ name: form.debaterBName, gender: null });
+            return (
+              <>
+                <VoicePicker label="Mediador" provider={form.voiceProviderMod} voiceId={form.voiceIdMod}
+                  filterGender={med?.gender ?? null}
+                  onChange={(p, v) => setForm({ ...form, voiceProviderMod: p, voiceIdMod: v })} />
+                <VoicePicker label={form.debaterAName || "Debatedor A"} provider={form.voiceProviderA} voiceId={form.voiceIdA}
+                  filterGender={genderA}
+                  onChange={(p, v) => setForm({ ...form, voiceProviderA: p, voiceIdA: v })} />
+                <VoicePicker label={form.debaterBName || "Debatedor B"} provider={form.voiceProviderB} voiceId={form.voiceIdB}
+                  filterGender={genderB}
+                  onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
+              </>
+            );
+          })()}
         </Card>
 
         <Card className="p-6 space-y-4">

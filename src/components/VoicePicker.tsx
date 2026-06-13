@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { VOICE_CATALOG, PROVIDER_LABEL, type VoiceProvider } from "@/lib/voice-catalog";
+import { VOICE_CATALOG, PROVIDER_LABEL, filterVoicesByGender, type VoiceProvider, type VoiceGender } from "@/lib/voice-catalog";
 import { ttsSpeak } from "@/lib/debate.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
@@ -29,11 +29,13 @@ interface Props {
   settings?: VoiceSettings | null;
   onSettingsChange?: (s: VoiceSettings) => void;
   sampleText?: string;
+  /** Quando definido, esconde vozes do gênero oposto (Kokoro/Piper/Eleven). */
+  filterGender?: VoiceGender | null;
 }
 
 const DEFAULT_SAMPLE = "Olá! Esta é uma amostra da minha voz para o debate.";
 
-export function VoicePicker({ label, provider, voiceId, onChange, settings, onSettingsChange, sampleText }: Props) {
+export function VoicePicker({ label, provider, voiceId, onChange, settings, onSettingsChange, sampleText, filterGender }: Props) {
   const p: VoiceProvider = provider ?? "browser";
   const s: VoiceSettings = settings ?? DEFAULT_VOICE_SETTINGS;
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -183,7 +185,10 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
               stop();
               const np = v as VoiceProvider;
               if (np === "browser") onChange(np, null);
-              else onChange(np, VOICE_CATALOG[np][0].id);
+              else {
+                const first = filterVoicesByGender(np, filterGender)[0]?.id ?? VOICE_CATALOG[np][0]?.id ?? null;
+                onChange(np, first);
+              }
             }}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -206,8 +211,8 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
             </Select>
           ) : (
             (() => {
-              const catalog = VOICE_CATALOG[p] ?? [];
-              const fallback = catalog[0]?.id ?? "";
+              const catalog = filterVoicesByGender(p, filterGender);
+              const fallback = catalog[0]?.id ?? VOICE_CATALOG[p]?.[0]?.id ?? "";
               const currentId = voiceId && voiceId.length > 0 ? voiceId : fallback;
               const showPresets = p === "replicate" && presets.length > 0;
               // Para presets clonados (replicate), o usuário pode escolher o modelo:
