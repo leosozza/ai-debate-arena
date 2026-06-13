@@ -61,8 +61,11 @@ function PresentMode() {
   const lp = useServerFn(listPersonas);
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
   const listExtrasFn = useServerFn(listParticipants);
-  const { data: extras = [] } = useQuery({ queryKey: ["debate-participants", id], queryFn: () => listExtrasFn({ data: { debateId: id } }) });
+  const upsertExtraFn = useServerFn(upsertParticipant);
+  const { data: extras = [], refetch: refetchExtras } = useQuery({ queryKey: ["debate-participants", id], queryFn: () => listExtrasFn({ data: { debateId: id } }) });
   const [savingVoices, setSavingVoices] = useState(false);
+  // Override local de voz por participante extra (id → slot) — persistido no banco via upsert.
+  const [extraVoiceOverrides, setExtraVoiceOverrides] = useState<Record<string, { provider: VoiceProvider; voiceId: string | null }>>({});
 
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
