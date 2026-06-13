@@ -19,7 +19,8 @@ export interface MediatorRow {
 
 export const listMediators = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
+  // `mediators` table — typegen runs after migration approval, so cast for now.
+  const { data, error } = await (supabaseAdmin as unknown as { from: (t: string) => { select: (s: string) => { order: (c: string, o: { ascending: boolean }) => Promise<{ data: Array<Record<string, unknown>> | null; error: { message: string } | null }> } } })
     .from("mediators")
     .select("id, slug, name, gender, tagline, style, tone, voice_provider, voice_id, avatar_url, is_default, sort_order")
     .order("sort_order", { ascending: true });
