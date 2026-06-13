@@ -634,6 +634,33 @@ function PresentMode() {
   const aDescription = personaA?.description ?? null;
   const bDescription = personaB?.description ?? null;
 
+  // Multi-participant mode: format !== "duel" → palco N-up.
+  const formatId = (data.debate.format ?? "duel") as string;
+  const isMulti = formatId !== "duel";
+  type Speaker = { key: "a" | "b" | string; slot: number; name: string; imageUrl: string | null; accent: ReturnType<typeof accentForSlot>; roleText: string };
+  const speakers: Speaker[] = [
+    { key: "a", slot: 0, name: data.debate.debater_a_name, imageUrl: aImageResolved, accent: isMulti ? accentForSlot(0) : "side-a", roleText: isMulti ? "Convidado" : "Lado A" },
+    { key: "b", slot: 1, name: data.debate.debater_b_name, imageUrl: bImageResolved, accent: isMulti ? accentForSlot(1) : "side-b", roleText: isMulti ? "Convidado" : "Lado B" },
+    ...extras.map((e) => ({
+      key: `ex${e.slot}` as const,
+      slot: e.slot,
+      name: e.display_name,
+      imageUrl: e.image_url ?? null,
+      accent: accentForSlot(e.slot),
+      roleText: participantRoleLabel(e.role),
+    })),
+  ];
+  const currentSpeaker: Speaker | null = (() => {
+    if (!current) return null;
+    if (current.role === "a") return speakers[0];
+    if (current.role === "b") return speakers[1];
+    if (typeof current.role === "string" && current.role.startsWith("ex")) {
+      const slot = Number(current.role.slice(2));
+      return speakers.find((s) => s.slot === slot) ?? null;
+    }
+    return null;
+  })();
+
   // N-up extra speaker: when current role is `ex<slot>`, find matching participant.
   const extraSpeaker = (() => {
     if (!current || typeof current.role !== "string" || !current.role.startsWith("ex")) return null;
