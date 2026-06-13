@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, deleteLastTurn, type Verdict } from "@/lib/debate.functions";
+import { getDebate, generateNextTurn, generateVerdict, generateMultiVerdict, drawSubtemas, injectSubtema, deleteLastTurn, type Verdict, type MultiVerdict } from "@/lib/debate.functions";
+import { MultiScoreboard } from "@/components/MultiScoreboard";
 import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
 import { CastStrip, roleLabel, accentForSlot, type CastMember } from "@/components/CastStrip";
