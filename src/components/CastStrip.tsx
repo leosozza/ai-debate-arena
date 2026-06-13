@@ -32,6 +32,20 @@ export function accentForSlot(slot: number): CastAccent {
   return ACCENT_PALETTE[((slot % ACCENT_PALETTE.length) + ACCENT_PALETTE.length) % ACCENT_PALETTE.length];
 }
 
+/** Tom por papel — em formatos como tribunal/entrevista o papel diz mais que o slot. */
+const ROLE_ACCENTS: Record<string, CastAccent> = {
+  prosecutor: "side-b",   // azul — acusação
+  defender: "chart-4",    // dourado — defesa
+  judge: "primary",       // destaque neutro
+  interviewer: "accent",
+  team_a: "side-a",
+  team_b: "side-b",
+};
+export function accentForRole(role: string | null | undefined, slot: number): CastAccent {
+  if (role && ROLE_ACCENTS[role]) return ROLE_ACCENTS[role];
+  return accentForSlot(slot);
+}
+
 function ringClass(accent: CastAccent): string {
   switch (accent) {
     case "side-a": return "ring-side-a/60";

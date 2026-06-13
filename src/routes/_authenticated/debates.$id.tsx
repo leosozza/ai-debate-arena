@@ -5,7 +5,7 @@ import { getDebate, generateNextTurn, generateVerdict, generateMultiVerdict, dra
 import { MultiScoreboard } from "@/components/MultiScoreboard";
 import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
-import { CastStrip, roleLabel, accentForSlot, type CastMember } from "@/components/CastStrip";
+import { CastStrip, roleLabel, accentForSlot, accentForRole, type CastMember } from "@/components/CastStrip";
 import { generateParticipantTurn } from "@/lib/multi-debate.functions";
 import { multiSequenceLength } from "@/lib/multi-sequence";
 import { Button } from "@/components/ui/button";
@@ -332,7 +332,7 @@ function DebateDetail() {
             name: e.display_name,
             imageUrl: e.image_url ?? null,
             roleLabel: roleLabel(e.role),
-            accent: accentForSlot(e.slot),
+            accent: accentForRole(e.role, e.slot),
           })),
         ];
         return <CastStrip formatLabel={fmt ? `${fmt.emoji} ${fmt.label}` : undefined} members={cast} />;
