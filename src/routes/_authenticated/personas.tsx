@@ -314,6 +314,30 @@ function PersonasPage() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label>Gênero <span className="text-muted-foreground font-normal">(define a voz padrão sugerida)</span></Label>
+                <div className="flex gap-2">
+                  {([
+                    { v: "m" as const, label: "👨 Masculino" },
+                    { v: "f" as const, label: "👩 Feminino" },
+                    { v: null, label: "Não definido" },
+                  ]).map((o) => {
+                    const active = form.gender === o.v;
+                    return (
+                      <button
+                        key={String(o.v)}
+                        type="button"
+                        onClick={() => setForm({ ...form, gender: o.v })}
+                        className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${active ? "border-primary bg-primary/10 ring-1 ring-primary/40 font-semibold" : "border-border/60 hover:border-border"}`}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+
               <PersonaImagePanel
                 name={form.name}
                 description={form.description}
