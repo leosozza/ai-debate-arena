@@ -1159,3 +1159,141 @@ function StageDebaterPanel({
   );
 }
 
+function accentToText(a: string): string {
+  switch (a) {
+    case "side-a": return "text-side-a";
+    case "side-b": return "text-side-b";
+    case "chart-4": return "text-chart-4";
+    case "chart-5": return "text-chart-5";
+    case "primary": return "text-primary";
+    default: return "text-accent";
+  }
+}
+function accentToBorder(a: string): string {
+  switch (a) {
+    case "side-a": return "border-side-a/70";
+    case "side-b": return "border-side-b/70";
+    case "chart-4": return "border-chart-4/70";
+    case "chart-5": return "border-chart-5/70";
+    case "primary": return "border-primary/70";
+    default: return "border-accent/70";
+  }
+}
+function accentToBg(a: string): string {
+  switch (a) {
+    case "side-a": return "bg-side-a";
+    case "side-b": return "bg-side-b";
+    case "chart-4": return "bg-chart-4";
+    case "chart-5": return "bg-chart-5";
+    case "primary": return "bg-primary";
+    default: return "bg-accent";
+  }
+}
+
+type StageSpeaker = { key: string; slot: number; name: string; imageUrl: string | null; accent: string; roleText: string };
+
+function MultiSpeakerStage({
+  speakers,
+  current,
+  role,
+  phase,
+  content,
+  speaking,
+  loading,
+  durationMs,
+  fallbackReason,
+  onRetry,
+}: {
+  speakers: StageSpeaker[];
+  current: StageSpeaker | null;
+  role: string;
+  phase: string;
+  content: string;
+  speaking: boolean;
+  loading: boolean;
+  durationMs?: number | null;
+  fallbackReason?: string | null;
+  onRetry?: () => void;
+}) {
+  const moderatorSpeaking = role === "moderator";
+  const active = current;
+  const activeBorder = active ? accentToBorder(active.accent) : "border-border/60";
+  const activeText = active ? accentToText(active.accent) : "text-muted-foreground";
+  const activeDot = active ? accentToBg(active.accent) : "bg-primary";
+  return (
+    <section className="relative flex min-h-0 flex-1 flex-col gap-4">
+      <article className={`relative flex flex-1 overflow-hidden rounded-2xl border p-4 md:p-6 transition-all duration-500 ${active ? `${activeBorder} bg-card/80 shadow-2xl` : "border-border/60 bg-card/40"}`}>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/70 to-transparent" aria-hidden />
+        <div className="relative z-10 flex h-full w-full flex-col items-center justify-between gap-4 text-center">
+          <div className="flex w-full flex-col items-center gap-3">
+            <div className={`relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 md:h-32 md:w-32 ${active ? `${activeText} border-current bg-background/70` : "border-border text-muted-foreground bg-secondary/50"}`}>
+              {active && <span className={`absolute inset-[-8px] rounded-full border ${activeText} opacity-30 animate-ping`} />}
+              {active?.imageUrl ? (
+                <img src={active.imageUrl} alt={active.name} className="h-full w-full object-cover" />
+              ) : (
+                <Bot className="h-12 w-12 md:h-16 md:w-16" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className={`mb-1 text-xs font-semibold uppercase tracking-[0.28em] ${active ? activeText : "text-muted-foreground"}`}>
+                {moderatorSpeaking ? "Mediador" : active?.roleText ?? "Aguardando"}
+              </div>
+              <h3 className={`font-display text-2xl font-extrabold md:text-4xl ${active ? activeText : "text-foreground"}`}>
+                {active?.name ?? (moderatorSpeaking ? "Estúdio Central" : "—")}
+              </h3>
+            </div>
+          </div>
+          <div className="w-full">
+            <div className="mb-3 flex min-h-16 items-center justify-center">
+              <VoiceWave active={speaking} colorClass={activeDot} bars={28} />
+            </div>
+            {loading && (
+              <div className="mb-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Preparando voz
+              </div>
+            )}
+            <div className={`mb-2 text-xs font-semibold uppercase tracking-[0.24em] ${active ? activeText : "text-muted-foreground"}`}>
+              {active ? phase : "Aguardando"}
+            </div>
+            {active ? (
+              <div className="mx-auto max-w-3xl">
+                <Teleprompter text={content} active={speaking} durationMs={durationMs ?? null} heightRem={7} />
+                {fallbackReason && (
+                  <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Voz clonada falhou — usando navegador.</span>
+                    </div>
+                    {onRetry && (
+                      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={onRetry}>
+                        <RotateCcw className="h-3 w-3 mr-1" /> Tentar
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </article>
+      {/* Roster strip — todos os participantes */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {speakers.map((s) => {
+          const isActive = current?.key === s.key;
+          const ring = isActive ? accentToBorder(s.accent) : "border-border/40";
+          const txt = isActive ? accentToText(s.accent) : "text-muted-foreground";
+          return (
+            <div key={s.key} className={`flex items-center gap-2 rounded-full border ${ring} bg-card/60 backdrop-blur-sm px-2 py-1 transition-all ${isActive ? "scale-105 shadow-lg" : "opacity-70"}`}>
+              <div className={`h-8 w-8 overflow-hidden rounded-full border ${isActive ? accentToBorder(s.accent) : "border-border/50"} bg-muted/40`}>
+                {s.imageUrl ? <img src={s.imageUrl} alt={s.name} className="h-full w-full object-cover" /> : <Bot className="h-4 w-4 m-auto text-muted-foreground" />}
+              </div>
+              <span className={`text-xs font-semibold pr-2 ${txt}`}>{s.name}</span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+
