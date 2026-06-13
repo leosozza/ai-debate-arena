@@ -216,6 +216,7 @@ function DebateDetail() {
   const progress = Math.min(data.messages.length, totalTurns);
   const done = data.debate.status === "completed" || progress >= totalTurns;
   const verdict = (data.debate.verdict as Verdict | null) ?? null;
+  const verdictMulti = ((data.debate as { verdict_multi?: MultiVerdict | null }).verdict_multi ?? null) as MultiVerdict | null;
 
   // Agrupar mensagens por block_index (debates antigos ficam todos em 0)
   const grouped = new Map<number, typeof data.messages>();
