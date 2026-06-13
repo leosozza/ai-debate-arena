@@ -982,16 +982,8 @@ const SPEAKING_ROLES = new Set([
   "debater", "prosecutor", "defender", "interviewer", "interviewee", "team_a", "team_b",
 ]);
 
-const SEMANTIC_ROLE_HINT: Record<string, string> = {
-  debater: "Você é um debatedor: defenda sua posição com convicção e rebata os oponentes quando fizer sentido.",
-  prosecutor: "Você é da ACUSAÇÃO neste tribunal: estabeleça os fatos contra o réu de forma firme e precisa.",
-  defender: "Você é da DEFESA neste tribunal: rebata as acusações e proteja a posição do réu com argumentos.",
-  judge: "Você é JUIZ/JURADO: pondere as evidências de cada lado e dê seu parecer com equilíbrio.",
-  interviewer: "Você é o ENTREVISTADOR: faça perguntas curtas, certeiras e provocativas. Não disserte.",
-  interviewee: "Você é o ENTREVISTADO: responda com profundidade, sinceridade e detalhes pessoais.",
-  team_a: "Você representa o TIME A: alinhe-se com seus aliados, ataque os argumentos do time B.",
-  team_b: "Você representa o TIME B: alinhe-se com seus aliados, ataque os argumentos do time A.",
-};
+// SEMANTIC_ROLE_HINT removido — usado apenas pela engine multi
+// (`multi-debate.functions.ts`).
 
 export async function loadParticipants(
   supabase: unknown,
