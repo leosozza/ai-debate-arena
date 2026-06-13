@@ -217,7 +217,9 @@ function DebateDetail() {
       { slot: 1, role: "debater" },
       ...extras.map((e) => ({ slot: e.slot, role: e.role })),
     ];
-    totalTurns = multiSequenceLength(data.debate.format ?? "duel", partsForSeq, blocksCount, data.debate.rounds);
+    const commArr = (data.debate as { commentators?: unknown }).commentators;
+    const cCount = data.debate.dynamic_flow ? 0 : Math.min(2, Array.isArray(commArr) ? commArr.length : 0);
+    totalTurns = multiSequenceLength(data.debate.format ?? "duel", partsForSeq, blocksCount, data.debate.rounds, cCount);
   } else {
     // duel: blocos intermediários (vinheta + 2 aberturas + rounds×2) + bloco final (vinheta + 2 fim + veredito)
     const perBlock = 1 + 2 + data.debate.rounds * 2;
