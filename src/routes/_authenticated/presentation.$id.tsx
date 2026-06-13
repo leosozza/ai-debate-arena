@@ -25,7 +25,8 @@ import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/compo
 import { type VoiceProvider } from "@/lib/voice-catalog";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { toast } from "sonner";
-import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Users, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
+import { accentForSlot, roleLabel as participantRoleLabel } from "@/components/CastStrip";
 
 
 export const Route = createFileRoute("/_authenticated/presentation/$id")({
