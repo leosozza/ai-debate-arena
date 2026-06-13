@@ -332,7 +332,7 @@ function DebateDetail() {
             name: e.display_name,
             imageUrl: e.image_url ?? null,
             roleLabel: roleLabel(e.role),
-            accent: accentForSlot(e.slot),
+            accent: accentForRole(e.role, e.slot),
           })),
         ];
         return <CastStrip formatLabel={fmt ? `${fmt.emoji} ${fmt.label}` : undefined} members={cast} />;
