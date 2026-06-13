@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { getDebate, ttsSpeak, updateDebate, type Verdict, type MultiVerdict } from "@/lib/debate.functions";
-import { listParticipants } from "@/lib/debate-participants.functions";
+import { listParticipants, upsertParticipant } from "@/lib/debate-participants.functions";
 import { listPersonas } from "@/lib/persona.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
