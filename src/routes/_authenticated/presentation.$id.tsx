@@ -384,6 +384,10 @@ function PresentMode() {
   const [exportProgress, setExportProgress] = useState<{ label: string; pct: number } | null>(null);
   async function exportVideo() {
     if (!data) return;
+    if (isMulti) {
+      toast.error("Exportação de vídeo ainda não suporta formatos multi-participante. Use 'Exportar .md' por enquanto.");
+      return;
+    }
     const browserSlots = messages.filter((m) => {
       const s = slotFor((m.role ?? "moderator") as Side);
       return s.provider === "browser" || !s.voiceId;
