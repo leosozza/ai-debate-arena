@@ -24,7 +24,7 @@ import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-for
 import { Badge } from "@/components/ui/badge";
 import { ExtraParticipantsPanel, makeEmptyExtra, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
 import { personaGenderFrom, defaultVoiceForGender } from "@/lib/persona-gender";
-import { MEDIATORS, type Mediator } from "@/lib/mediators";
+import { listMediators, type MediatorRow } from "@/lib/mediators.functions";
 import { themesForFormat } from "@/lib/arena-themes";
 import { ArenaScene } from "@/components/ArenaScene";
 import { AIDisclaimer } from "@/components/AIDisclaimer";
