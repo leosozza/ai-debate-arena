@@ -51,10 +51,12 @@ export const listParticipants = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ debateId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    await assertOwnsDebate(context.supabase as unknown as { from: (t: "debates") => unknown }, data.debateId, context.userId);
     const { data: rows, error } = await context.supabase
       .from("debate_participants")
       .select("*")
       .eq("debate_id", data.debateId)
+      .gte("slot", 2)
       .order("slot", { ascending: true });
     if (error) throw new Error(error.message);
     return rows ?? [];
