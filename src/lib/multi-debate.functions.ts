@@ -230,7 +230,7 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
       }).select().single();
     if (iErr) throw new Error(iErr.message);
 
-    const willDone = next.phase === "veredito" || seqCount + 1 >= seq.length;
+    const willDone = next.phase === "veredito" || (!debate.dynamic_flow && seqCount + 1 >= seq.length);
     if (willDone) {
       await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
     }
