@@ -199,6 +199,8 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
       } else if (next.phase === "abertura") {
         const names = parts.map((p) => `${p.display_name} (${p.role})`).join(", ");
         userPrompt = `Tema do programa: ${debate.topic}\nParticipantes: ${names}\n\nAbra o programa com energia jornalística (máx 130 palavras): saúde a audiência, apresente cada participante em UMA frase, e dê a largada para a primeira fala. NÃO faça veredito.`;
+      } else if (next.phase === "pergunta-incisiva") {
+        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê INTERROMPE para fazer UMA pergunta incisiva e direta, cobrando uma resposta que ficou no ar ou expondo uma contradição.${dynamicGuidance ? `\nFoco: ${dynamicGuidance}` : ""} Máx 60 palavras.`;
       } else {
         userPrompt = `Tema geral: ${debate.topic}\n\nVinheta de abertura do bloco "${block.title}" (foco: ${block.focus}). 2-3 frases anunciando o sub-tema com energia de TV. Máx 70 palavras. NÃO faça veredito.`;
       }
@@ -207,7 +209,8 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
         ? ({ interviewer: "Você é o ENTREVISTADOR: faça UMA pergunta instigante e direta ao convidado.", interviewee: "Você é o ENTREVISTADO: responda com profundidade e personalidade.", prosecutor: "Você é a ACUSAÇÃO: sustente a acusação com argumentos e evidências.", defender: "Você é a DEFESA: refute a acusação e defenda o réu.", judge: "Você é um JUIZ: questione os pontos fracos e pondere com imparcialidade." } as Record<string, string>)[next.role] ?? ""
         : "";
       sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${roleHint}\nVocê está num programa de debate de TV ao vivo. ${tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
-      userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}\n\nSua tarefa: produzir a fala da fase "${next.phase}". Máximo 170 palavras. NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
+      const guide = dynamicGuidance ? `\nOrientação do mediador: ${dynamicGuidance}` : "";
+      userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}${guide}\n\nSua tarefa: produzir a fala da fase "${next.phase}". Máximo 170 palavras. NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     }
 
     const content = await chatComplete(
