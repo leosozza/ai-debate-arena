@@ -23,7 +23,7 @@ import { type VoiceProvider } from "@/lib/voice-catalog";
 import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-formats";
 import { Badge } from "@/components/ui/badge";
 import { ExtraParticipantsPanel, makeEmptyExtra, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
-import { personaGender, defaultVoiceForGender } from "@/lib/persona-gender";
+import { personaGenderFrom, defaultVoiceForGender } from "@/lib/persona-gender";
 import { MEDIATORS, type Mediator } from "@/lib/mediators";
 import { themesForFormat } from "@/lib/arena-themes";
 import { ArenaScene } from "@/components/ArenaScene";
@@ -155,7 +155,7 @@ function NewDebate() {
     let vid = p.voice_id ?? null;
     // Sem voz real definida → sugere uma voz grátis do gênero da persona.
     if (vp === "browser" || !vid) {
-      const g = personaGender(p.name);
+      const g = personaGenderFrom(p);
       if (g) { const d = defaultVoiceForGender(g); vp = d.provider; vid = d.voiceId; }
     }
     const img = p.image_url ?? null;
