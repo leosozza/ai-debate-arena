@@ -139,7 +139,9 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
 
     const subtopics = await ensureBlockSubtopics(debate, context.supabase as never, chatComplete);
     const blocks = subtopics.length || debate.blocks_count || 4;
-    const seq = buildSequence(debate.format, parts, blocks, debate.rounds);
+    const commentators = (debate as unknown as { commentators?: Array<{ name?: string; persona?: string }> | null }).commentators ?? [];
+    const cCount = debate.dynamic_flow ? 0 : Math.min(2, commentators.length);
+    const seq = buildSequence(debate.format, parts, blocks, debate.rounds, cCount);
 
     const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
     let next = seq[seqCount];
@@ -148,7 +150,10 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
       return { done: true, message: null };
     }
 
+    const commentatorName = (idx: 0 | 1) => commentators[idx]?.name ?? (idx === 0 ? "Comentarista 1" : "Comentarista 2");
     const labels = labelMap(parts);
+    labels["c0"] = commentatorName(0);
+    labels["c1"] = commentatorName(1);
     const transcript = existing
       .map((m) => `[${labels[m.role] ?? m.role}] (${m.phase}): ${m.content}`)
       .join("\n\n");
@@ -156,7 +161,7 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     // Fluxo dinâmico em formatos multi: o mediador decide o próximo movimento
     // durante réplicas (mantém vinheta/abertura/considerações finais/veredito fixos).
     let dynamicGuidance: string | null = null;
-    if (debate.dynamic_flow && next.speaker !== "moderator" && /^réplica/i.test(next.phase)) {
+    if (debate.dynamic_flow && next.speaker !== "moderator" && next.speaker !== "c0" && next.speaker !== "c1" && /^réplica/i.test(next.phase)) {
       const speakerList = parts
         .map((p) => `- slot ${p.slot} → ${p.display_name} (${p.role})`)
         .join("\n");
@@ -196,14 +201,21 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
     const tone = toneFor(debate.format);
 
     const isMod = next.speaker === "moderator";
-    const speaker = isMod ? null : parts.find((p) => p.slot === next.speaker);
-    const roleMsg = isMod ? "moderator" : slotRole(next.speaker as number);
-    const model = isMod ? debate.moderator_model : (speaker?.model || DEFAULT_MODEL);
+    const isCommentator = next.speaker === "c0" || next.speaker === "c1";
+    const speaker = (!isMod && !isCommentator) ? parts.find((p) => p.slot === next.speaker) : null;
+    const roleMsg = isMod ? "moderator" : (isCommentator ? (next.speaker as "c0" | "c1") : slotRole(next.speaker as number));
+    const model = (isMod || isCommentator) ? debate.moderator_model : (speaker?.model || DEFAULT_MODEL);
 
     let sysPrompt: string;
     let userPrompt: string;
 
-    if (isMod) {
+    if (isCommentator) {
+      const cIdx = next.speaker === "c0" ? 0 : 1;
+      const c = commentators[cIdx];
+      const cName = commentatorName(cIdx as 0 | 1);
+      sysPrompt = `Você é ${cName}, comentarista e repórter de um programa de debate de TV. ${c?.persona ?? ""}\nVocê NÃO debate: você ANALISA, como num pós-jogo, o bloco que acabou — quem mandou melhor, pontos fortes e fracos, o andamento e a reação do público. Seja perspicaz, direto e opinativo, em 2 a 3 frases. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
+      userPrompt = `Tema do programa: ${debate.topic}\nBloco que acabou: "${block.title}" — ${block.focus}\n\nHistórico até agora:\n${transcript}\n\nFaça seu comentário pós-bloco (2-3 frases, máx 80 palavras). NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
+    } else if (isMod) {
       const whoM = debate.moderator_name ? `Você é ${debate.moderator_name}, ${debate.moderator_style ?? "apresentador do programa"}.` : "Você é o MEDIADOR/APRESENTADOR de um programa de debate de TV.";
       sysPrompt = `${whoM} ${tone} Fale em português.${directionClause(debate)}${TTS_STYLE}`;
       if (next.phase === "veredito") {
