@@ -7,6 +7,7 @@ import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
 import { CastStrip, roleLabel, accentForSlot, type CastMember } from "@/components/CastStrip";
 import { generateParticipantTurn } from "@/lib/multi-debate.functions";
+import { multiSequenceLength } from "@/lib/multi-sequence";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Roulette } from "@/components/Roulette";
