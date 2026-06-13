@@ -138,7 +138,8 @@ function DebateDetail() {
   async function handleVerdict() {
     setVerdictLoading(true);
     try {
-      await genVerdict({ data: { debateId: id } });
+      if (isMulti) await genVerdictMulti({ data: { debateId: id } });
+      else await genVerdict({ data: { debateId: id } });
       toast.success("Veredito e placar gerados!");
       await refetch();
     } catch (e) {
