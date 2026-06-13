@@ -831,17 +831,41 @@ function PresentMode() {
           />
 
           {isMulti && extras.length > 0 && (
-            <div className="space-y-2 rounded-md border border-border/40 bg-background/30 p-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Convidados extras (voz vinda da persona)</p>
-              {extras.map((e) => (
-                <div key={e.id} className="flex items-center gap-2 text-xs">
-                  <div className="h-6 w-6 overflow-hidden rounded-full bg-muted/40 border border-border/40">
-                    {e.image_url ? <img src={e.image_url} alt={e.display_name} className="h-full w-full object-cover" /> : null}
-                  </div>
-                  <span className="font-medium text-foreground truncate flex-1">{e.display_name}</span>
-                  <span className="text-muted-foreground tabular-nums">{(e.voice_provider as string | null) ?? "browser"}</span>
-                </div>
-              ))}
+            <div className="space-y-3 rounded-md border border-border/40 bg-background/30 p-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Convidados extras</p>
+              {extras.map((e) => {
+                const ov = extraVoiceOverrides[e.id];
+                const provider = (ov?.provider ?? ((e.voice_provider as VoiceProvider | null) ?? "browser")) as VoiceProvider;
+                const voiceId = ov?.voiceId ?? e.voice_id ?? null;
+                return (
+                  <VoicePicker
+                    key={e.id}
+                    label={e.display_name}
+                    provider={provider}
+                    voiceId={voiceId}
+                    onChange={(p, v) => {
+                      setExtraVoiceOverrides((prev) => ({ ...prev, [e.id]: { provider: p, voiceId: v } }));
+                      upsertExtraFn({ data: {
+                        debateId: id,
+                        slot: e.slot,
+                        role: e.role as never,
+                        displayName: e.display_name,
+                        personaId: e.persona_id ?? null,
+                        personaPrompt: e.persona_prompt ?? "",
+                        imageUrl: e.image_url ?? null,
+                        voiceProvider: p,
+                        voiceId: v,
+                        model: e.model ?? null,
+                        team: e.team ?? null,
+                      } })
+                        .then(() => { refetchExtras(); })
+                        .catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Falha ao salvar voz do convidado"));
+                    }}
+                    settings={DEFAULT_VOICE_SETTINGS}
+                    onSettingsChange={() => { /* settings por extra ainda não persistidos */ }}
+                  />
+                );
+              })}
             </div>
           )}
 
