@@ -198,7 +198,14 @@ function PresentMode() {
     if (typeof role === "string" && role.startsWith("ex")) {
       const slot = Number(role.slice(2));
       const e = extras.find((x) => x.slot === slot);
-      if (e) return { provider: ((e.voice_provider as VoiceProvider | null) ?? "browser"), voiceId: e.voice_id ?? null, settings: DEFAULT_VOICE_SETTINGS };
+      if (e) {
+        const ov = extraVoiceOverrides[e.id];
+        return {
+          provider: ov?.provider ?? ((e.voice_provider as VoiceProvider | null) ?? "browser"),
+          voiceId: ov?.voiceId ?? e.voice_id ?? null,
+          settings: DEFAULT_VOICE_SETTINGS,
+        };
+      }
     }
     if (role === "c0" || role === "c1") {
       const c = commentatorList[role === "c0" ? 0 : 1];
