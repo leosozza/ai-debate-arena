@@ -276,9 +276,11 @@ function DebateDetail() {
         <Button onClick={openSubtemaRoulette} variant="outline" size="sm" disabled={data.messages.length === 0}>
           <Dices className="h-4 w-4 mr-1" /> Sortear subtema
         </Button>
-        <Button onClick={handleVerdict} variant="outline" size="sm" disabled={verdictLoading || data.messages.length === 0}>
-          <Gavel className="h-4 w-4 mr-1" /> {verdictLoading ? "Julgando…" : verdict ? "Rejulgar" : "Veredito + placar"}
-        </Button>
+        {!isMulti && (
+          <Button onClick={handleVerdict} variant="outline" size="sm" disabled={verdictLoading || data.messages.length === 0}>
+            <Gavel className="h-4 w-4 mr-1" /> {verdictLoading ? "Julgando…" : verdict ? "Rejulgar" : "Veredito + placar"}
+          </Button>
+        )}
         <Button onClick={exportMarkdown} variant="ghost" size="sm" disabled={data.messages.length === 0}>
           <Download className="h-4 w-4 mr-1" /> Exportar .md
         </Button>
@@ -290,33 +292,40 @@ function DebateDetail() {
 
       {(() => {
         const fmt = getFormat(data.debate.format ?? "duel");
+        const isDuel = (data.debate.format ?? "duel") === "duel";
+        const labelFor = (key: "a" | "b") => {
+          if (fmt?.id === "interview") return key === "a" ? "Entrevistador" : "Entrevistado";
+          if (fmt?.id === "tribunal") return key === "a" ? "Acusação" : "Defesa";
+          if (isDuel) return key === "a" ? "Lado A" : "Lado B";
+          return "Convidado";
+        };
         const cast: CastMember[] = [
           {
             key: "a",
             name: data.debate.debater_a_name,
             imageUrl: data.debate.debater_a_image_url ?? null,
-            roleLabel: fmt?.id === "interview" ? "Entrevistador" : fmt?.id === "tribunal" ? "Acusação" : "Lado A",
-            accent: "side-a",
+            roleLabel: labelFor("a"),
+            accent: isDuel ? "side-a" : accentForSlot(0),
           },
           {
             key: "b",
             name: data.debate.debater_b_name,
             imageUrl: data.debate.debater_b_image_url ?? null,
-            roleLabel: fmt?.id === "interview" ? "Entrevistado" : fmt?.id === "tribunal" ? "Defesa" : "Lado B",
-            accent: "side-b",
+            roleLabel: labelFor("b"),
+            accent: isDuel ? "side-b" : accentForSlot(1),
           },
           ...extras.map((e) => ({
             key: e.id,
             name: e.display_name,
             imageUrl: e.image_url ?? null,
             roleLabel: roleLabel(e.role),
-            accent: "accent" as const,
+            accent: accentForSlot(e.slot),
           })),
         ];
         return <CastStrip formatLabel={fmt ? `${fmt.emoji} ${fmt.label}` : undefined} members={cast} />;
       })()}
 
-      {verdict && <Scoreboard verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />}
+      {!isMulti && verdict && <Scoreboard verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />}
 
 
       {data.debate.rules && (
