@@ -885,14 +885,22 @@ function PresentMode() {
       )}
 
       <div className="relative z-10 flex-1 min-h-0 px-4 pb-2 md:px-8">
-        {isWinner && verdict ? (
+        {isWinner ? (
           <div className="flex h-full items-center justify-center">
-            <ClosingCard
-              topic={data.debate.topic}
-              verdict={verdict}
-              a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved }}
-              b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved }}
-            />
+            {isMulti && verdictMulti ? (
+              <ClosingCardMulti
+                topic={data.debate.topic}
+                verdict={verdictMulti}
+                speakers={speakers.map((s) => ({ key: s.key, slot: s.slot, name: s.name, imageUrl: s.imageUrl }))}
+              />
+            ) : verdict ? (
+              <ClosingCard
+                topic={data.debate.topic}
+                verdict={verdict}
+                a={{ name: data.debate.debater_a_name, imageUrl: aImageResolved }}
+                b={{ name: data.debate.debater_b_name, imageUrl: bImageResolved }}
+              />
+            ) : null}
           </div>
         ) : (
           <div key={current?.id} className="mx-auto flex h-full w-full max-w-7xl flex-col gap-4 animate-in fade-in duration-500">
