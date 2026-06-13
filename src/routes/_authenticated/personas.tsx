@@ -43,6 +43,7 @@ type FormState = {
   image_url: string | null;
   vignette_url: string | null;
   voice_settings: VoiceSettings;
+  gender: "m" | "f" | null;
 };
 
 const EMPTY_FORM: FormState = {
@@ -55,6 +56,7 @@ const EMPTY_FORM: FormState = {
   image_url: null,
   vignette_url: null,
   voice_settings: DEFAULT_VOICE_SETTINGS,
+  gender: null,
 };
 
 function PersonasPage() {
@@ -171,6 +173,7 @@ function PersonasPage() {
 
   function loadIntoForm(p: typeof personas[number]) {
     setEditingId(p.id);
+    const g = (p as { gender?: string | null }).gender;
     setForm({
       name: p.name,
       description: p.description ?? "",
@@ -181,6 +184,7 @@ function PersonasPage() {
       image_url: p.image_url ?? null,
       vignette_url: (p as { vignette_url?: string | null }).vignette_url ?? null,
       voice_settings: (p.voice_settings as VoiceSettings | null) ?? DEFAULT_VOICE_SETTINGS,
+      gender: g === "m" || g === "f" ? g : null,
     });
     setSources([]);
     setShowForm(true);
