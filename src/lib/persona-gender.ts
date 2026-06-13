@@ -34,7 +34,7 @@ export function personaGender(name: string | null | undefined): "m" | "f" | null
 
 /** Resolve o gênero de uma persona: campo explícito > heurística por nome. */
 export function personaGenderFrom(
-  p: { gender?: "m" | "f" | null; name?: string | null } | null | undefined,
+  p: { gender?: string | null; name?: string | null } | null | undefined,
 ): "m" | "f" | null {
   if (!p) return null;
   if (p.gender === "m" || p.gender === "f") return p.gender;
