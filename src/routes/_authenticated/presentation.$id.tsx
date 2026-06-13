@@ -1018,7 +1018,7 @@ function PresentMode() {
               />
             );
           })}
-          {verdict && (
+          {(verdict || verdictMulti) && (
             <button
               onClick={() => go(messages.length - index)}
               className={`h-1.5 w-8 rounded-full transition-all ${index >= messages.length ? "bg-primary" : "bg-border"}`}
