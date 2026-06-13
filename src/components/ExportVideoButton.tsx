@@ -95,6 +95,10 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   async function prepareAndOpen() {
     if (!data) return;
     const d = data.debate;
+    if ((d.format ?? "duel") !== "duel") {
+      toast.error("Editor de vídeo ainda só suporta o formato Duelo. Para outros formatos, use 'Exportar .md'.");
+      return;
+    }
     const slotMod = resolveSlot(d.voice_provider_mod, d.voice_id_mod);
     const slotA = resolveSlot(d.voice_provider_a, d.voice_id_a, d.debater_a_name);
     const slotB = resolveSlot(d.voice_provider_b, d.voice_id_b, d.debater_b_name);
