@@ -619,7 +619,7 @@ function PresentMode() {
     );
   }
 
-  const isWinner = !!verdict && index === messages.length;
+  const isWinner = (!!verdict || !!verdictMulti) && index === messages.length;
   const role = (current?.role ?? "moderator") as Side;
   const theme = sideTheme(role);
   const currentBlockIdx = current?.block_index ?? 0;
