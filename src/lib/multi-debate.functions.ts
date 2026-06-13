@@ -130,7 +130,7 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     const seq = buildSequence(debate.format, parts, blocks, debate.rounds);
 
     const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
-    const next = seq[seqCount];
+    let next = seq[seqCount];
     if (!next) {
       await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
       return { done: true, message: null };
@@ -140,6 +140,46 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     const transcript = existing
       .map((m) => `[${labels[m.role] ?? m.role}] (${m.phase}): ${m.content}`)
       .join("\n\n");
+
+    // Fluxo dinâmico em formatos multi: o mediador decide o próximo movimento
+    // durante réplicas (mantém vinheta/abertura/considerações finais/veredito fixos).
+    let dynamicGuidance: string | null = null;
+    if (debate.dynamic_flow && next.speaker !== "moderator" && /^réplica/i.test(next.phase)) {
+      const speakerList = parts
+        .map((p) => `- slot ${p.slot} → ${p.display_name} (${p.role})`)
+        .join("\n");
+      const lastNonMod = [...existing].reverse().find((m) => m.role !== "moderator" && m.phase !== "reviravolta");
+      const lastSlot = lastNonMod
+        ? (lastNonMod.role === "a" ? 0 : lastNonMod.role === "b" ? 1 : Number(String(lastNonMod.role).replace(/^ex/, "")) || -1)
+        : -1;
+      try {
+        const decision = await chatComplete(
+          [
+            { role: "system", content: `Você é o MEDIADOR de um programa de TV ao vivo conduzindo um bate-rebate ágil entre vários convidados. Decida o PRÓXIMO movimento:
+- "slot:<n>": qual participante rebate agora. A instrução deve ser AFIADA — mandar a pessoa rebater DIRETAMENTE um ponto, contradição ou exagero específico de alguém (citando pelo nome), provocar, expor fragilidade. NUNCA escolha o participante que acabou de falar.
+- "moderator": DE VEZ EM QUANDO (talvez 1 em cada 4 turnos), VOCÊ interrompe com uma pergunta incisiva.
+Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` },
+            { role: "user", content: `Tema: ${debate.topic}\nBloco: "${(subtopics[next.block_index] ?? subtopics[0]).title}"\nParticipantes:\n${speakerList}\nÚltimo a falar: slot ${lastSlot}\n\nHistórico:\n${transcript}\n\nQual o próximo movimento?` },
+          ],
+          debate.moderator_model,
+        );
+        const cleaned = decision.replace(/^```json\s*|\s*```$/g, "").trim();
+        const parsed = JSON.parse(cleaned) as { speaker?: string; instruction?: string };
+        if (parsed.speaker === "moderator") {
+          next = { speaker: "moderator", phase: "pergunta-incisiva", block_index: next.block_index };
+        } else {
+          const m = /^slot:(\d+)$/.exec(String(parsed.speaker ?? ""));
+          const chosen = m ? Number(m[1]) : NaN;
+          if (parts.some((p) => p.slot === chosen) && chosen !== lastSlot) {
+            next = { ...next, speaker: chosen };
+          }
+        }
+        dynamicGuidance = parsed.instruction ?? null;
+      } catch {
+        // fallback: mantém o turno determinístico
+      }
+    }
+
     const block = subtopics[next.block_index] ?? subtopics[0];
     const tone = toneFor(debate.format);
 
@@ -159,6 +199,8 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
       } else if (next.phase === "abertura") {
         const names = parts.map((p) => `${p.display_name} (${p.role})`).join(", ");
         userPrompt = `Tema do programa: ${debate.topic}\nParticipantes: ${names}\n\nAbra o programa com energia jornalística (máx 130 palavras): saúde a audiência, apresente cada participante em UMA frase, e dê a largada para a primeira fala. NÃO faça veredito.`;
+      } else if (next.phase === "pergunta-incisiva") {
+        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê INTERROMPE para fazer UMA pergunta incisiva e direta, cobrando uma resposta que ficou no ar ou expondo uma contradição.${dynamicGuidance ? `\nFoco: ${dynamicGuidance}` : ""} Máx 60 palavras.`;
       } else {
         userPrompt = `Tema geral: ${debate.topic}\n\nVinheta de abertura do bloco "${block.title}" (foco: ${block.focus}). 2-3 frases anunciando o sub-tema com energia de TV. Máx 70 palavras. NÃO faça veredito.`;
       }
@@ -167,7 +209,8 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
         ? ({ interviewer: "Você é o ENTREVISTADOR: faça UMA pergunta instigante e direta ao convidado.", interviewee: "Você é o ENTREVISTADO: responda com profundidade e personalidade.", prosecutor: "Você é a ACUSAÇÃO: sustente a acusação com argumentos e evidências.", defender: "Você é a DEFESA: refute a acusação e defenda o réu.", judge: "Você é um JUIZ: questione os pontos fracos e pondere com imparcialidade." } as Record<string, string>)[next.role] ?? ""
         : "";
       sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${roleHint}\nVocê está num programa de debate de TV ao vivo. ${tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
-      userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}\n\nSua tarefa: produzir a fala da fase "${next.phase}". Máximo 170 palavras. NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
+      const guide = dynamicGuidance ? `\nOrientação do mediador: ${dynamicGuidance}` : "";
+      userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}${guide}\n\nSua tarefa: produzir a fala da fase "${next.phase}". Máximo 170 palavras. NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     }
 
     const content = await chatComplete(
@@ -187,7 +230,7 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
       }).select().single();
     if (iErr) throw new Error(iErr.message);
 
-    const willDone = next.phase === "veredito" || seqCount + 1 >= seq.length;
+    const willDone = next.phase === "veredito" || (!debate.dynamic_flow && seqCount + 1 >= seq.length);
     if (willDone) {
       await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
     }
