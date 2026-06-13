@@ -665,6 +665,99 @@ Seja justo e específico ao tema. Português.` },
     }
   });
 
+// ===== Veredito multi-participante (3+ debatedores) =====
+
+export type MultiVerdict = {
+  ranking: Array<{ key: string; name: string; score: number }>;
+  criteria: Array<{ name: string; weight: number; scores: Record<string, number> }>;
+  summary: string;
+  mvp_quote?: string;
+};
+
+export const generateMultiVerdict = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ debateId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }): Promise<MultiVerdict> => {
+    const { chatComplete } = await import("./ai-gateway.server");
+
+    const { data: debate, error: dErr } = await context.supabase
+      .from("debates").select("*").eq("id", data.debateId).single();
+    if (dErr || !debate) throw new Error(dErr?.message ?? "Debate não encontrado.");
+
+    const parts = await loadParticipants(context.supabase, debate as Debate & Record<string, unknown>);
+    const speakers = multiSpeakers(parts);
+    if (speakers.length < 2) throw new Error("Veredito multi exige ao menos 2 debatedores.");
+
+    const { data: messages, error: mErr } = await context.supabase
+      .from("debate_messages").select("role, phase, content").eq("debate_id", data.debateId).order("order_index");
+    if (mErr) throw new Error(mErr.message);
+    const msgs = (messages ?? []) as Msg[];
+    if (msgs.length === 0) throw new Error("O debate ainda não tem falas para avaliar.");
+
+    const transcript = msgs.map((m) => `[${labelForMulti(m.role, parts)}] (${m.phase}): ${m.content}`).join("\n\n");
+    const critList = VERDICT_CRITERIA.map((c, i) => `${i + 1}. ${c.name} (peso ${Math.round(c.weight * 100)}%)`).join("\n");
+    const keyList = speakers.map((s) => `- key="${s.role}" → ${s.displayName}`).join("\n");
+    const jsonShape = `{
+  "summary": "2-3 frases resumindo o programa e justificando o ranking",
+  "criteria": [${VERDICT_CRITERIA.map(() => `{"scores": {${speakers.map((s) => `"${s.role}": 0`).join(", ")}}}`).join(", ")}],
+  "mvp_quote": "uma frase de impacto realmente dita no programa"
+}`;
+    const raw = await chatComplete(
+      [
+        { role: "system", content: "Você é um juiz imparcial e rigoroso de programas de debate com múltiplos participantes. Avalia por critérios ponderados, atribui notas comparáveis entre todos. Responda APENAS JSON puro, sem markdown." },
+        { role: "user", content: `Tema: "${debate.topic}"
+
+Participantes:
+${keyList}
+
+Transcrição:
+${transcript}
+
+Avalie CADA participante (use a chave key exata) nos critérios:
+${critList}
+
+Notas 0-10 em cada critério para cada key. Responda JSON neste formato exato:
+${jsonShape}
+Português. Seja justo e específico ao tema.` },
+      ],
+      debate.moderator_model || "google/gemini-2.5-pro",
+    );
+
+    const cleaned = raw.replace(/^```json\s*|\s*```$/g, "").trim();
+    try {
+      const p = JSON.parse(cleaned) as {
+        summary?: string; mvp_quote?: string;
+        criteria?: Array<{ scores?: Record<string, number> }>;
+      };
+      const criteria = VERDICT_CRITERIA.map((c, i) => {
+        const scores: Record<string, number> = {};
+        for (const s of speakers) scores[s.role] = clampInt(p.criteria?.[i]?.scores?.[s.role], 10);
+        return { name: c.name, weight: c.weight, scores };
+      });
+      const ranking = speakers
+        .map((s) => {
+          const weighted = criteria.reduce((acc, c) => acc + c.weight * (c.scores[s.role] ?? 0), 0) * 10;
+          return { key: s.role, name: s.displayName, score: Math.max(0, Math.min(100, Math.round(weighted))) };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      const verdict: MultiVerdict = {
+        ranking,
+        criteria,
+        summary: String(p.summary ?? "").slice(0, 800),
+        mvp_quote: String(p.mvp_quote ?? "").slice(0, 300),
+      };
+
+      const { error: uErr } = await context.supabase
+        .from("debates").update({ verdict_multi: verdict }).eq("id", data.debateId);
+      if (uErr) throw new Error(uErr.message);
+      return verdict;
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("column")) throw e;
+      throw new Error("A IA não retornou um veredito válido. Tente novamente.");
+    }
+  });
+
 export type Subtopic = { title: string; focus: string };
 
 export type Debate = {

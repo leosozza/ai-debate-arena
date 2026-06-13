@@ -158,6 +158,7 @@ export type Database = {
           updated_at: string
           user_id: string
           verdict: Json | null
+          verdict_multi: Json | null
           voice_id_a: string | null
           voice_id_b: string | null
           voice_id_mod: string | null
@@ -195,6 +196,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           verdict?: Json | null
+          verdict_multi?: Json | null
           voice_id_a?: string | null
           voice_id_b?: string | null
           voice_id_mod?: string | null
@@ -232,6 +234,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           verdict?: Json | null
+          verdict_multi?: Json | null
           voice_id_a?: string | null
           voice_id_b?: string | null
           voice_id_mod?: string | null

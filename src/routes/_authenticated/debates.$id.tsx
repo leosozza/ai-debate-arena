@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getDebate, generateNextTurn, generateVerdict, drawSubtemas, injectSubtema, deleteLastTurn, type Verdict } from "@/lib/debate.functions";
+import { getDebate, generateNextTurn, generateVerdict, generateMultiVerdict, drawSubtemas, injectSubtema, deleteLastTurn, type Verdict, type MultiVerdict } from "@/lib/debate.functions";
+import { MultiScoreboard } from "@/components/MultiScoreboard";
 import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
 import { CastStrip, roleLabel, accentForSlot, type CastMember } from "@/components/CastStrip";
@@ -27,6 +28,7 @@ function DebateDetail() {
   const genParticipant = useServerFn(generateParticipantTurn);
   const listParts = useServerFn(listParticipants);
   const genVerdict = useServerFn(generateVerdict);
+  const genVerdictMulti = useServerFn(generateMultiVerdict);
   const drawSubtemasFn = useServerFn(drawSubtemas);
   const injectSubtemaFn = useServerFn(injectSubtema);
   const [verdictLoading, setVerdictLoading] = useState(false);
@@ -136,7 +138,8 @@ function DebateDetail() {
   async function handleVerdict() {
     setVerdictLoading(true);
     try {
-      await genVerdict({ data: { debateId: id } });
+      if (isMulti) await genVerdictMulti({ data: { debateId: id } });
+      else await genVerdict({ data: { debateId: id } });
       toast.success("Veredito e placar gerados!");
       await refetch();
     } catch (e) {
@@ -213,6 +216,7 @@ function DebateDetail() {
   const progress = Math.min(data.messages.length, totalTurns);
   const done = data.debate.status === "completed" || progress >= totalTurns;
   const verdict = (data.debate.verdict as Verdict | null) ?? null;
+  const verdictMulti = ((data.debate as { verdict_multi?: MultiVerdict | null }).verdict_multi ?? null) as MultiVerdict | null;
 
   // Agrupar mensagens por block_index (debates antigos ficam todos em 0)
   const grouped = new Map<number, typeof data.messages>();
@@ -276,11 +280,9 @@ function DebateDetail() {
         <Button onClick={openSubtemaRoulette} variant="outline" size="sm" disabled={data.messages.length === 0}>
           <Dices className="h-4 w-4 mr-1" /> Sortear subtema
         </Button>
-        {!isMulti && (
-          <Button onClick={handleVerdict} variant="outline" size="sm" disabled={verdictLoading || data.messages.length === 0}>
-            <Gavel className="h-4 w-4 mr-1" /> {verdictLoading ? "Julgando…" : verdict ? "Rejulgar" : "Veredito + placar"}
-          </Button>
-        )}
+        <Button onClick={handleVerdict} variant="outline" size="sm" disabled={verdictLoading || data.messages.length === 0}>
+          <Gavel className="h-4 w-4 mr-1" /> {verdictLoading ? "Julgando…" : (isMulti ? verdictMulti : verdict) ? "Rejulgar" : "Veredito + placar"}
+        </Button>
         <Button onClick={exportMarkdown} variant="ghost" size="sm" disabled={data.messages.length === 0}>
           <Download className="h-4 w-4 mr-1" /> Exportar .md
         </Button>
@@ -326,6 +328,7 @@ function DebateDetail() {
       })()}
 
       {!isMulti && verdict && <Scoreboard verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />}
+      {isMulti && verdictMulti && <MultiScoreboard verdict={verdictMulti} />}
 
 
       {data.debate.rules && (
