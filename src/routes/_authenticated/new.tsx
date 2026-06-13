@@ -81,7 +81,9 @@ function NewDebate() {
   const router = useRouter();
   const create = useServerFn(createDebate);
   const listP = useServerFn(listPersonas);
+  const listMed = useServerFn(listMediators);
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: () => listP() });
+  const { data: mediators = [] } = useQuery({ queryKey: ["mediators"], queryFn: () => listMed(), staleTime: 5 * 60_000 });
   const genTopicFn = useServerFn(generateDebateTopic);
   const genSidesFn = useServerFn(generateOpposingDebaters);
   const drawTopicsFn = useServerFn(drawTopics);
