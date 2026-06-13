@@ -23,10 +23,18 @@ const TTS_STYLE = `\n\nFORMATO OBRIGATÓRIO: sua resposta vai direto para um sin
 
 const DEFAULT_MODEL = "google/gemini-3-flash-preview";
 
-type Turn = { speaker: "moderator" | number; phase: string; block_index: number; role?: string };
+type SpeakerKind = "moderator" | "c0" | "c1" | number;
+type Turn = { speaker: SpeakerKind; phase: string; block_index: number; role?: string };
+
+function pushCommentators(seq: Turn[], blockIndex: number, isFinal: boolean, cCount: number) {
+  const label = isFinal ? "comentário final" : `comentário bloco ${blockIndex + 1}`;
+  for (let c = 0; c < cCount; c++) {
+    seq.push({ speaker: (c === 0 ? "c0" : "c1"), phase: label, block_index: blockIndex });
+  }
+}
 
 /** Constrói a sequência completa de turnos conforme o formato. */
-function buildSequence(formatId: string, parts: Participant[], blocks: number, rounds: number): Turn[] {
+function buildSequence(formatId: string, parts: Participant[], blocks: number, rounds: number, cCount: number = 0): Turn[] {
   const speakers = [...parts].sort((a, b) => a.slot - b.slot);
   const seq: Turn[] = [];
 
@@ -40,6 +48,7 @@ function buildSequence(formatId: string, parts: Participant[], blocks: number, r
         seq.push({ speaker: interviewer.slot, phase: `pergunta ${b + 1}`, block_index: b, role: "interviewer" });
         seq.push({ speaker: g.slot, phase: `resposta ${b + 1}`, block_index: b, role: "interviewee" });
       }
+      pushCommentators(seq, b, isFinal, cCount);
       if (isFinal) seq.push({ speaker: "moderator", phase: "veredito", block_index: b });
     }
     return seq;
@@ -55,6 +64,7 @@ function buildSequence(formatId: string, parts: Participant[], blocks: number, r
     for (const a of accused) seq.push({ speaker: a.slot, phase: "defesa do réu", block_index: 0, role: "debater" });
     for (const d of def) seq.push({ speaker: d.slot, phase: "defesa", block_index: 0, role: "defender" });
     for (const j of judges) seq.push({ speaker: j.slot, phase: "interrogatório", block_index: 0, role: "judge" });
+    pushCommentators(seq, 0, true, cCount);
     seq.push({ speaker: "moderator", phase: "veredito", block_index: 0 });
     return seq;
   }
@@ -65,12 +75,14 @@ function buildSequence(formatId: string, parts: Participant[], blocks: number, r
     seq.push({ speaker: "moderator", phase: `vinheta ${b + 1}`, block_index: b });
     if (isFinal) {
       for (const s of speakers) seq.push({ speaker: s.slot, phase: "considerações finais", block_index: b });
+      pushCommentators(seq, b, true, cCount);
       seq.push({ speaker: "moderator", phase: "veredito", block_index: b });
     } else {
       for (const s of speakers) seq.push({ speaker: s.slot, phase: "abertura", block_index: b });
       for (let r = 1; r <= rounds; r++) {
         for (const s of speakers) seq.push({ speaker: s.slot, phase: `réplica ${r}`, block_index: b });
       }
+      pushCommentators(seq, b, false, cCount);
     }
   }
   return seq;
