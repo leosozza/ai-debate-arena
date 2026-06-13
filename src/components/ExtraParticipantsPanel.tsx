@@ -33,7 +33,7 @@ type PersonaLite = {
   image_url: string | null;
   voice_provider: string | null;
   voice_id: string | null;
-  gender?: "m" | "f" | null;
+  gender?: string | null;
 };
 
 export function makeEmptyExtra(slot: number, role: ParticipantRole = "debater"): ExtraParticipantDraft {
