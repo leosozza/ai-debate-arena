@@ -1048,50 +1048,15 @@ function multiSpeakers(parts: Participant[]): Participant[] {
   return parts.filter((p) => SPEAKING_ROLES.has(p.participantRole));
 }
 
-function multiSeq(debate: Debate, parts: Participant[]) {
-  const speakers = multiSpeakers(parts);
-  const judges = parts.filter((p) => p.participantRole === "judge");
-  const n = debate.blocks_count ?? 4;
-  const seq: Array<{ role: string; phase: string; block_index: number }> = [];
-  for (let b = 0; b < n; b++) {
-    const isFinal = b === n - 1;
-    seq.push({ role: "moderator", phase: `vinheta ${b + 1}`, block_index: b });
-    if (isFinal) {
-      for (const s of speakers) seq.push({ role: s.role, phase: "considerações finais", block_index: b });
-      for (const j of judges) seq.push({ role: j.role, phase: "deliberação", block_index: b });
-      seq.push({ role: "moderator", phase: "veredito", block_index: b });
-    } else {
-      for (const s of speakers) seq.push({ role: s.role, phase: "abertura", block_index: b });
-      for (let r = 1; r <= debate.rounds; r++) {
-        for (const s of speakers) seq.push({ role: s.role, phase: `réplica ${r}`, block_index: b });
-      }
-    }
-  }
-  return seq;
-}
+// `multiSeq`, `modelForMulti`, `buildSystemPromptMulti` foram removidos:
+// a engine multi-participante vive em `multi-debate.functions.ts` (única
+// fonte de verdade). Mantidos aqui apenas: loadParticipants, multiSpeakers,
+// labelForMulti — usados por generateMultiVerdict e exports.functions.
 
 export function labelForMulti(role: string, parts: Participant[]): string {
   if (role === "moderator") return "Mediador";
   const p = parts.find((x) => x.role === role);
   return p?.displayName ?? role;
-}
-
-function modelForMulti(role: string, parts: Participant[], debate: Debate): string {
-  if (role === "moderator") return debate.moderator_model;
-  const p = parts.find((x) => x.role === role);
-  return p?.model ?? debate.moderator_model;
-}
-
-function buildSystemPromptMulti(role: string, parts: Participant[], debate: Debate, formatId: string): string {
-  if (role === "moderator") {
-    const fmt = FORMAT_RULES_HINTS[formatId] ?? "";
-    const whoM = debate.moderator_name ? `Você é ${debate.moderator_name}, ${debate.moderator_style ?? "apresentador do programa"}.` : "Você é o MEDIADOR de um programa de TV.";
-    return `${whoM} ${fmt}\nTom: ${debate.moderator_tone}. Apresente fases, faça transições e, no encerramento, conduza o desfecho conforme o formato. Português.${directionClause(debate)}${TTS_STYLE_RULES}`;
-  }
-  const p = parts.find((x) => x.role === role);
-  if (!p) return `Você é um participante de um programa de TV. Português.${TTS_STYLE_RULES}`;
-  const hint = SEMANTIC_ROLE_HINT[p.participantRole] ?? "";
-  return `Você é ${p.displayName}. ${p.personaPrompt}\n\n${hint}\nFale em português.${directionClause(debate)}${DEBATER_STAGE_RULES}${TTS_STYLE_RULES}`;
 }
 
 
