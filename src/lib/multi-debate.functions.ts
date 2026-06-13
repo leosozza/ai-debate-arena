@@ -2,99 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { ensureBlockSubtopics, directionClause, type Debate } from "./debate.functions";
+import { getEngine, type Participant, type Turn } from "./engines";
 
 // ===========================================================================
-// Motor de geração para formatos != "duel" (lê debate_participants).
-// Aditivo: não toca no engine de duel. Ativado pelo detalhe quando format != duel.
+// Motor de geração para formatos != "duel" (lê debate_participants). Cada
+// formato tem sua engine em src/lib/engines (sequência, tom, hints por fase,
+// e estilo de veredito). Este arquivo só orquestra DB + IA.
 // ===========================================================================
-
-type Participant = {
-  slot: number;
-  role: string;
-  display_name: string;
-  persona_prompt: string;
-  model: string | null;
-  team: string | null;
-};
 
 type Msg = { role: string; phase: string; content: string; block_index?: number | null };
 
 const TTS_STYLE = `\n\nFORMATO OBRIGATÓRIO: sua resposta vai direto para um sintetizador de voz (TTS). Escreva APENAS texto corrido falado, em português. PROIBIDO markdown, asteriscos, listas, títulos, emojis ou qualquer símbolo tipográfico além de . , ? ! ; :`;
 
 const DEFAULT_MODEL = "google/gemini-3-flash-preview";
-
-type SpeakerKind = "moderator" | "c0" | "c1" | number;
-type Turn = { speaker: SpeakerKind; phase: string; block_index: number; role?: string };
-
-function pushCommentators(seq: Turn[], blockIndex: number, isFinal: boolean, cCount: number) {
-  const label = isFinal ? "comentário final" : `comentário bloco ${blockIndex + 1}`;
-  for (let c = 0; c < cCount; c++) {
-    seq.push({ speaker: (c === 0 ? "c0" : "c1"), phase: label, block_index: blockIndex });
-  }
-}
-
-/** Constrói a sequência completa de turnos conforme o formato. */
-function buildSequence(formatId: string, parts: Participant[], blocks: number, rounds: number, cCount: number = 0): Turn[] {
-  const speakers = [...parts].sort((a, b) => a.slot - b.slot);
-  const seq: Turn[] = [];
-
-  if (formatId === "interview") {
-    const interviewer = parts.find((p) => p.role === "interviewer") ?? speakers[0];
-    const guests = speakers.filter((p) => p.slot !== interviewer?.slot);
-    for (let b = 0; b < blocks; b++) {
-      const isFinal = b === blocks - 1;
-      seq.push({ speaker: "moderator", phase: `vinheta ${b + 1}`, block_index: b });
-      for (const g of guests) {
-        seq.push({ speaker: interviewer.slot, phase: `pergunta ${b + 1}`, block_index: b, role: "interviewer" });
-        seq.push({ speaker: g.slot, phase: `resposta ${b + 1}`, block_index: b, role: "interviewee" });
-      }
-      pushCommentators(seq, b, isFinal, cCount);
-      if (isFinal) seq.push({ speaker: "moderator", phase: "veredito", block_index: b });
-    }
-    return seq;
-  }
-
-  if (formatId === "tribunal") {
-    const pros = speakers.filter((p) => p.role === "prosecutor");
-    const def = speakers.filter((p) => p.role === "defender");
-    const judges = speakers.filter((p) => p.role === "judge");
-    const accused = speakers.filter((p) => p.role === "debater" || p.role === "interviewee");
-    seq.push({ speaker: "moderator", phase: "abertura", block_index: 0 });
-    for (const p of pros) seq.push({ speaker: p.slot, phase: "acusação", block_index: 0, role: "prosecutor" });
-    for (const a of accused) seq.push({ speaker: a.slot, phase: "defesa do réu", block_index: 0, role: "debater" });
-    for (const d of def) seq.push({ speaker: d.slot, phase: "defesa", block_index: 0, role: "defender" });
-    for (const j of judges) seq.push({ speaker: j.slot, phase: "interrogatório", block_index: 0, role: "judge" });
-    pushCommentators(seq, 0, true, cCount);
-    seq.push({ speaker: "moderator", phase: "veredito", block_index: 0 });
-    return seq;
-  }
-
-  // Round-robin (roundtable, sages_council, era_clash, century_problem, ideas_war, presidential, fallback)
-  for (let b = 0; b < blocks; b++) {
-    const isFinal = b === blocks - 1;
-    seq.push({ speaker: "moderator", phase: `vinheta ${b + 1}`, block_index: b });
-    if (isFinal) {
-      for (const s of speakers) seq.push({ speaker: s.slot, phase: "considerações finais", block_index: b });
-      pushCommentators(seq, b, true, cCount);
-      seq.push({ speaker: "moderator", phase: "veredito", block_index: b });
-    } else {
-      for (const s of speakers) seq.push({ speaker: s.slot, phase: "abertura", block_index: b });
-      for (let r = 1; r <= rounds; r++) {
-        for (const s of speakers) seq.push({ speaker: s.slot, phase: `réplica ${r}`, block_index: b });
-      }
-      pushCommentators(seq, b, false, cCount);
-    }
-  }
-  return seq;
-}
-
-function toneFor(formatId: string): string {
-  if (formatId === "sages_council") return "Tom respeitoso e reflexivo de um conselho de sábios — sem ataques diretos, buscando sabedoria conjunta.";
-  if (formatId === "tribunal") return "Tom solene de tribunal — argumentação rigorosa, respeito ao rito.";
-  if (formatId === "presidential") return "Tom de debate presidencial — firme, com direito de resposta, sem desrespeito.";
-  if (formatId === "interview") return "Tom de entrevista de TV — perguntas instigantes e respostas reveladoras.";
-  return "Tom de mesa-redonda de TV — vivo, direto, com troca de ideias entre os convidados.";
-}
 
 // Convenção de role compatível com a apresentação (Lovable): slot 0 = "a",
 // slot 1 = "b", slot 2+ = "ex{slot}". Mediador = "moderator".
@@ -141,10 +61,12 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     const blocks = subtopics.length || debate.blocks_count || 4;
     const commentators = (debate as unknown as { commentators?: Array<{ name?: string; persona?: string }> | null }).commentators ?? [];
     const cCount = debate.dynamic_flow ? 0 : Math.min(2, commentators.length);
-    const seq = buildSequence(debate.format, parts, blocks, debate.rounds, cCount);
+
+    const engine = getEngine(debate.format);
+    const seq = engine.buildSequence(parts, blocks, debate.rounds, cCount);
 
     const seqCount = existing.filter((m) => m.phase !== "reviravolta").length;
-    let next = seq[seqCount];
+    let next: Turn | undefined = seq[seqCount];
     if (!next) {
       await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
       return { done: true, message: null };
@@ -158,10 +80,18 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
       .map((m) => `[${labels[m.role] ?? m.role}] (${m.phase}): ${m.content}`)
       .join("\n\n");
 
-    // Fluxo dinâmico em formatos multi: o mediador decide o próximo movimento
-    // durante réplicas (mantém vinheta/abertura/considerações finais/veredito fixos).
+    // Fluxo dinâmico: o mediador decide o próximo movimento durante réplicas
+    // (mantém vinheta/abertura/considerações finais/veredito fixos). Só aplica
+    // em formatos cujas fases incluem "réplica" — engines como sages_council
+    // (contribuição) ou century_problem (ângulo) seguem determinísticas.
     let dynamicGuidance: string | null = null;
-    if (debate.dynamic_flow && next.speaker !== "moderator" && next.speaker !== "c0" && next.speaker !== "c1" && /^réplica/i.test(next.phase)) {
+    if (
+      debate.dynamic_flow &&
+      next.speaker !== "moderator" &&
+      next.speaker !== "c0" &&
+      next.speaker !== "c1" &&
+      /^réplica/i.test(next.phase)
+    ) {
       const speakerList = parts
         .map((p) => `- slot ${p.slot} → ${p.display_name} (${p.role})`)
         .join("\n");
@@ -198,7 +128,6 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
     }
 
     const block = subtopics[next.block_index] ?? subtopics[0];
-    const tone = toneFor(debate.format);
 
     const isMod = next.speaker === "moderator";
     const isCommentator = next.speaker === "c0" || next.speaker === "c1";
@@ -217,22 +146,28 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
       userPrompt = `Tema do programa: ${debate.topic}\nBloco que acabou: "${block.title}" — ${block.focus}\n\nHistórico até agora:\n${transcript}\n\nFaça seu comentário pós-bloco (2-3 frases, máx 80 palavras). NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     } else if (isMod) {
       const whoM = debate.moderator_name ? `Você é ${debate.moderator_name}, ${debate.moderator_style ?? "apresentador do programa"}.` : "Você é o MEDIADOR/APRESENTADOR de um programa de debate de TV.";
-      sysPrompt = `${whoM} ${tone} Fale em português.${directionClause(debate)}${TTS_STYLE}`;
+      const modHint = engine.phaseHint(next.phase, "moderator");
+      sysPrompt = `${whoM} ${engine.tone}${modHint ? ` ${modHint}` : ""} Fale em português.${directionClause(debate)}${TTS_STYLE}`;
       if (next.phase === "veredito") {
-        userPrompt = `Tema: ${debate.topic}\n\nHistórico completo:\n${transcript}\n\nEncerre o programa com seu VEREDITO: quem se saiu melhor e por quê, citando momentos reais do debate. Máximo 180 palavras.`;
+        const extra = engine.verdictPromptExtra ? `\n\n${engine.verdictPromptExtra}` : "";
+        userPrompt = `Tema: ${debate.topic}\n\nHistórico completo:\n${transcript}\n\nEncerre o programa com seu VEREDITO conforme a natureza do formato. Cite momentos reais. Máximo 200 palavras.${extra}`;
       } else if (next.phase === "abertura") {
         const names = parts.map((p) => `${p.display_name} (${p.role})`).join(", ");
         userPrompt = `Tema do programa: ${debate.topic}\nParticipantes: ${names}\n\nAbra o programa com energia jornalística (máx 130 palavras): saúde a audiência, apresente cada participante em UMA frase, e dê a largada para a primeira fala. NÃO faça veredito.`;
       } else if (next.phase === "pergunta-incisiva") {
         userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê INTERROMPE para fazer UMA pergunta incisiva e direta, cobrando uma resposta que ficou no ar ou expondo uma contradição.${dynamicGuidance ? `\nFoco: ${dynamicGuidance}` : ""} Máx 60 palavras.`;
+      } else if (next.phase.startsWith("síntese")) {
+        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nFaça a síntese intermediária entre os dois últimos sábios. Máx 70 palavras.`;
+      } else if (next.phase.startsWith("pergunta")) {
+        const targetSlot = parts.find((p) => slotRole(p.slot) !== "moderator");
+        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\nParticipantes: ${parts.map((p) => p.display_name).join(", ")}\n\nFaça UMA pergunta DIRECIONADA pelo nome a um candidato (escolha quem ainda não foi interpelado neste bloco). Use no máximo 60 palavras.${targetSlot ? "" : ""}`;
       } else {
         userPrompt = `Tema geral: ${debate.topic}\n\nVinheta de abertura do bloco "${block.title}" (foco: ${block.focus}). 2-3 frases anunciando o sub-tema com energia de TV. Máx 70 palavras. NÃO faça veredito.`;
       }
     } else {
-      const roleHint = next.role
-        ? ({ interviewer: "Você é o ENTREVISTADOR: faça UMA pergunta instigante e direta ao convidado.", interviewee: "Você é o ENTREVISTADO: responda com profundidade e personalidade.", prosecutor: "Você é a ACUSAÇÃO: sustente a acusação com argumentos e evidências.", defender: "Você é a DEFESA: refute a acusação e defenda o réu.", judge: "Você é um JUIZ: questione os pontos fracos e pondere com imparcialidade." } as Record<string, string>)[next.role] ?? ""
-        : "";
-      sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${roleHint}\nVocê está num programa de debate de TV ao vivo. ${tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
+      const fmtHint = engine.phaseHint(next.phase, next.role ?? speaker?.role);
+      const teamHint = speaker?.team ? ` Você integra o TIME ${speaker.team}.` : "";
+      sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${fmtHint}${teamHint}\nVocê está num programa de debate de TV ao vivo. ${engine.tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
       const guide = dynamicGuidance ? `\nOrientação do mediador: ${dynamicGuidance}` : "";
       userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}${guide}\n\nSua tarefa: produzir a fala da fase "${next.phase}". Máximo 170 palavras. NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     }
@@ -254,7 +189,10 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
       }).select().single();
     if (iErr) throw new Error(iErr.message);
 
-    const willDone = next.phase === "veredito" || (!debate.dynamic_flow && seqCount + 1 >= seq.length);
+    // Em century_problem o veredito é seguido de N falas curtas de fechamento.
+    // Em outros formatos, o veredito ENCERRA o programa.
+    const isLast = !seq[seqCount + 1];
+    const willDone = isLast || (next.phase === "veredito" && engine.verdictKind !== "synthesis") || (!debate.dynamic_flow && seqCount + 1 >= seq.length);
     if (willDone) {
       await context.supabase.from("debates").update({ status: "completed" }).eq("id", data.debateId);
     }
