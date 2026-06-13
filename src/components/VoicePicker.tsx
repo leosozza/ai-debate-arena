@@ -211,8 +211,8 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
             </Select>
           ) : (
             (() => {
-              const catalog = VOICE_CATALOG[p] ?? [];
-              const fallback = catalog[0]?.id ?? "";
+              const catalog = filterVoicesByGender(p, filterGender);
+              const fallback = catalog[0]?.id ?? VOICE_CATALOG[p]?.[0]?.id ?? "";
               const currentId = voiceId && voiceId.length > 0 ? voiceId : fallback;
               const showPresets = p === "replicate" && presets.length > 0;
               // Para presets clonados (replicate), o usuário pode escolher o modelo:
