@@ -35,12 +35,23 @@ export const Route = createFileRoute("/api/debate/stream")({
           if (mErr) return new Response(mErr.message, { status: 500 });
           const existing = messages ?? [];
 
-          const { buildSystemPrompt, labelFor, modelFor } = await import("@/lib/debate.functions");
+          // Streaming SSE ainda só suporta o motor duel (A/B). Formatos
+          // multi-participante usam o caminho não-streaming
+          // (generateParticipantTurn) — bloqueamos aqui para evitar gerar
+          // turnos com role errado e quebrar a sequência.
+          if ((debate.format ?? "duel") !== "duel") {
+            return new Response(
+              "Streaming não suportado em formatos multi-participante. Use a geração não-streaming.",
+              { status: 400 },
+            );
+          }
+
+          const { buildSystemPrompt, labelFor, modelFor, fullSeqLength } = await import("@/lib/debate.functions");
           const { chatStream } = await import("@/lib/ai-gateway.server");
 
           // Inline next-turn decision (avoids exporting async helper)
           let next: { role: "moderator" | "a" | "b"; phase: string; guidance?: string } | null = null;
-          const max = 3 + debate.rounds * 2 + 3;
+          const max = fullSeqLength(debate);
           // "reviravolta" messages (live subtemas) are context-only and don't consume a sequence slot.
           const count = existing.filter((m) => m.phase !== "reviravolta").length;
           if (count === 0) next = { role: "moderator", phase: "abertura" };
