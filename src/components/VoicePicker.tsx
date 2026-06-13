@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { VOICE_CATALOG, PROVIDER_LABEL, type VoiceProvider } from "@/lib/voice-catalog";
+import { VOICE_CATALOG, PROVIDER_LABEL, filterVoicesByGender, type VoiceProvider, type VoiceGender } from "@/lib/voice-catalog";
 import { ttsSpeak } from "@/lib/debate.functions";
 import { minimaxTts } from "@/lib/tts.functions";
 import { replicateTts } from "@/lib/voice-replicate.functions";
