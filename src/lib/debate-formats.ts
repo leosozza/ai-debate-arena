@@ -36,8 +36,6 @@ export type DebateFormat = {
   maxDebaters: number;
   /** Papéis fixos exigidos além dos debatedores (ex.: 1 entrevistador). */
   fixedRoles?: Array<{ role: ParticipantRole; label: string; min: number; max: number }>;
-  /** Se true, ainda não tem engine própria — usa pipeline "duelo" como fallback. */
-  isNew?: boolean;
 };
 
 export const DEBATE_FORMATS: DebateFormat[] = [
@@ -58,7 +56,6 @@ export const DEBATE_FORMATS: DebateFormat[] = [
     description: "Vários pontos de vista sobre o mesmo tema. Mediador distribui falas e provoca contraposições.",
     minDebaters: 3,
     maxDebaters: 6,
-    isNew: true,
   },
   {
     id: "presidential",
@@ -68,7 +65,6 @@ export const DEBATE_FORMATS: DebateFormat[] = [
     description: "Estilo TV: pergunta do mediador, resposta, réplica, tréplica. Cada um defende sua plataforma.",
     minDebaters: 4,
     maxDebaters: 8,
-    isNew: true,
   },
   {
     id: "tribunal",
@@ -82,7 +78,6 @@ export const DEBATE_FORMATS: DebateFormat[] = [
       { role: "interviewee", label: "Réu", min: 1, max: 1 },
       { role: "judge", label: "Jurado(s)", min: 1, max: 3 },
     ],
-    isNew: true,
   },
   {
     id: "interview",
@@ -96,7 +91,6 @@ export const DEBATE_FORMATS: DebateFormat[] = [
       { role: "interviewer", label: "Entrevistador", min: 1, max: 1 },
       { role: "interviewee", label: "Entrevistado", min: 1, max: 1 },
     ],
-    isNew: true,
   },
   {
     id: "era_clash",
@@ -106,7 +100,6 @@ export const DEBATE_FORMATS: DebateFormat[] = [
     description: "Duelo clássico com twist: um vem do passado, o outro do presente. Choque de mundos.",
     minDebaters: 2,
     maxDebaters: 2,
-    isNew: true,
   },
   {
     id: "sages_council",
@@ -116,7 +109,6 @@ export const DEBATE_FORMATS: DebateFormat[] = [
     description: "Tom respeitoso, sem combate. Pensadores buscam síntese e novas perguntas, não vitória.",
     minDebaters: 3,
     maxDebaters: 5,
-    isNew: true,
   },
   {
     id: "ideas_war",
@@ -126,7 +118,6 @@ export const DEBATE_FORMATS: DebateFormat[] = [
     description: "Times defendem visões opostas, alternando abertura e réplicas. Veredito é coletivo por time.",
     minDebaters: 4,
     maxDebaters: 8,
-    isNew: true,
   },
   {
     id: "century_problem",
@@ -136,7 +127,6 @@ export const DEBATE_FORMATS: DebateFormat[] = [
     description: "Não é debate — é colaboração entre figuras de épocas diferentes diante de um desafio atual.",
     minDebaters: 3,
     maxDebaters: 5,
-    isNew: true,
   },
 ];
 
