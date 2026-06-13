@@ -29,11 +29,13 @@ interface Props {
   settings?: VoiceSettings | null;
   onSettingsChange?: (s: VoiceSettings) => void;
   sampleText?: string;
+  /** Quando definido, esconde vozes do gênero oposto (Kokoro/Piper/Eleven). */
+  filterGender?: VoiceGender | null;
 }
 
 const DEFAULT_SAMPLE = "Olá! Esta é uma amostra da minha voz para o debate.";
 
-export function VoicePicker({ label, provider, voiceId, onChange, settings, onSettingsChange, sampleText }: Props) {
+export function VoicePicker({ label, provider, voiceId, onChange, settings, onSettingsChange, sampleText, filterGender }: Props) {
   const p: VoiceProvider = provider ?? "browser";
   const s: VoiceSettings = settings ?? DEFAULT_VOICE_SETTINGS;
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
