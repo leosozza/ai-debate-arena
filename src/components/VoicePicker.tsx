@@ -185,7 +185,10 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
               stop();
               const np = v as VoiceProvider;
               if (np === "browser") onChange(np, null);
-              else onChange(np, VOICE_CATALOG[np][0].id);
+              else {
+                const first = filterVoicesByGender(np, filterGender)[0]?.id ?? VOICE_CATALOG[np][0]?.id ?? null;
+                onChange(np, first);
+              }
             }}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
