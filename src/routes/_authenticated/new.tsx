@@ -138,7 +138,7 @@ function NewDebate() {
   const currentFormat = getFormat(form.format)!;
   const [mediatorId, setMediatorId] = useState<string | null>(null);
 
-  function pickMediator(m: Mediator) {
+  function pickMediator(m: MediatorRow) {
     setMediatorId(m.id);
     setForm((f) => ({
       ...f,
