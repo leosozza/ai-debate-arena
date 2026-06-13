@@ -713,7 +713,7 @@ function PresentMode() {
             a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
             a.play().then(() => a.pause()).catch(() => { /* ignore */ });
             // Narra o AVISO uma única vez; ao terminar, entra na vinheta cinematográfica.
-            void speak("__disclaimer__", AI_DISCLAIMER_TEXT, "moderator", () => setPhase("vignette"));
+            void speak("__disclaimer__", "Aviso: este programa é uma simulação por inteligência artificial.", "moderator", () => setPhase("vignette"));
             // Segurança: se a narração falhar/travar, avança mesmo assim.
             window.setTimeout(() => setPhase((p) => (p === "disclaimer" ? "vignette" : p)), 30000);
           }}
