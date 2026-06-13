@@ -7,13 +7,26 @@ import { PIPER_VOICES } from "./piper-voices";
 
 export type VoiceProvider = "browser" | "kokoro" | "piper" | "eleven" | "minimax" | "replicate";
 
-export const VOICE_CATALOG: Record<Exclude<VoiceProvider, "browser">, ReadonlyArray<{ id: string; label: string }>> = {
+export type VoiceGender = "m" | "f";
+export interface CatalogVoice { id: string; label: string; gender?: VoiceGender }
+
+export const VOICE_CATALOG: Record<Exclude<VoiceProvider, "browser">, ReadonlyArray<CatalogVoice>> = {
   kokoro: KOKORO_VOICES,
   piper: PIPER_VOICES,
   eleven: ELEVEN_VOICES,
   minimax: MINIMAX_VOICES,
   replicate: REPLICATE_VOICES,
 };
+
+/** Filtra o catálogo de um provider por gênero. Vozes sem gênero declarado
+ *  são mantidas (não temos como provar o oposto). Se não houver vozes do
+ *  gênero pedido, devolve o catálogo inteiro (evita lista vazia). */
+export function filterVoicesByGender(provider: Exclude<VoiceProvider, "browser">, gender: VoiceGender | null | undefined): ReadonlyArray<CatalogVoice> {
+  const all = VOICE_CATALOG[provider] ?? [];
+  if (!gender) return all;
+  const filtered = all.filter((v) => !v.gender || v.gender === gender);
+  return filtered.length ? filtered : all;
+}
 
 export const PROVIDER_LABEL: Record<VoiceProvider, string> = {
   browser: "Navegador (grátis)",
