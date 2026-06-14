@@ -10,6 +10,7 @@ export const duelFallbackEngine: FormatEngine = {
     "Tom de programa de debate de TV — vivo, direto, com troca de ideias entre os convidados.",
   verdictKind: "individual",
   verdictPromptExtra: "",
+  allowsTwist: true,
   phaseHint(_phase, _role) {
     return "";
   },

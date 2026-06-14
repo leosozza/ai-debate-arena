@@ -8,6 +8,7 @@ export const roundtableEngine: FormatEngine = {
   verdictKind: "individual",
   verdictPromptExtra:
     "Encerre destacando QUEM brilhou na mesa, quem trouxe o argumento mais forte e quem ficou apagado. Cite nomes e momentos reais.",
+  allowsTwist: true,
   phaseHint(phase, role) {
     if (role === "moderator") return "";
     if (/réplica/.test(phase))

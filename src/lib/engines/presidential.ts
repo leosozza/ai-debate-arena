@@ -11,6 +11,7 @@ export const presidentialEngine: FormatEngine = {
   verdictKind: "individual",
   verdictPromptExtra:
     "Faça um placar do desempenho: quem soou mais presidencial, quem se contradisse, quem cresceu na réplica. Cite candidatos pelo nome.",
+  allowsTwist: true,
   phaseHint(phase, role) {
     if (role === "moderator") return "";
     if (/^resposta/.test(phase))
