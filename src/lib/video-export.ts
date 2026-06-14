@@ -39,6 +39,10 @@ export interface ExportInput {
   musicVolume?: number;
   /** Efeitos sonoros posicionados na timeline (segundos a partir do início). */
   sfx?: { type: SfxType; at: number }[];
+  /** Se true, sintetiza pads musicais por FASE e mistura embaixo das falas. */
+  adaptiveBeds?: boolean;
+  /** Volume dos beds 0..1 (default 0.18). */
+  bedsVolume?: number;
   onProgress?: (stage: string, pct: number) => void;
 }
 
