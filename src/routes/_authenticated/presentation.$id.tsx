@@ -1005,6 +1005,19 @@ function PresentMode() {
                 <><Film className="h-3.5 w-3.5 mr-1.5" /> Exportar vídeo MP4 (720p)</>
               )}
             </Button>
+            <Button
+              onClick={exportShort}
+              disabled={shortProgress !== null || exportProgress !== null || pregenProgress !== null}
+              variant="secondary"
+              className="w-full"
+              size="sm"
+            >
+              {shortProgress !== null ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> {shortProgress.label} ({Math.round(shortProgress.pct * 100)}%)</>
+              ) : (
+                <>📱 Exportar short (melhores momentos)</>
+              )}
+            </Button>
             {exportProgress !== null && (
               <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
                 <div className="h-full bg-primary transition-all" style={{ width: `${Math.round(exportProgress.pct * 100)}%` }} />
