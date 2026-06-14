@@ -534,27 +534,35 @@ function PresentMode() {
         return;
       }
 
-      const { exportDebateMp4 } = await import("@/lib/video-export");
+      const { exportShortMp4 } = await import("@/lib/shorts-export");
       const findP = (name: string | null | undefined) =>
         personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (name ?? "").trim().toLowerCase()) ?? null;
       const pA = findP(data.debate.debater_a_name);
       const pB = findP(data.debate.debater_b_name);
-      const blob = await exportDebateMp4({
-        topic: `${data.debate.topic} — Melhores momentos`,
-        aName: data.debate.debater_a_name,
-        bName: data.debate.debater_b_name,
-        aImageUrl: data.debate.debater_a_image_url ?? pA?.image_url ?? null,
-        bImageUrl: data.debate.debater_b_image_url ?? pB?.image_url ?? null,
-        aDescription: pA?.description ?? null,
-        bDescription: pB?.description ?? null,
-        messages: chosen.map((m) => ({
-          id: m.id,
-          role: ((m.role === "a" || m.role === "b") ? m.role : "moderator") as "moderator" | "a" | "b",
-          phase: m.phase ?? "",
-          content: m.content,
-          audioUrl: audioByMsg.get(m.id)!,
-        })),
-        adaptiveBeds: true,
+      const imgFor = (role: "moderator" | "a" | "b"): string | null => {
+        if (role === "a") return data.debate.debater_a_image_url ?? pA?.image_url ?? null;
+        if (role === "b") return data.debate.debater_b_image_url ?? pB?.image_url ?? null;
+        return null;
+      };
+      const nameFor = (role: "moderator" | "a" | "b"): string => {
+        if (role === "a") return data.debate.debater_a_name;
+        if (role === "b") return data.debate.debater_b_name;
+        return data.debate.moderator_name ?? "Mediador";
+      };
+      const blob = await exportShortMp4({
+        topic: data.debate.topic,
+        messages: chosen.map((m) => {
+          const role = ((m.role === "a" || m.role === "b") ? m.role : "moderator") as "moderator" | "a" | "b";
+          return {
+            id: m.id,
+            role,
+            speakerName: nameFor(role),
+            imageUrl: imgFor(role),
+            phase: m.phase ?? "",
+            content: m.content,
+            audioUrl: audioByMsg.get(m.id)!,
+          };
+        }),
         onProgress: (label, pct) => setShortProgress({ label, pct: 0.35 + pct * 0.65 }),
       });
       const url = URL.createObjectURL(blob);
