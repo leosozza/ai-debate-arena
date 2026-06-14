@@ -25,6 +25,7 @@ export const ideasWarEngine: FormatEngine = {
   verdictKind: "team",
   verdictPromptExtra:
     "Veredito POR TIME: declare o time vencedor com base na coerência coletiva e cite o MVP de cada lado (quem puxou a linha de raciocínio mais forte). Nada de ranking individual entre times.",
+  allowsTwist: true,
   phaseHint(phase, role) {
     if (role === "moderator") return "";
     if (phase === "abertura")

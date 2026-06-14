@@ -11,6 +11,7 @@ export const eraClashEngine: FormatEngine = {
   verdictKind: "individual",
   verdictPromptExtra:
     "No veredito, julgue: qual visão ENVELHECEU MELHOR e qual ficou refém da sua época. Cite o que cada um previu (ou deixou de prever).",
+  allowsTwist: true,
   phaseHint(phase, role) {
     if (role === "moderator") return "";
     if (phase === "abertura")

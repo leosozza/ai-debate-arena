@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ensureBlockSubtopics, directionClause, type Debate } from "./debate.functions";
 import { getEngine, type Participant, type Turn } from "./engines";
 import { styleForPhase } from "./phase-style";
+import { personaMemoryDigest } from "./persona-memory";
 
 
 // ===========================================================================
@@ -81,6 +82,25 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
     const transcript = existing
       .map((m) => `[${labels[m.role] ?? m.role}] (${m.phase}): ${m.content}`)
       .join("\n\n");
+
+    // ── Plot twist: antes da última réplica de blocos intermediários, o
+    // mediador pode injetar uma "reviravolta" (fato novo / dado polêmico).
+    // Não consome slot da sequência (filtramos phase=reviravolta acima).
+    const isFinalBlock = next.block_index === (subtopics.length - 1);
+    const replicaMatch = /^réplica\s+(\d+)/i.exec(next.phase);
+    const isLastReplica = replicaMatch && Number(replicaMatch[1]) === debate.rounds;
+    const lastWasTwist = existing.length > 0 && existing[existing.length - 1].phase === "reviravolta";
+    if (
+      engine.allowsTwist &&
+      !isFinalBlock &&
+      isLastReplica &&
+      !lastWasTwist &&
+      typeof next.speaker === "number" &&
+      Math.random() < 0.35
+    ) {
+      next = { speaker: "moderator", phase: "reviravolta", block_index: next.block_index };
+    }
+
 
     // Fluxo dinâmico: o mediador decide o próximo movimento durante réplicas
     // (mantém vinheta/abertura/considerações finais/veredito fixos). Só aplica
@@ -162,6 +182,8 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
         userPrompt = `Tema do programa: ${debate.topic}\nParticipantes: ${names}\n\nAbra o programa com energia jornalística (${wordsCap}): saúde a audiência, apresente cada participante em UMA frase, e dê a largada para a primeira fala. NÃO faça veredito.`;
       } else if (next.phase === "pergunta-incisiva") {
         userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê INTERROMPE para fazer UMA pergunta incisiva e direta, cobrando uma resposta que ficou no ar ou expondo uma contradição.${dynamicGuidance ? `\nFoco: ${dynamicGuidance}` : ""} ${wordsCap}`;
+      } else if (next.phase === "reviravolta") {
+        userPrompt = `Tema: ${debate.topic}\nBloco atual: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê é o mediador e PROVOCA uma REVIRAVOLTA: traga UM dado novo, hipótese contrária, fato polêmico ou notícia recente que muda o ângulo do bloco e força os convidados a reagirem. Comece com algo como "Mas espera lá..." ou "Acabou de chegar um dado que muda isso...". Termine devolvendo a palavra para que rebatam. ${wordsCap}`;
       } else if (next.phase.startsWith("síntese")) {
         userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nFaça a síntese intermediária entre os dois últimos sábios. ${wordsCap}`;
       } else if (next.phase.startsWith("pergunta")) {
@@ -172,7 +194,7 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
     } else {
       const fmtHint = engine.phaseHint(next.phase, next.role ?? speaker?.role);
       const teamHint = speaker?.team ? ` Você integra o TIME ${speaker.team}.` : "";
-      sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${fmtHint}${teamHint}\nVocê está num programa de debate de TV ao vivo. ${engine.tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
+      sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${fmtHint}${teamHint}\nVocê está num programa de debate de TV ao vivo. ${engine.tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${personaMemoryDigest(existing, roleMsg, speaker?.display_name ?? "")}${TTS_STYLE}`;
       const guide = dynamicGuidance ? `\nOrientação do mediador: ${dynamicGuidance}` : "";
       userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}${guide}\n\nSua tarefa: produzir a fala da fase "${next.phase}". ${wordsCap} NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     }

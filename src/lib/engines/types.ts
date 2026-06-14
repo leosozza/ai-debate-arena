@@ -42,6 +42,8 @@ export type FormatEngine = {
   verdictKind: VerdictKind;
   /** Modificador para o user prompt do veredito do mediador (string vazia = padrão). */
   verdictPromptExtra: string;
+  /** Se true, o mediador pode injetar uma "reviravolta" antes da última réplica de blocos intermediários. */
+  allowsTwist?: boolean;
 };
 
 /** Helper para empilhar comentaristas no fim de um bloco. */
