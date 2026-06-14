@@ -194,7 +194,7 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
     } else {
       const fmtHint = engine.phaseHint(next.phase, next.role ?? speaker?.role);
       const teamHint = speaker?.team ? ` Você integra o TIME ${speaker.team}.` : "";
-      sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${fmtHint}${teamHint}\nVocê está num programa de debate de TV ao vivo. ${engine.tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
+      sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${fmtHint}${teamHint}\nVocê está num programa de debate de TV ao vivo. ${engine.tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${personaMemoryDigest(existing, roleMsg, speaker?.display_name ?? "")}${TTS_STYLE}`;
       const guide = dynamicGuidance ? `\nOrientação do mediador: ${dynamicGuidance}` : "";
       userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}${guide}\n\nSua tarefa: produzir a fala da fase "${next.phase}". ${wordsCap} NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     }
