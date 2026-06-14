@@ -3,6 +3,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { ensureBlockSubtopics, directionClause, type Debate } from "./debate.functions";
 import { getEngine, type Participant, type Turn } from "./engines";
+import { styleForPhase } from "./phase-style";
+
 
 // ===========================================================================
 // Motor de geração para formatos != "duel" (lê debate_participants). Cada
@@ -138,39 +140,43 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
     let sysPrompt: string;
     let userPrompt: string;
 
+    const nextRole = isMod ? "moderator" : (isCommentator ? (next.speaker as string) : (next.role ?? speaker?.role));
+    const ps = styleForPhase(next.phase, nextRole);
+    const wordsCap = `Máximo ${ps.maxWords} palavras.`;
+
     if (isCommentator) {
       const cIdx = next.speaker === "c0" ? 0 : 1;
       const c = commentators[cIdx];
       const cName = commentatorName(cIdx as 0 | 1);
       sysPrompt = `Você é ${cName}, comentarista e repórter de um programa de debate de TV. ${c?.persona ?? ""}\nVocê NÃO debate: você ANALISA, como num pós-jogo, o bloco que acabou — quem mandou melhor, pontos fortes e fracos, o andamento e a reação do público. Seja perspicaz, direto e opinativo, em 2 a 3 frases. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
-      userPrompt = `Tema do programa: ${debate.topic}\nBloco que acabou: "${block.title}" — ${block.focus}\n\nHistórico até agora:\n${transcript}\n\nFaça seu comentário pós-bloco (2-3 frases, máx 80 palavras). NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
+      userPrompt = `Tema do programa: ${debate.topic}\nBloco que acabou: "${block.title}" — ${block.focus}\n\nHistórico até agora:\n${transcript}\n\nFaça seu comentário pós-bloco. ${wordsCap} NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     } else if (isMod) {
       const whoM = debate.moderator_name ? `Você é ${debate.moderator_name}, ${debate.moderator_style ?? "apresentador do programa"}.` : "Você é o MEDIADOR/APRESENTADOR de um programa de debate de TV.";
       const modHint = engine.phaseHint(next.phase, "moderator");
       sysPrompt = `${whoM} ${engine.tone}${modHint ? ` ${modHint}` : ""} Fale em português.${directionClause(debate)}${TTS_STYLE}`;
       if (next.phase === "veredito") {
         const extra = engine.verdictPromptExtra ? `\n\n${engine.verdictPromptExtra}` : "";
-        userPrompt = `Tema: ${debate.topic}\n\nHistórico completo:\n${transcript}\n\nEncerre o programa com seu VEREDITO conforme a natureza do formato. Cite momentos reais. Máximo 200 palavras.${extra}`;
+        userPrompt = `Tema: ${debate.topic}\n\nHistórico completo:\n${transcript}\n\nEncerre o programa com seu VEREDITO conforme a natureza do formato. Cite momentos reais. ${wordsCap}${extra}`;
       } else if (next.phase === "abertura") {
         const names = parts.map((p) => `${p.display_name} (${p.role})`).join(", ");
-        userPrompt = `Tema do programa: ${debate.topic}\nParticipantes: ${names}\n\nAbra o programa com energia jornalística (máx 130 palavras): saúde a audiência, apresente cada participante em UMA frase, e dê a largada para a primeira fala. NÃO faça veredito.`;
+        userPrompt = `Tema do programa: ${debate.topic}\nParticipantes: ${names}\n\nAbra o programa com energia jornalística (${wordsCap}): saúde a audiência, apresente cada participante em UMA frase, e dê a largada para a primeira fala. NÃO faça veredito.`;
       } else if (next.phase === "pergunta-incisiva") {
-        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê INTERROMPE para fazer UMA pergunta incisiva e direta, cobrando uma resposta que ficou no ar ou expondo uma contradição.${dynamicGuidance ? `\nFoco: ${dynamicGuidance}` : ""} Máx 60 palavras.`;
+        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê INTERROMPE para fazer UMA pergunta incisiva e direta, cobrando uma resposta que ficou no ar ou expondo uma contradição.${dynamicGuidance ? `\nFoco: ${dynamicGuidance}` : ""} ${wordsCap}`;
       } else if (next.phase.startsWith("síntese")) {
-        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nFaça a síntese intermediária entre os dois últimos sábios. Máx 70 palavras.`;
+        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nFaça a síntese intermediária entre os dois últimos sábios. ${wordsCap}`;
       } else if (next.phase.startsWith("pergunta")) {
-        const targetSlot = parts.find((p) => slotRole(p.slot) !== "moderator");
-        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\nParticipantes: ${parts.map((p) => p.display_name).join(", ")}\n\nFaça UMA pergunta DIRECIONADA pelo nome a um candidato (escolha quem ainda não foi interpelado neste bloco). Use no máximo 60 palavras.${targetSlot ? "" : ""}`;
+        userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\nParticipantes: ${parts.map((p) => p.display_name).join(", ")}\n\nFaça UMA pergunta DIRECIONADA pelo nome a um candidato (escolha quem ainda não foi interpelado neste bloco). ${wordsCap}`;
       } else {
-        userPrompt = `Tema geral: ${debate.topic}\n\nVinheta de abertura do bloco "${block.title}" (foco: ${block.focus}). 2-3 frases anunciando o sub-tema com energia de TV. Máx 70 palavras. NÃO faça veredito.`;
+        userPrompt = `Tema geral: ${debate.topic}\n\nVinheta de abertura do bloco "${block.title}" (foco: ${block.focus}). 2-3 frases anunciando o sub-tema com energia de TV. ${wordsCap} NÃO faça veredito.`;
       }
     } else {
       const fmtHint = engine.phaseHint(next.phase, next.role ?? speaker?.role);
       const teamHint = speaker?.team ? ` Você integra o TIME ${speaker.team}.` : "";
       sysPrompt = `Você é ${speaker?.display_name}. ${speaker?.persona_prompt?.slice(0, 6000) || ""}\n${fmtHint}${teamHint}\nVocê está num programa de debate de TV ao vivo. ${engine.tone} Vá direto ao argumento, rebata quando fizer sentido, sem se reapresentar a cada fala. Fale em português.${directionClause(debate)}${TTS_STYLE}`;
       const guide = dynamicGuidance ? `\nOrientação do mediador: ${dynamicGuidance}` : "";
-      userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}${guide}\n\nSua tarefa: produzir a fala da fase "${next.phase}". Máximo 170 palavras. NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
+      userPrompt = `Tema geral: ${debate.topic}\nBloco atual: "${block.title}" — foco: ${block.focus}\n\nHistórico até agora:\n${transcript || "(o programa está começando)"}${guide}\n\nSua tarefa: produzir a fala da fase "${next.phase}". ${wordsCap} NÃO inclua seu nome nem prefixo — só o conteúdo da fala.`;
     }
+
 
     const content = await chatComplete(
       [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
