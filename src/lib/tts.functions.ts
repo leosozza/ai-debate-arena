@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { paceToSpeed, styleForPhase } from "./phase-style";
 
 const TtsInput = z.object({
   text: z.string().trim().min(1).max(5000),
@@ -9,7 +10,12 @@ const TtsInput = z.object({
   speed: z.number().min(0.5).max(2).default(1),
   pitch: z.number().min(-12).max(12).default(0),
   vol: z.number().min(0.1).max(10).default(1),
+  /** Opcional: nome da fase. Quando presente, ajusta o ritmo automaticamente. */
+  phase: z.string().trim().max(60).optional(),
+  /** Opcional: papel ("moderator" | "c0" | "c1" | role da persona). */
+  phaseRole: z.string().trim().max(40).optional(),
 });
+
 
 /** Synthesize speech via MiniMax T2A v2. Returns base64-encoded mp3. */
 export const minimaxTts = createServerFn({ method: "POST" })
@@ -38,14 +44,16 @@ export const minimaxTts = createServerFn({ method: "POST" })
           model: data.model,
           text: data.text,
           stream: false,
-          // Melhora pronúncia em português (vozes do MiniMax são treinadas em ZH/EN).
           language_boost: "Portuguese",
           voice_setting: {
             voice_id: data.voiceId,
-            speed: data.speed,
+            speed: data.phase
+              ? Math.min(2, Math.max(0.5, data.speed * paceToSpeed(styleForPhase(data.phase, data.phaseRole).pace)))
+              : data.speed,
             vol: data.vol,
             pitch: data.pitch,
           },
+
           audio_setting: {
             // 44.1kHz / 256kbps = qualidade alta (antes era 32k/128k, baixo).
             sample_rate: 44100,
