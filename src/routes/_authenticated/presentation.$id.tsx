@@ -1023,7 +1023,7 @@ function PresentMode() {
               {shortProgress !== null ? (
                 <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> {shortProgress.label} ({Math.round(shortProgress.pct * 100)}%)</>
               ) : (
-                <>📱 Exportar short (melhores momentos)</>
+                <>📱 Exportar short 9:16 (melhores momentos)</>
               )}
             </Button>
             {exportProgress !== null && (
