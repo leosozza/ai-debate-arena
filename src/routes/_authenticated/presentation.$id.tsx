@@ -482,6 +482,97 @@ function PresentMode() {
     }
   }
 
+  const [shortProgress, setShortProgress] = useState<{ label: string; pct: number } | null>(null);
+  async function exportShort() {
+    if (!data) return;
+    if (isMulti) {
+      toast.error("Exportação de short ainda não suporta formatos multi-participante.");
+      return;
+    }
+    const browserSlots = messages.filter((m) => {
+      const s = slotFor((m.role ?? "moderator") as Side);
+      return s.provider === "browser" || !s.voiceId;
+    });
+    if (browserSlots.length > 0) {
+      toast.error("Defina uma voz não-navegador para todos os participantes antes de exportar.");
+      return;
+    }
+    setShortProgress({ label: "Selecionando melhores momentos", pct: 0.02 });
+    try {
+      const { planShortHighlights } = await import("@/lib/shorts.functions");
+      const plan = await planShortHighlights({ data: { debateId: id, max: 3 } });
+      if (!plan.highlights.length) {
+        toast.error("Não foi possível identificar trechos de destaque.");
+        setShortProgress(null);
+        return;
+      }
+      const ids = new Set(plan.highlights.map((h) => h.messageId));
+      const chosen = messages.filter((m) => ids.has(m.id));
+      if (chosen.length === 0) {
+        toast.error("Trechos selecionados não foram encontrados.");
+        setShortProgress(null);
+        return;
+      }
+
+      const audioByMsg = new Map<string, string>();
+      let voiceDone = 0;
+      for (const m of chosen) {
+        const slot = slotFor((m.role ?? "moderator") as Side);
+        try {
+          const url = await fetchAudioUrl(slot, m.id, m.content);
+          audioByMsg.set(m.id, url);
+        } catch {
+          // skip
+        }
+        voiceDone++;
+        setShortProgress({ label: `Gerando vozes ${voiceDone}/${chosen.length}`, pct: 0.05 + (voiceDone / chosen.length) * 0.3 });
+      }
+      const missing = chosen.filter((m) => !audioByMsg.get(m.id));
+      if (missing.length > 0) {
+        toast.error(`Falha ao gerar ${missing.length} áudio(s).`);
+        setShortProgress(null);
+        return;
+      }
+
+      const { exportDebateMp4 } = await import("@/lib/video-export");
+      const findP = (name: string | null | undefined) =>
+        personas?.find((p) => (p.name ?? "").trim().toLowerCase() === (name ?? "").trim().toLowerCase()) ?? null;
+      const pA = findP(data.debate.debater_a_name);
+      const pB = findP(data.debate.debater_b_name);
+      const blob = await exportDebateMp4({
+        topic: `${data.debate.topic} — Melhores momentos`,
+        aName: data.debate.debater_a_name,
+        bName: data.debate.debater_b_name,
+        aImageUrl: data.debate.debater_a_image_url ?? pA?.image_url ?? null,
+        bImageUrl: data.debate.debater_b_image_url ?? pB?.image_url ?? null,
+        aDescription: pA?.description ?? null,
+        bDescription: pB?.description ?? null,
+        messages: chosen.map((m) => ({
+          id: m.id,
+          role: ((m.role === "a" || m.role === "b") ? m.role : "moderator") as "moderator" | "a" | "b",
+          phase: m.phase ?? "",
+          content: m.content,
+          audioUrl: audioByMsg.get(m.id)!,
+        })),
+        adaptiveBeds: true,
+        onProgress: (label, pct) => setShortProgress({ label, pct: 0.35 + pct * 0.65 }),
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `debate-${id.slice(0, 8)}-short.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Short com ${chosen.length} momentos exportado!`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao exportar short");
+    } finally {
+      setShortProgress(null);
+    }
+  }
+
 
   // Cartela do bloco só aparece DEPOIS que o usuário começa (não bloqueia o botão Tocar).
   const lastBlockShownRef = useRef<number>(-1);
