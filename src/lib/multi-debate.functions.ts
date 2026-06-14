@@ -182,6 +182,8 @@ Responda APENAS JSON: {"speaker":"slot:<n>"|"moderator","instruction":"..."}.` }
         userPrompt = `Tema do programa: ${debate.topic}\nParticipantes: ${names}\n\nAbra o programa com energia jornalística (${wordsCap}): saúde a audiência, apresente cada participante em UMA frase, e dê a largada para a primeira fala. NÃO faça veredito.`;
       } else if (next.phase === "pergunta-incisiva") {
         userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê INTERROMPE para fazer UMA pergunta incisiva e direta, cobrando uma resposta que ficou no ar ou expondo uma contradição.${dynamicGuidance ? `\nFoco: ${dynamicGuidance}` : ""} ${wordsCap}`;
+      } else if (next.phase === "reviravolta") {
+        userPrompt = `Tema: ${debate.topic}\nBloco atual: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nVocê é o mediador e PROVOCA uma REVIRAVOLTA: traga UM dado novo, hipótese contrária, fato polêmico ou notícia recente que muda o ângulo do bloco e força os convidados a reagirem. Comece com algo como "Mas espera lá..." ou "Acabou de chegar um dado que muda isso...". Termine devolvendo a palavra para que rebatam. ${wordsCap}`;
       } else if (next.phase.startsWith("síntese")) {
         userPrompt = `Tema: ${debate.topic}\nBloco: "${block.title}" — ${block.focus}\n\nHistórico:\n${transcript}\n\nFaça a síntese intermediária entre os dois últimos sábios. ${wordsCap}`;
       } else if (next.phase.startsWith("pergunta")) {
