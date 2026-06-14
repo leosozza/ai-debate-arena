@@ -688,7 +688,11 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     await ffmpeg.deleteFile("opening.mp3").catch(() => {});
   }
 
-
+  // Timeline acumulada das falas, em segundos a partir do INÍCIO do MP4 final.
+  // O offset de partida inclui disclaimer (4s) e vinheta (6s se música carregou).
+  const startupOffset = 4 + (openingMusicLoaded ? 6 : 0);
+  const phaseTimeline: { phase: string; from: number; to: number }[] = [];
+  let cursor = startupOffset;
 
   for (let i = 0; i < total; i++) {
     const m = messages[i];
