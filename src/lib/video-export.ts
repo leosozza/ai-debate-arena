@@ -759,8 +759,11 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     await ffmpeg.deleteFile(audName).catch(() => {});
 
     segments.push(segName);
+    phaseTimeline.push({ phase: m.phase ?? "", from: cursor, to: cursor + effective });
+    cursor += effective;
     log(`Codificando fala ${i + 1}/${total}`, 0.1 + (0.75 * (i + 1)) / total);
   }
+
 
   // Concat list
   const list = segments.map((s) => `file '${s}'`).join("\n");
