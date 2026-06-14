@@ -576,7 +576,7 @@ function getAudioDuration(url: string): Promise<number> {
 }
 
 export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
-  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, onProgress } = input;
+  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, adaptiveBeds, bedsVolume = 0.18, onProgress } = input;
   const log = (stage: string, pct: number) => onProgress?.(stage, Math.max(0, Math.min(1, pct)));
 
   log("Carregando avatares", 0.02);
