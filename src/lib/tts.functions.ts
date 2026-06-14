@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { paceToSpeed, styleForPhase } from "./phase-style";
 
 const TtsInput = z.object({
   text: z.string().trim().min(1).max(5000),
@@ -9,7 +10,12 @@ const TtsInput = z.object({
   speed: z.number().min(0.5).max(2).default(1),
   pitch: z.number().min(-12).max(12).default(0),
   vol: z.number().min(0.1).max(10).default(1),
+  /** Opcional: nome da fase. Quando presente, ajusta o ritmo automaticamente. */
+  phase: z.string().trim().max(60).optional(),
+  /** Opcional: papel ("moderator" | "c0" | "c1" | role da persona). */
+  phaseRole: z.string().trim().max(40).optional(),
 });
+
 
 /** Synthesize speech via MiniMax T2A v2. Returns base64-encoded mp3. */
 export const minimaxTts = createServerFn({ method: "POST" })
