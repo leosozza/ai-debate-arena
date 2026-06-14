@@ -44,14 +44,16 @@ export const minimaxTts = createServerFn({ method: "POST" })
           model: data.model,
           text: data.text,
           stream: false,
-          // Melhora pronúncia em português (vozes do MiniMax são treinadas em ZH/EN).
           language_boost: "Portuguese",
           voice_setting: {
             voice_id: data.voiceId,
-            speed: data.speed,
+            speed: data.phase
+              ? Math.min(2, Math.max(0.5, data.speed * paceToSpeed(styleForPhase(data.phase, data.phaseRole).pace)))
+              : data.speed,
             vol: data.vol,
             pitch: data.pitch,
           },
+
           audio_setting: {
             // 44.1kHz / 256kbps = qualidade alta (antes era 32k/128k, baixo).
             sample_rate: 44100,
