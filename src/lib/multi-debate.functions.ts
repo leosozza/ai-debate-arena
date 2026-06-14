@@ -83,6 +83,25 @@ export const generateParticipantTurn = createServerFn({ method: "POST" })
       .map((m) => `[${labels[m.role] ?? m.role}] (${m.phase}): ${m.content}`)
       .join("\n\n");
 
+    // ── Plot twist: antes da última réplica de blocos intermediários, o
+    // mediador pode injetar uma "reviravolta" (fato novo / dado polêmico).
+    // Não consome slot da sequência (filtramos phase=reviravolta acima).
+    const isFinalBlock = next.block_index === (subtopics.length - 1);
+    const replicaMatch = /^réplica\s+(\d+)/i.exec(next.phase);
+    const isLastReplica = replicaMatch && Number(replicaMatch[1]) === debate.rounds;
+    const lastWasTwist = existing.length > 0 && existing[existing.length - 1].phase === "reviravolta";
+    if (
+      engine.allowsTwist &&
+      !isFinalBlock &&
+      isLastReplica &&
+      !lastWasTwist &&
+      typeof next.speaker === "number" &&
+      Math.random() < 0.35
+    ) {
+      next = { speaker: "moderator", phase: "reviravolta", block_index: next.block_index };
+    }
+
+
     // Fluxo dinâmico: o mediador decide o próximo movimento durante réplicas
     // (mantém vinheta/abertura/considerações finais/veredito fixos). Só aplica
     // em formatos cujas fases incluem "réplica" — engines como sages_council
