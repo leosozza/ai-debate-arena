@@ -461,6 +461,7 @@ function PresentMode() {
           content: m.content,
           audioUrl: audioByMsg.get(m.id)!,
         })),
+        adaptiveBeds: true,
         onProgress: (label, pct) =>
           setExportProgress({ label, pct: 0.35 + pct * 0.65 }),
       });

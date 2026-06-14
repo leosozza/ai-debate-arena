@@ -4,7 +4,8 @@
 import { stripMarkdownForTts } from "./text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
-import { synthSfx, type SfxType } from "./sfx";
+import { synthSfx, synthBed, type SfxType, type BedType } from "./sfx";
+import { phaseToBed } from "./phase-audio";
 
 export type ExportSide = "moderator" | "a" | "b";
 
@@ -38,6 +39,10 @@ export interface ExportInput {
   musicVolume?: number;
   /** Efeitos sonoros posicionados na timeline (segundos a partir do início). */
   sfx?: { type: SfxType; at: number }[];
+  /** Se true, sintetiza pads musicais por FASE e mistura embaixo das falas. */
+  adaptiveBeds?: boolean;
+  /** Volume dos beds 0..1 (default 0.18). */
+  bedsVolume?: number;
   onProgress?: (stage: string, pct: number) => void;
 }
 
@@ -571,7 +576,7 @@ function getAudioDuration(url: string): Promise<number> {
 }
 
 export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
-  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, onProgress } = input;
+  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, adaptiveBeds, bedsVolume = 0.18, onProgress } = input;
   const log = (stage: string, pct: number) => onProgress?.(stage, Math.max(0, Math.min(1, pct)));
 
   log("Carregando avatares", 0.02);
@@ -683,7 +688,11 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     await ffmpeg.deleteFile("opening.mp3").catch(() => {});
   }
 
-
+  // Timeline acumulada das falas, em segundos a partir do INÍCIO do MP4 final.
+  // O offset de partida inclui disclaimer (4s) e vinheta (6s se música carregou).
+  const startupOffset = 4 + (openingMusicLoaded ? 6 : 0);
+  const phaseTimeline: { phase: string; from: number; to: number }[] = [];
+  let cursor = startupOffset;
 
   for (let i = 0; i < total; i++) {
     const m = messages[i];
@@ -750,8 +759,11 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     await ffmpeg.deleteFile(audName).catch(() => {});
 
     segments.push(segName);
+    phaseTimeline.push({ phase: m.phase ?? "", from: cursor, to: cursor + effective });
+    cursor += effective;
     log(`Codificando fala ${i + 1}/${total}`, 0.1 + (0.75 * (i + 1)) / total);
   }
+
 
   // Concat list
   const list = segments.map((s) => `file '${s}'`).join("\n");
@@ -836,6 +848,64 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
       finalFile = "out_sfx.mp4";
     } catch {
       finalFile = "out.mp4"; // fallback: sem SFX
+    }
+  }
+
+  // Trilha sonora adaptativa: junta falas consecutivas com o mesmo "bed" e
+  // mistura cada bloco com fade in/out, em volume baixo.
+  if (adaptiveBeds && phaseTimeline.length > 0) {
+    log("Misturando trilha adaptativa", 0.985);
+    try {
+      const groups: { type: BedType; from: number; to: number }[] = [];
+      for (const t of phaseTimeline) {
+        const bed = phaseToBed(t.phase);
+        const last = groups[groups.length - 1];
+        if (last && last.type === bed && Math.abs(last.to - t.from) < 0.05) {
+          last.to = t.to;
+        } else {
+          groups.push({ type: bed, from: t.from, to: t.to });
+        }
+      }
+      const vol = Math.max(0, Math.min(1, bedsVolume));
+      const inputs: string[] = ["-i", finalFile];
+      const filters: string[] = [];
+      const labels: string[] = ["[0:a]"];
+      let k = 1;
+      for (const g of groups.slice(0, 60)) {
+        const dur = Math.max(2, g.to - g.from);
+        const bytes = await synthBed(g.type, dur);
+        const name = `bed${k}.wav`;
+        await ffmpeg.writeFile(name, bytes);
+        inputs.push("-i", name);
+        const delay = Math.max(0, Math.round(g.from * 1000));
+        const fade = Math.min(1.2, dur * 0.2).toFixed(2);
+        const fadeOutStart = Math.max(0, dur - parseFloat(fade)).toFixed(2);
+        filters.push(
+          `[${k}:a]adelay=${delay}|${delay},volume=${vol.toFixed(2)},afade=t=in:st=${(g.from).toFixed(2)}:d=${fade},afade=t=out:st=${(g.from + parseFloat(fadeOutStart)).toFixed(2)}:d=${fade}[b${k}]`,
+        );
+        labels.push(`[b${k}]`);
+        k++;
+      }
+      if (k > 1) {
+        const amix = `${labels.join("")}amix=inputs=${labels.length}:duration=first:normalize=0[a]`;
+        await ffmpeg.exec([
+          ...inputs,
+          "-filter_complex", `${filters.join(";")};${amix}`,
+          "-map", "0:v",
+          "-map", "[a]",
+          "-c:v", "copy",
+          "-c:a", "aac",
+          "-b:a", "192k",
+          "-movflags", "+faststart",
+          "out_beds.mp4",
+        ]);
+        for (let j = 1; j < k; j++) await ffmpeg.deleteFile(`bed${j}.wav`).catch(() => {});
+        // limpa o arquivo intermediário anterior (a não ser que seja out.mp4)
+        if (finalFile !== "out.mp4") await ffmpeg.deleteFile(finalFile).catch(() => {});
+        finalFile = "out_beds.mp4";
+      }
+    } catch {
+      // fallback silencioso — mantém finalFile sem beds
     }
   }
 

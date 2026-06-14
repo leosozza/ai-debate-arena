@@ -165,3 +165,81 @@ export async function playSfx(type: SfxType): Promise<void> {
   a.onended = () => URL.revokeObjectURL(url);
   await a.play().catch(() => URL.revokeObjectURL(url));
 }
+
+// ───────────────────────── Trilha sonora adaptativa ─────────────────────────
+// "Beds" são pads sintetizados, com fade in/out, pensados para correr embaixo
+// das falas conforme a FASE do debate. Sem assets externos — Web Audio puro.
+
+export type BedType = "bed_intro" | "bed_tension" | "bed_reflective" | "bed_verdict";
+
+interface BedPreset {
+  freqs: number[];
+  oscType: OscillatorType;
+  lp: number;
+  trem?: number;
+  master: number;
+}
+
+const BED_PRESETS: Record<BedType, BedPreset> = {
+  bed_intro: { freqs: [196.0, 261.63, 329.63, 392.0], oscType: "sine", lp: 2000, master: 0.32 },
+  bed_tension: { freqs: [110.0, 164.81, 220.0], oscType: "sawtooth", lp: 700, trem: 5.5, master: 0.28 },
+  bed_reflective: { freqs: [174.61, 220.0, 261.63, 349.23], oscType: "triangle", lp: 1500, master: 0.30 },
+  bed_verdict: { freqs: [98.0, 130.81, 196.0, 246.94], oscType: "sine", lp: 1100, master: 0.34 },
+};
+
+const bedCache = new Map<string, Uint8Array>();
+
+function buildBed(type: BedType, ctx: OfflineAudioContext, dur: number) {
+  const out = ctx.destination;
+  const preset = BED_PRESETS[type];
+  const master = ctx.createGain();
+  master.gain.value = preset.master;
+  master.connect(out);
+
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = preset.lp;
+  lp.connect(master);
+
+  const fade = Math.min(1.5, dur * 0.25);
+  for (const f of preset.freqs) {
+    const o = ctx.createOscillator();
+    o.type = preset.oscType;
+    o.frequency.value = f * (0.997 + Math.random() * 0.006);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, 0);
+    g.gain.linearRampToValueAtTime(0.20, fade);
+    g.gain.setValueAtTime(0.20, Math.max(fade, dur - fade));
+    g.gain.linearRampToValueAtTime(0.0001, dur);
+    o.connect(g).connect(lp);
+    o.start(0);
+    o.stop(dur);
+  }
+
+  if (preset.trem) {
+    const lfo = ctx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = preset.trem;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.08;
+    lfo.connect(lfoGain).connect(master.gain);
+    lfo.start(0);
+    lfo.stop(dur);
+  }
+}
+
+/** Renderiza um pad do tamanho pedido (cache por type+dur). */
+export async function synthBed(type: BedType, durationSec: number): Promise<Uint8Array> {
+  const dur = Math.max(2, Math.min(180, Math.ceil(durationSec)));
+  const key = `${type}:${dur}`;
+  const c = bedCache.get(key);
+  if (c) return c;
+  const sr = 44100;
+  const ctx = new OfflineAudioContext(1, Math.ceil(sr * dur), sr);
+  buildBed(type, ctx, dur);
+  const rendered = await ctx.startRendering();
+  const wav = encodeWav(rendered);
+  bedCache.set(key, wav);
+  return wav;
+}
+
