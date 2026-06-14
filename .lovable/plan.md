@@ -1,86 +1,74 @@
-## Objetivo
+## Implementação: prioridades 1–6 (4 entregas)
 
-Substituir o fallback round-robin único por **engines próprias** para cada formato que ainda compartilha pipeline genérico. Cada engine define: (1) sequência de turnos, (2) tom e prompts do mediador, (3) hints específicos por papel/fala, (4) formato do veredito. `duel`, `interview` e `tribunal` já têm comportamento próprio — vamos formalizá-los no mesmo padrão e criar os 6 que faltam.
+Vou agrupar em 4 commits sequenciais para entregar valor por etapa. Você poderá testar entre cada uma.
 
-## Formatos sem engine própria hoje
+---
 
-| Formato | Característica que precisa virar engine |
-|---|---|
-| `roundtable` | Mesa de TV: mediador provoca, todos respondem, contra-pontos cruzados, sem combate frontal. |
-| `presidential` | Pergunta cronometrada → resposta → direito de réplica do citado (não round-robin cego). |
-| `era_clash` | 2 personagens, mas mediador enquadra "choque de mundos" (passado vs presente) toda fala. |
-| `sages_council` | Sem combate: cada fala constrói sobre a anterior, mediador busca síntese, veredito = síntese coletiva. |
-| `ideas_war` | Times A/B: abertura por time, réplica alternada entre times, veredito **por time** (não individual). |
-| `century_problem` | Colaboração: mediador apresenta problema, cada época propõe ângulo, "veredito" = solução combinada. |
+### Entrega A — Adaptive speech length + Phase tags (itens 1 e 5)
 
-## Arquitetura
+**Objetivo:** falas com o tamanho certo por fase + base para SSML.
 
-Criar `src/lib/engines/` com **um arquivo por formato** + um `index.ts` que registra. Cada engine exporta:
+- Novo `src/lib/phase-style.ts` — para cada fase devolve `{ maxWords, ssmlPace, ssmlPauseAfter, role }`:
+  - `abertura`/`vinheta` → 130 palavras, ritmo médio
+  - `réplica` → 90 palavras, ritmo rápido
+  - `contribuição`/`ângulo` → 130, médio reflexivo
+  - `considerações finais` → 70, lento
+  - `veredito` → 200, lento com pausas
+  - `pergunta-incisiva` → 50, urgente
+  - `síntese` → 70, médio
+  - `acusação`/`defesa` → 170, médio firme
+  - `fechamento` → 35, lento contemplativo
+- Refatorar `multi-debate.functions.ts` para usar `phase-style.maxWords` em vez dos hard-codes "Máximo 170 palavras" espalhados (mantém os ajustes específicos das engines).
+- `src/lib/ssml.ts` (novo) — `wrapSSML(text, phaseStyle)`: injeta `<prosody rate="...">` + `<break time="500ms"/>` em pontos e travessões; sanitiza para Kokoro/Piper (que não suportam SSML) devolvendo texto puro com base nos mesmos sinais (usa quebras `...`).
+- `tts.functions.ts` (MiniMax): aceita opção `phase?: string` e ajusta `speed`/`vol` por fase.
+- ElevenLabs (`src/lib/elevenlabs.server.ts`): wrap em SSML quando o provider suportar.
 
-```ts
-type FormatEngine = {
-  id: DebateFormatId;
-  /** Sequência determinística (turnos × blocos). */
-  buildSequence(parts: Participant[], blocks: number, rounds: number, cCount: number): Turn[];
-  /** Conta turnos sem montar o array (otimização do progresso na UI). */
-  sequenceLength(parts: Slim[], blocks: number, rounds: number, cCount: number): number;
-  /** Tom/persona do mediador, injetado no system prompt. */
-  moderatorTone: string;
-  /** Prompts por fase. Recebe contexto e devolve {system, user}. */
-  buildPrompt(ctx: PromptContext): { system: string; user: string };
-  /** Formato do veredito (texto livre vs por time vs síntese). */
-  verdictKind: "individual" | "team" | "synthesis";
-};
-```
+---
 
-`multi-debate.functions.ts` vira fino: escolhe a engine pelo `debate.format` e delega. `multi-sequence.ts` também consulta `engine.sequenceLength` em vez de ter switch interno.
+### Entrega B — Trilha sonora adaptativa + SFX por fase (item 2)
 
-## Detalhe por engine
+**Objetivo:** áudio ambiente e SFX por fase, sem novos assets externos.
 
-**`roundtable`** — vinheta → mediador provoca pergunta → cada convidado responde 1×, depois 1 round de réplica cruzada (mediador escolhe quem responde a quem se `dynamic_flow`). Veredito individual: quem brilhou.
+- Estender `src/lib/sfx.ts` com **pads sintetizados em loop** (música ambiente leve via OfflineAudioContext, ~8s loopáveis):
+  - `bed_intro` (notas suspensas, abertura)
+  - `bed_tension` (drone grave, réplicas)
+  - `bed_reflective` (pad maior 7ª, sages/century)
+  - `bed_verdict` (acorde menor solene, veredito)
+- Mapa `phaseToBed(phase, engineId)` em novo `src/lib/phase-audio.ts`.
+- `video-export.ts` + `presentation.$id.tsx`: mistura o bed (volume -18dB) embaixo da fala da fase atual; transição via crossfade de 800ms na troca.
+- SFX automáticos no início de cada fase chave (ding na vinheta, drumroll antes do veredito, applause no fechamento) controlados pelo mesmo mapa.
 
-**`presidential`** — vinheta → mediador faz pergunta a candidato X → resposta (90s) → candidato Y citado tem direito de réplica (60s) → mediador passa próximo. Réplica é gatilhada por menção, não rodízio. Veredito: ranking dos candidatos.
+---
 
-**`era_clash`** — herda duel, mas todo prompt injeta "você fala de [séc XVIII] / [séc XXI]". Mediador faz transições contextualizando o choque temporal. Veredito: qual visão envelheceu melhor.
+### Entrega C — Plot twists + Long-term memory (itens 3 e 6)
 
-**`sages_council`** — sem "abertura/réplica". Cada turno é "contribuição" que **deve referenciar** o sábio anterior. Mediador faz síntese a cada 2 contribuições. Veredito: síntese coletiva (3-4 parágrafos do mediador).
+**Objetivo:** mediador injeta reviravoltas; personas lembram do que disseram.
 
-**`ideas_war`** — agrupa parts por `team` (A/B). Abertura do time A → abertura do time B → réplica A → réplica B (alternado por time, não por slot). Veredito: pontuação por time + MVP por time.
+- **Plot twists**: novo helper `maybeInjectTwist(debate, transcript, blockIndex)` em `multi-debate.functions.ts`. Antes da última réplica de cada bloco intermediário (probabilidade 35%), o mediador gera um turn de fase `reviravolta` (já existe no schema) com um fato novo / hipótese contrária / dado polêmico. Injeta como `role:"moderator", phase:"reviravolta"` e adia o turno seguinte. Já existe estrutura — basta ativar via `engine.allowsTwist: boolean` opcional (true para roundtable/presidential/era_clash/ideas_war, false para sages/century/tribunal/interview).
+- **Long-term memory**: novo helper `personaMemoryDigest(transcript, speakerRole)` — antes de cada fala não-moderador, extrai (regex + slice) as 3 últimas frases que ESSE persona disse e injeta no system prompt como `MEMÓRIA — você mesmo já disse: "..."` e `MEMÓRIA — os outros disseram sobre você: "..."`. Reduz contradições e cria callbacks naturais. Custo zero (não usa IA, só processa transcript existente).
 
-**`century_problem`** — mediador apresenta um problema atual. Cada personagem propõe ângulo da sua época (não rebate). Última rodada: cada um sugere uma ação. Veredito: solução combinada que junta os ângulos.
+---
 
-## Mudanças concretas
+### Entrega D — Shorts 9:16 com melhores momentos (item 4)
 
-**Novos:**
-- `src/lib/engines/types.ts` (FormatEngine, PromptContext, Turn)
-- `src/lib/engines/roundtable.ts`
-- `src/lib/engines/presidential.ts`
-- `src/lib/engines/era-clash.ts`
-- `src/lib/engines/sages-council.ts`
-- `src/lib/engines/ideas-war.ts`
-- `src/lib/engines/century-problem.ts`
-- `src/lib/engines/interview.ts` (move o que já existe)
-- `src/lib/engines/tribunal.ts` (move o que já existe)
-- `src/lib/engines/index.ts` (registry + `getEngine(formatId)`)
+**Objetivo:** gerar 1 short vertical de 45–60s pós-export.
 
-**Editados:**
-- `src/lib/multi-debate.functions.ts` — vira shell que carrega engine + executa
-- `src/lib/multi-sequence.ts` — delega para `engine.sequenceLength`
-- `src/lib/debate-formats.ts` — remover flag `isNew` dos 6 formatos
-- `src/routes/_authenticated/presentation.$id.tsx` — suportar `verdictKind: team`/`synthesis` (card de veredito diferente)
-- `src/components/MultiScoreboard.tsx` — se `team` agrupar por time
+- `src/lib/shorts.functions.ts` (server) — input: `debateId`. Fluxo:
+  1. Carrega `debate_messages` ordenados.
+  2. Pede à IA (chatComplete, gemini-flash) para apontar os 3 melhores trechos: ranking por densidade/atrito, retorna `[{ messageId, startWord, endWord, reason }]` em JSON.
+  3. Retorna o plano (não renderiza vídeo no servidor — workerd não tem ffmpeg).
+- `src/lib/shorts-export.ts` (client) — recebe o plano e usa o mesmo pipeline do `video-export.ts` para gerar MP4 9:16 (1080×1920): crop centralizado dos `SpeakerCard` em vertical + legenda grande embaixo + bed_tension de fundo.
+- Botão "📱 Exportar short (60s)" no `presentation.$id.tsx` ao lado do "Exportar vídeo".
 
-**Migração de banco:** `debates` já tem `verdict_multi jsonb`. Estender shape para `{ kind: "individual"|"team"|"synthesis", payload: ... }` sem migração — só interpretação no app. Manter compatibilidade lendo o legado.
+---
 
-## Fora de escopo
+### Fora de escopo (consenso anterior)
 
-- Tempos cronometrados reais (presidencial fica com "tempo simbólico" via tamanho do prompt).
-- Re-treinamento de personas existentes.
-- UI específica de criação por formato (já feita na fase A).
+- Geração de música via ElevenLabs Music API (custo alto + latência por export). Usaremos beds sintetizados.
+- Avatares animados, cronômetro visual, mapa de conexões — ficam para próxima rodada.
 
-## Perguntas
+---
 
-1. **Ordem de entrega**: (a) tudo de uma vez (6 engines + refactor), (b) por lote — primeiro `roundtable` + `presidential` (mais usados), depois `era_clash` + `sages_council`, por fim `ideas_war` + `century_problem`, ou (c) refator estrutural primeiro (mover interview/tribunal pro registry, sem novos formatos) e depois engines novas?
-2. **Veredito de `ideas_war`**: pontuação por time **+ MVP individual** dos dois lados, ou só ranking de time (sem destaque individual)?
-3. **Mediador em `sages_council`**: deve **participar** com sínteses intermediárias (a cada 2 falas), ou só abrir e fechar (mais silencioso, dando espaço aos sábios)?
-4. **`century_problem`**: o "veredito" final é falado **pelo mediador** apresentando a solução combinada, ou cada personagem faz uma fala curta de fechamento contribuindo com sua parte da solução?
+### Ordem sugerida
+
+A → B → C → D, cada uma em commit próprio. Posso começar pela A agora?
