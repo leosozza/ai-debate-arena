@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ensureBlockSubtopics, directionClause, type Debate } from "./debate.functions";
 import { getEngine, type Participant, type Turn } from "./engines";
 import { styleForPhase } from "./phase-style";
+import { personaMemoryDigest } from "./persona-memory";
 
 
 // ===========================================================================
