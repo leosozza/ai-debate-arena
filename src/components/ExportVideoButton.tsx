@@ -292,7 +292,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
   }
 
-  async function renderAndDownload(builtClips: TimelineClip[], fileSuffix: string) {
+  async function renderAndDownload(
+    builtClips: TimelineClip[],
+    fileSuffix: string,
+    persistMeta: { blockIndex: number | null; blockTitle: string | null } | null,
+  ) {
     if (!data) return;
     const d = data.debate;
     const { exportDebateMp4 } = await import("@/lib/video-export");
@@ -335,6 +339,36 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    if (persistMeta) {
+      try {
+        setProgress({ label: "Salvando no debate…", pct: 0.99 });
+        const kind = persistMeta.blockIndex === null ? "full" : "block";
+        const up = await createUpload({ data: { debateId, kind, blockIndex: persistMeta.blockIndex } });
+        const putRes = await fetch(up.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "video/mp4" },
+          body: blob,
+        });
+        if (!putRes.ok) throw new Error(`upload ${putRes.status}`);
+        const totalDur = builtClips.reduce(
+          (s, c) => s + Math.max(0, c.duration - c.trimStart - c.trimEnd),
+          0,
+        );
+        await finalizeUpload({ data: {
+          debateId,
+          kind,
+          blockIndex: persistMeta.blockIndex,
+          blockTitle: persistMeta.blockTitle,
+          storagePath: up.storagePath,
+          sizeBytes: blob.size,
+          durationSeconds: totalDur || null,
+        } });
+        await qc.invalidateQueries({ queryKey: ["debate-exports", debateId] });
+      } catch (e) {
+        toast.warning(`Vídeo baixado, mas não foi salvo no debate: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
   }
 
   /** One-click: synth → render → download. No editor. blockIndex=null = full debate. */
