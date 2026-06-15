@@ -306,14 +306,11 @@ function PresentMode() {
     const slot = slotFor(role);
     const clean = stripMarkdownForTts(text);
     setVoiceFallback((f) => (f?.msgId === msgId ? null : f));
-    if (slot.provider === "browser" || !slot.voiceId) {
-      // Avisa quando um debatedor (A/B) cai para voz do navegador por falta de voiceId —
-      // sintoma típico do "a voz do convidado não tocou".
-      if (role !== "moderator" && slot.provider !== "browser" && !slot.voiceId) {
-        const who = role === "a" ? "Convidado A" : role === "b" ? "Convidado B" : "Participante";
-        toast.warning(`${who} sem voz configurada — usando voz do navegador. Ajuste em Configurações.`, { duration: 5000 });
-        setVoiceFallback({ msgId, reason: "Nenhuma voz selecionada para este participante." });
-      }
+    if (!slot.voiceId) {
+      // Sem voz configurada: avisa e cai para SpeechSynthesis (emergência).
+      const who = role === "a" ? "Convidado A" : role === "b" ? "Convidado B" : role === "moderator" ? "Mediador" : "Participante";
+      toast.warning(`${who} sem voz configurada — usando fallback de emergência. Ajuste em Configurações.`, { duration: 5000 });
+      setVoiceFallback({ msgId, reason: "Nenhuma voz selecionada para este participante." });
       browserSpeak(clean, role, token, onEnd);
       return;
     }
@@ -375,7 +372,7 @@ function PresentMode() {
       const m = messages[index + k];
       if (!m) return;
       const slot = slotFor((m.role ?? "moderator") as Side);
-      if (slot.provider === "browser" || !slot.voiceId) continue;
+      if (!slot.voiceId) continue;
       try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* silencioso */ }
     }
   }
@@ -384,9 +381,9 @@ function PresentMode() {
   async function pregenerateAll() {
     const todo = messages
       .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
-      .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId);
+      .filter(({ slot }) => !!slot.voiceId);
     if (todo.length === 0) {
-      toast.info("Nada para pré-gerar (todas as vozes são do navegador).");
+      toast.info("Nada para pré-gerar (selecione vozes para os participantes).");
       return;
     }
     setPregenProgress({ done: 0, total: todo.length });
@@ -416,10 +413,10 @@ function PresentMode() {
     }
     const browserSlots = messages.filter((m) => {
       const s = slotFor((m.role ?? "moderator") as Side);
-      return s.provider === "browser" || !s.voiceId;
+      return !s.voiceId;
     });
     if (browserSlots.length > 0) {
-      toast.error("Defina uma voz não-navegador para todos os participantes antes de exportar.");
+      toast.error("Defina uma voz para todos os participantes antes de exportar.");
       return;
     }
     setExportProgress({ label: "Preparando vozes", pct: 0 });
@@ -507,10 +504,10 @@ function PresentMode() {
     }
     const browserSlots = messages.filter((m) => {
       const s = slotFor((m.role ?? "moderator") as Side);
-      return s.provider === "browser" || !s.voiceId;
+      return !s.voiceId;
     });
     if (browserSlots.length > 0) {
-      toast.error("Defina uma voz não-navegador para todos os participantes antes de exportar.");
+      toast.error("Defina uma voz para todos os participantes antes de exportar.");
       return;
     }
     setShortProgress({ label: "Selecionando melhores momentos", pct: 0.02 });
@@ -649,7 +646,7 @@ function PresentMode() {
     (async () => {
       const todo = messages
         .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
-        .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId)
+        .filter(({ slot }) => !!slot.voiceId)
         .slice(0, 1);
       if (todo.length === 0) {
         setPrepVoices({ done: 0, total: 0, status: "done" });
