@@ -222,8 +222,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                   </SelectContent>
                 </Select>
               );
-            })()
-          )}
+            })()}
         </div>
         {onSettingsChange && (
           <Button
