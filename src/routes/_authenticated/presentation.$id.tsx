@@ -1322,12 +1322,12 @@ function StageDebaterPanel({
             {active ? phase : "Aguardando"}
           </div>
           {active ? (
-            <div className="mx-auto max-w-xl">
+            <div className="mx-auto w-full max-w-3xl">
               <Teleprompter
                 text={content}
                 active={speaking}
                 durationMs={durationMs ?? null}
-                heightRem={7}
+                heightRem={14}
               />
               {fallbackReason && (
                 <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -1343,6 +1343,7 @@ function StageDebaterPanel({
                 </div>
               )}
             </div>
+
           ) : (
             <p className="mx-auto max-w-xl text-base leading-relaxed md:text-xl text-muted-foreground">
               {""}
