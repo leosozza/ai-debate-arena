@@ -26,6 +26,7 @@ import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/compo
 import { type VoiceProvider, normalizeProvider, isProvider } from "@/lib/voice-catalog";
 import { personaGenderFrom, defaultVoiceForGender } from "@/lib/persona-gender";
 import { stripMarkdownForTts } from "@/lib/text-utils";
+import { ttsCacheGet, ttsCachePut, ttsCachePrune, blobToUrl, dataUrlToBlob, hashContent } from "@/lib/tts-cache";
 import { toast } from "sonner";
 import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Users, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
 import { accentForSlot, accentForRole, roleLabel as participantRoleLabel } from "@/components/CastStrip";
