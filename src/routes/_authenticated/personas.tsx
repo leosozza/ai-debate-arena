@@ -531,6 +531,17 @@ function PersonasPage() {
           ))}
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="mediators">
+          <CastManager role="mediator" />
+        </TabsContent>
+
+        <TabsContent value="commentators">
+          <CastManager role="commentator" />
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }
+
