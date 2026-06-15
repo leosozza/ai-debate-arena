@@ -50,7 +50,7 @@ export const W = 1280;
 export const H = 720;
 
 /** Loads an HTMLImageElement (with crossOrigin for canvas tainting safety). */
-function loadImage(src: string): Promise<HTMLImageElement | null> {
+export function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
