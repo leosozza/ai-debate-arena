@@ -141,7 +141,7 @@ export function resolveReplicateVoice(voiceId: string): {
   if (v.startsWith("cb:")) return { model: "chatterbox", voiceParam: v.slice(3) };
   if (v.startsWith("fish:")) return { model: "fish", voiceParam: v.slice(5) };
   if (v.startsWith("xtts:")) return { model: "xtts", voiceParam: v.slice(5) };
-  // URL crua de áudio → Fish Speech (clone zero-shot mais consistente).
-  if (/^https?:\/\//i.test(v)) return { model: "fish", voiceParam: v };
+  // URL crua de áudio → Chatterbox (Fish-speech-1.5 foi removido do Replicate).
+  if (/^https?:\/\//i.test(v)) return { model: "chatterbox", voiceParam: v };
   return { model: "minimax-hd", voiceParam: v };
 }
