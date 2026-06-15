@@ -41,12 +41,20 @@ const PT_BR_CURATED: ReadonlyArray<{ id: string; label: string }> = [
   { id: "el:ErXwobaYiN019PkySvjV", label: "🎙️ ElevenLabs v3 · Antoni (M)" },
   { id: "el:EXAVITQu4vr4xnSDxMaL", label: "🎙️ ElevenLabs v3 · Bella (F)" },
   // 🌀 Inworld (muito expressivo, multilíngue)
+  // 🌀 Inworld realtime-tts-2 (expressivo, 100+ idiomas, suporta steering [say excitedly])
+  // Presets oficiais TTS-2
+  { id: "iw:Ashley", label: "🌀 Inworld · Ashley (F, quente)" },
+  { id: "iw:Dennis", label: "🌀 Inworld · Dennis (M, calmo)" },
+  { id: "iw:Alex", label: "🌀 Inworld · Alex (M, expressivo)" },
+  { id: "iw:Darlene", label: "🌀 Inworld · Darlene (F, narração)" },
+  // Pool compartilhado (heranças TTS 1.5)
   { id: "iw:Hades", label: "🌀 Inworld · Hades (M, grave)" },
   { id: "iw:Marcus", label: "🌀 Inworld · Marcus (M)" },
   { id: "iw:Theodore", label: "🌀 Inworld · Theodore (M, sábio)" },
   { id: "iw:Olivia", label: "🌀 Inworld · Olivia (F)" },
   { id: "iw:Serena", label: "🌀 Inworld · Serena (F)" },
   { id: "iw:Luna", label: "🌀 Inworld · Luna (F, suave)" },
+
   // Apresentação / TV
   { id: "presenter_male", label: "🇧🇷 Apresentador de TV (M)" },
   { id: "presenter_female", label: "🇧🇷 Apresentadora de TV (F)" },
