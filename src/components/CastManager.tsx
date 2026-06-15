@@ -223,10 +223,16 @@ export function CastManager({ role }: { role: CastRole }) {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Foto / avatar (URL)</Label>
-              <Input maxLength={2048} placeholder="https://…" value={form.avatar_url ?? ""} onChange={(e) => setForm({ ...form, avatar_url: e.target.value || null })} />
-            </div>
+            <PersonaImagePanel
+              name={form.name || `${roleLabelCap} ${form.gender === "f" ? "feminina" : "masculino"}`}
+              description={
+                (form.tagline ? form.tagline + ". " : "") +
+                `Pessoa fictícia, ${form.gender === "f" ? "mulher" : "homem"}, ${roleLabel} brasileiro(a) de televisão, retrato fotorrealista, estúdio profissional.`
+              }
+              value={form.avatar_url}
+              onChange={(url) => setForm({ ...form, avatar_url: url })}
+            />
+
 
             <div className="pt-2 border-t">
               <VoicePicker
