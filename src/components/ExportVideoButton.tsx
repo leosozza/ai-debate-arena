@@ -443,6 +443,30 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      try {
+        setProgress({ label: "Salvando no debate…", pct: 0.99 });
+        const up = await createUpload({ data: { debateId, kind: "full", blockIndex: null } });
+        const putRes = await fetch(up.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "video/mp4" },
+          body: blob,
+        });
+        if (!putRes.ok) throw new Error(`upload ${putRes.status}`);
+        const totalDur = editedClips.reduce(
+          (s, c) => s + Math.max(0, c.duration - c.trimStart - c.trimEnd),
+          0,
+        );
+        await finalizeUpload({ data: {
+          debateId, kind: "full", blockIndex: null, blockTitle: null,
+          storagePath: up.storagePath, sizeBytes: blob.size,
+          durationSeconds: totalDur || null,
+        } });
+        await qc.invalidateQueries({ queryKey: ["debate-exports", debateId] });
+      } catch (e) {
+        toast.warning(`Vídeo baixado, mas não foi salvo no debate: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
       toast.success("Vídeo MP4 exportado!");
       setEditorOpen(false);
     } catch (e) {
