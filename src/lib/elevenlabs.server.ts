@@ -10,7 +10,7 @@ export async function elevenTTS(text: string, voiceId: string): Promise<{ audio:
   const timer = setTimeout(() => ctrl.abort(), 30000);
   let res: Response;
   try {
-    res = await fetch(`${ENDPOINT}/${voiceId}`, {
+    res = await fetch(`${ENDPOINT}/${voiceId}?output_format=mp3_44100_128`, {
       method: "POST",
       headers: {
         "xi-api-key": key,
@@ -35,7 +35,10 @@ export async function elevenTTS(text: string, voiceId: string): Promise<{ audio:
 
   if (!res.ok) {
     const body = await res.text();
-    if (res.status === 401) throw new Error("ElevenLabs: chave inválida (401).");
+    if (body.includes("quota_exceeded") || body.includes("credits")) {
+      throw new Error("ElevenLabs: créditos esgotados nesta conexão.");
+    }
+    if (res.status === 401) throw new Error("ElevenLabs: chave inválida ou conexão expirada (401).");
     if (res.status === 429) throw new Error("ElevenLabs: limite/créditos atingidos.");
     throw new Error(`ElevenLabs ${res.status}: ${body.slice(0, 160)}`);
   }
