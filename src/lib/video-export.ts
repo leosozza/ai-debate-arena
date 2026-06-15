@@ -77,7 +77,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
-function drawStageFrame(
+export function drawStageFrame(
   ctx: CanvasRenderingContext2D,
   opts: {
     topic: string;
@@ -217,7 +217,7 @@ function drawStageFrame(
 
 
 /** Opening disclaimer card: full-screen AI simulation warning. */
-function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
+export function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, "#05060d");
   bg.addColorStop(1, "#0b1020");
@@ -255,7 +255,7 @@ function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
 }
 
 /** Cinematic vignette frame: LEGENDS ARENA + topic. */
-function drawVignetteFrame(ctx: CanvasRenderingContext2D, topic: string) {
+export function drawVignetteFrame(ctx: CanvasRenderingContext2D, topic: string) {
   // Deep radial gradient bg
   const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W);
   bg.addColorStop(0, "#1a1845");
@@ -309,7 +309,7 @@ function drawVignetteFrame(ctx: CanvasRenderingContext2D, topic: string) {
 }
 
 /** Opening frame: two guests side-by-side with bios, Roda Viva style. */
-function drawIntroFrame(
+export function drawIntroFrame(
   ctx: CanvasRenderingContext2D,
   opts: {
     topic: string;
