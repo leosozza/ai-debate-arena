@@ -1,74 +1,45 @@
-## Implementação: prioridades 1–6 (4 entregas)
+## Objetivo
+Remover totalmente o provider "browser" (Web Speech) do sistema de vozes. Kokoro vira o padrão e debates antigos que usavam navegador migram automaticamente ao abrir.
 
-Vou agrupar em 4 commits sequenciais para entregar valor por etapa. Você poderá testar entre cada uma.
+## Mudanças
 
----
+### 1. Catálogo de vozes (`src/lib/voice-catalog.ts`)
+- Remover `"browser"` do `VoiceProvider` union (vira `"kokoro" | "piper" | "eleven" | "minimax" | "replicate"`).
+- Tirar `browser` de `PROVIDER_LABEL`, `isProvider`, e `voiceLabel`.
+- `VOICE_CATALOG` deixa de precisar de `Exclude<..., "browser">`.
 
-### Entrega A — Adaptive speech length + Phase tags (itens 1 e 5)
+### 2. Schemas server (zod)
+Trocar `z.enum(["browser", ...])` em:
+- `src/lib/voice-clone.functions.ts`
+- `src/lib/persona.functions.ts`
+- `src/lib/debate.functions.ts`
+- `src/lib/debate-participants.functions.ts`
 
-**Objetivo:** falas com o tamanho certo por fase + base para SSML.
+Aceitar valor antigo `"browser"` no input mas normalizar para `"kokoro"` antes de gravar (compat com clientes antigos em cache).
 
-- Novo `src/lib/phase-style.ts` — para cada fase devolve `{ maxWords, ssmlPace, ssmlPauseAfter, role }`:
-  - `abertura`/`vinheta` → 130 palavras, ritmo médio
-  - `réplica` → 90 palavras, ritmo rápido
-  - `contribuição`/`ângulo` → 130, médio reflexivo
-  - `considerações finais` → 70, lento
-  - `veredito` → 200, lento com pausas
-  - `pergunta-incisiva` → 50, urgente
-  - `síntese` → 70, médio
-  - `acusação`/`defesa` → 170, médio firme
-  - `fechamento` → 35, lento contemplativo
-- Refatorar `multi-debate.functions.ts` para usar `phase-style.maxWords` em vez dos hard-codes "Máximo 170 palavras" espalhados (mantém os ajustes específicos das engines).
-- `src/lib/ssml.ts` (novo) — `wrapSSML(text, phaseStyle)`: injeta `<prosody rate="...">` + `<break time="500ms"/>` em pontos e travessões; sanitiza para Kokoro/Piper (que não suportam SSML) devolvendo texto puro com base nos mesmos sinais (usa quebras `...`).
-- `tts.functions.ts` (MiniMax): aceita opção `phase?: string` e ajusta `speed`/`vol` por fase.
-- ElevenLabs (`src/lib/elevenlabs.server.ts`): wrap em SSML quando o provider suportar.
+### 3. VoicePicker (`src/components/VoicePicker.tsx`)
+- Remover branch `p === "browser"` (preview via `SpeechSynthesis`, lista de `browserVoices`, select "Automática pt-BR").
+- Default provider passa a ser `"kokoro"`.
+- Lista de providers no `Select` perde `"browser"`.
+- `pitchSupported = p === "minimax"`.
 
----
+### 4. Apresentação (`src/routes/_authenticated/presentation.$id.tsx`)
+- `DEFAULT_SLOT.provider` = `"kokoro"`, `voiceId` = `"pf_dora"` (mod), e regra equivalente por gênero para A/B.
+- Helper `normalizeSlot()`: se `provider === "browser"` (vindo do DB), substitui por Kokoro com voz default por gênero da persona.
+- Remover `browserSpeak()` e todos os fallbacks `slot.provider === "browser"` (passam a sintetizar via Kokoro).
+- Tirar avisos "browserSlots" / "navegador não grava" do export e do "pré-gerar todas as vozes".
 
-### Entrega B — Trilha sonora adaptativa + SFX por fase (item 2)
+### 5. Telas de criação/edição
+- `src/routes/_authenticated/new.tsx` e `debates.$id.edit.tsx`: defaults `voiceProvider*` = `"kokoro"` (com `voiceId` default por gênero).
+- Migração ao carregar persona: `vp === "browser"` → `"kokoro"` + voz default.
 
-**Objetivo:** áudio ambiente e SFX por fase, sem novos assets externos.
+### 6. Export (`src/components/ExportVideoButton.tsx`)
+- Remover check `provider === "browser"` e erro `navegador_nao_grava` (já não pode acontecer).
 
-- Estender `src/lib/sfx.ts` com **pads sintetizados em loop** (música ambiente leve via OfflineAudioContext, ~8s loopáveis):
-  - `bed_intro` (notas suspensas, abertura)
-  - `bed_tension` (drone grave, réplicas)
-  - `bed_reflective` (pad maior 7ª, sages/century)
-  - `bed_verdict` (acorde menor solene, veredito)
-- Mapa `phaseToBed(phase, engineId)` em novo `src/lib/phase-audio.ts`.
-- `video-export.ts` + `presentation.$id.tsx`: mistura o bed (volume -18dB) embaixo da fala da fase atual; transição via crossfade de 800ms na troca.
-- SFX automáticos no início de cada fase chave (ding na vinheta, drumroll antes do veredito, applause no fechamento) controlados pelo mesmo mapa.
+### 7. Migração de banco (opcional, segura)
+Migration SQL: `UPDATE` em `debates` (`voice_provider_mod/a/b`) e `personas` (`voice_provider`) trocando `'browser'` por `'kokoro'` e preenchendo `voice_id` com `'pf_dora'` (F) ou `'pm_alex'` (M) conforme `gender` quando nulo. Isso garante que mesmo o `_authenticated/debates.$id.arena.tsx` e demais leituras diretas funcionem.
 
----
-
-### Entrega C — Plot twists + Long-term memory (itens 3 e 6)
-
-**Objetivo:** mediador injeta reviravoltas; personas lembram do que disseram.
-
-- **Plot twists**: novo helper `maybeInjectTwist(debate, transcript, blockIndex)` em `multi-debate.functions.ts`. Antes da última réplica de cada bloco intermediário (probabilidade 35%), o mediador gera um turn de fase `reviravolta` (já existe no schema) com um fato novo / hipótese contrária / dado polêmico. Injeta como `role:"moderator", phase:"reviravolta"` e adia o turno seguinte. Já existe estrutura — basta ativar via `engine.allowsTwist: boolean` opcional (true para roundtable/presidential/era_clash/ideas_war, false para sages/century/tribunal/interview).
-- **Long-term memory**: novo helper `personaMemoryDigest(transcript, speakerRole)` — antes de cada fala não-moderador, extrai (regex + slice) as 3 últimas frases que ESSE persona disse e injeta no system prompt como `MEMÓRIA — você mesmo já disse: "..."` e `MEMÓRIA — os outros disseram sobre você: "..."`. Reduz contradições e cria callbacks naturais. Custo zero (não usa IA, só processa transcript existente).
-
----
-
-### Entrega D — Shorts 9:16 com melhores momentos (item 4)
-
-**Objetivo:** gerar 1 short vertical de 45–60s pós-export.
-
-- `src/lib/shorts.functions.ts` (server) — input: `debateId`. Fluxo:
-  1. Carrega `debate_messages` ordenados.
-  2. Pede à IA (chatComplete, gemini-flash) para apontar os 3 melhores trechos: ranking por densidade/atrito, retorna `[{ messageId, startWord, endWord, reason }]` em JSON.
-  3. Retorna o plano (não renderiza vídeo no servidor — workerd não tem ffmpeg).
-- `src/lib/shorts-export.ts` (client) — recebe o plano e usa o mesmo pipeline do `video-export.ts` para gerar MP4 9:16 (1080×1920): crop centralizado dos `SpeakerCard` em vertical + legenda grande embaixo + bed_tension de fundo.
-- Botão "📱 Exportar short (60s)" no `presentation.$id.tsx` ao lado do "Exportar vídeo".
-
----
-
-### Fora de escopo (consenso anterior)
-
-- Geração de música via ElevenLabs Music API (custo alto + latência por export). Usaremos beds sintetizados.
-- Avatares animados, cronômetro visual, mapa de conexões — ficam para próxima rodada.
-
----
-
-### Ordem sugerida
-
-A → B → C → D, cada uma em commit próprio. Posso começar pela A agora?
+## Notas técnicas
+- A normalização client-side cobre debates abertos antes da migration rodar.
+- Tipos: `VoiceProvider` mais restrito vai gerar erros TS nos arquivos listados — todos cobertos acima.
+- Texto/UI: nenhum copy menciona "navegador" depois disso.
