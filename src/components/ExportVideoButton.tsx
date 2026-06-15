@@ -61,13 +61,13 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [clips, setClips] = useState<TimelineClip[]>([]);
 
-  // Cache de áudio entre cliques: chave = provider|voiceId|msgId|hash(content).
-  // Sobrevive a re-abrir o editor, alternar entre "Exportar MP4" e "Exportar bloco…",
-  // e a re-exportar o mesmo bloco. Invalida quando o conjunto de mensagens muda
-  // (ex.: "Refazer tudo" gera novos ids).
-  const audioCacheRef = useRef<Map<string, { url: string; duration: number }>>(new Map());
-  const msgIdsKey = (data?.messages.map((m) => m.id).join(",") ?? "");
-  useEffect(() => { audioCacheRef.current = new Map(); }, [msgIdsKey]);
+  // Cache em memória das URLs criadas a partir do cache IDB nesta sessão.
+  // O cache PERSISTENTE de TTS vive em IndexedDB (src/lib/tts-cache.ts),
+  // chaveado por provider|voiceId|msgId|hash(content) — sobrevive a refresh,
+  // re-abrir editor e re-exportar. Aqui guardamos só as object URLs ativas.
+  const sessionUrlCacheRef = useRef<Map<string, { url: string; duration: number }>>(new Map());
+  // Roda 1× por sessão pra apagar entradas IDB antigas.
+  useEffect(() => { void ttsCachePrune(); }, []);
 
   function resolveSlot(
     provider: string | null | undefined,
