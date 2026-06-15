@@ -190,7 +190,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     all: PreparedMsg[],
     slots: { slotMod: Slot; slotA: Slot; slotB: Slot },
   ): Promise<TimelineClip[] | null> {
-    const cache = audioCacheRef.current;
+    const sessionCache = sessionUrlCacheRef.current;
     const cacheKey = (m: PreparedMsg, slot: Slot) =>
       `${slot.provider}|${slot.voiceId}|${m.id}|${hashContent(m.content)}`;
     const todo = all.map((m) => ({
@@ -200,14 +200,25 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const audioByMsg = new Map<string, { url: string; duration: number }>();
     const errors: { role: string; reason: string }[] = [];
     const pending: typeof todo = [];
+
+    // 1) Cache em memória da sessão
+    // 2) Cache persistente em IndexedDB (sobrevive a refresh)
     for (const item of todo) {
-      const hit = cache.get(cacheKey(item.m, item.slot));
-      if (hit) audioByMsg.set(item.m.id, hit);
-      else pending.push(item);
+      const key = cacheKey(item.m, item.slot);
+      const hot = sessionCache.get(key);
+      if (hot) { audioByMsg.set(item.m.id, hot); continue; }
+      const persisted = await ttsCacheGet(key);
+      if (persisted) {
+        const entry = { url: blobToUrl(persisted.blob), duration: persisted.duration };
+        sessionCache.set(key, entry);
+        audioByMsg.set(item.m.id, entry);
+        continue;
+      }
+      pending.push(item);
     }
     const reused = audioByMsg.size;
     if (reused > 0) {
-      setProgress({ label: `Reaproveitando ${reused} áudio(s) do cache`, pct: reused / todo.length });
+      setProgress({ label: `Reaproveitando ${reused} voz(es) do cache`, pct: reused / todo.length });
     }
 
     let done = reused;
@@ -224,9 +235,16 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         try {
           const url = await fetchAudioUrl(slot, m.content);
           const duration = await getAudioDuration(url);
+          // Persiste em IDB pra próxima sessão.
+          try {
+            const blob = url.startsWith("data:")
+              ? await dataUrlToBlob(url)
+              : await (await fetch(url)).blob();
+            await ttsCachePut(cacheKey(m, slot), blob, duration);
+          } catch { /* cache best-effort */ }
           const entry = { url, duration };
           audioByMsg.set(m.id, entry);
-          cache.set(cacheKey(m, slot), entry);
+          sessionCache.set(cacheKey(m, slot), entry);
         } catch (e) {
           errors.push({ role: labelFor(m.role), reason: e instanceof Error ? e.message : String(e) });
         }
