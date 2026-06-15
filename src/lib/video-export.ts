@@ -576,6 +576,24 @@ function getAudioDuration(url: string): Promise<number> {
 }
 
 export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
+  // Try the fast WebCodecs path first; on any failure or unsupported browser,
+  // fall back to the slow ffmpeg.wasm path below.
+  try {
+    const { tryExportDebateMp4Webcodecs } = await import("./video-export-webcodecs");
+    const t0 = performance.now();
+    const blob = await tryExportDebateMp4Webcodecs(input);
+    if (blob) {
+      console.info(`[video-export] webcodecs ok in ${Math.round(performance.now() - t0)}ms (${(blob.size / 1024 / 1024).toFixed(1)}MB)`);
+      return blob;
+    }
+    console.warn("[video-export] webcodecs unsupported, falling back to ffmpeg.wasm");
+  } catch (e) {
+    console.warn("[video-export] webcodecs failed, falling back to ffmpeg.wasm:", e);
+  }
+  return exportDebateMp4Ffmpeg(input);
+}
+
+async function exportDebateMp4Ffmpeg(input: ExportInput): Promise<Blob> {
   const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, adaptiveBeds, bedsVolume = 0.18, onProgress } = input;
   const log = (stage: string, pct: number) => onProgress?.(stage, Math.max(0, Math.min(1, pct)));
 
