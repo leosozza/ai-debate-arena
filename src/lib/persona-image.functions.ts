@@ -104,13 +104,13 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
       }
     }
 
-    const baseInstruction = `Cinematic translucent blue holographic bust of "${data.name}"${
+    const baseInstruction = `Photorealistic head-and-shoulders portrait of "${data.name}"${
       data.description ? `, ${data.description}` : ""
-    }, emerging from a circular metallic projector disc on the floor, beams of bright cyan-blue light shooting upward forming the figure, glowing particles and digital scan lines, dignified expression, head-and-shoulders framing, set inside a dark futuristic amphitheater with distant warm ambient lights, deep black background, dramatic rim light, sci-fi hologram aesthetic, ultra-detailed, photorealistic render, 85mm, cinematic, 'Legends Arena' style. Square 1:1 framing.`;
+    }. Centered face, neutral dignified expression, soft studio lighting, plain dark neutral background, ultra-detailed, sharp focus on the face, 85mm lens, color photograph, museum-quality reference portrait. No text, no watermarks, no frames, no special effects, no holograms. Square 1:1 framing.`;
 
     let b64: string;
     if (refDataUrls.length > 0) {
-      const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully as the IDENTITY of the holographic figure. Do NOT render a realistic studio photo: the final image MUST be the translucent cyan-blue hologram described above, projected from the disc, with scan lines and light beams. Keep the likeness; change the medium.`;
+      const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully. Output a clean photorealistic portrait (NOT a hologram, NOT stylized) — just a high-quality reference photo of this person.`;
       b64 = await callImageGateway({
         model: "google/gemini-3.1-flash-image-preview",
         messages: [
