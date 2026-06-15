@@ -263,7 +263,7 @@ export function CastManager({ role }: { role: CastRole }) {
             <Card key={m.id} className="p-4 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex gap-3 min-w-0">
-                  <HologramAvatar src={m.avatarUrl} name={m.name} tone={m.gender === "f" ? "pink" : "blue"} size={60} className="shrink-0" />
+                  <HologramAvatar src={m.avatarUrl} name={m.name} tone={m.gender === "f" ? "gold" : "blue"} size={60} className="shrink-0" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold truncate">{m.name}</h3>
