@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Star } from "lucide-react";
 import { HologramAvatar } from "@/components/HologramAvatar";
 import { VoicePicker } from "@/components/VoicePicker";
+import { PersonaImagePanel } from "@/components/PersonaImagePanel";
 import { listCast, createCast, updateCast, deleteCast, type CastRole, type MediatorRow } from "@/lib/mediators.functions";
 import type { VoiceProvider } from "@/lib/voice-catalog";
 
