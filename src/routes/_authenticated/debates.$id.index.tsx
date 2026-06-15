@@ -14,6 +14,7 @@ import { Roulette } from "@/components/Roulette";
 import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil, RotateCcw } from "lucide-react";
 import { ExportPackDialog } from "@/components/ExportPackDialog";
 import { ExportVideoButton } from "@/components/ExportVideoButton";
+import { DebateExportsList } from "@/components/DebateExportsList";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
