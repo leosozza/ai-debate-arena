@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { getDebate, updateDebate } from "@/lib/debate.functions";
 import { listPersonas } from "@/lib/persona.functions";
@@ -32,6 +32,7 @@ function EditDebate() {
   const router = useRouter();
   const get = useServerFn(getDebate);
   const update = useServerFn(updateDebate);
+  const qc = useQueryClient();
   const listP = useServerFn(listPersonas);
   const listMed = useServerFn(listMediators);
   const { data } = useQuery({ queryKey: ["debate", id], queryFn: () => get({ data: { id } }) });
@@ -165,6 +166,10 @@ function EditDebate() {
     setSaving(true);
     try {
       await update({ data: { id, ...form, commentators } });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["debate", id] }),
+        qc.invalidateQueries({ queryKey: ["debates"] }),
+      ]);
       toast.success("Debate atualizado");
       router.navigate({ to: "/debates/$id", params: { id } });
     } catch (err) {

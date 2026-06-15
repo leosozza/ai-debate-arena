@@ -153,7 +153,9 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
             onValueChange={(v) => {
               stop();
               const np = v as VoiceProvider;
-              const first = filterVoicesByGender(np, filterGender)[0]?.id ?? VOICE_CATALOG[np][0]?.id ?? null;
+              const cat = filterVoicesByGender(np, filterGender);
+              const fallbackCat = VOICE_CATALOG[np];
+              const first = cat[0]?.id ?? (fallbackCat && fallbackCat[0]?.id) ?? null;
               onChange(np, first);
             }}
           >
