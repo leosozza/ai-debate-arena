@@ -48,7 +48,7 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
       const fn = provider === "eleven" ? cloneEl : provider === "minimax" ? cloneMm : cloneRp;
       const res = await fn({ data: fd as unknown as never });
       const label = provider === "eleven" ? "ElevenLabs" : provider === "minimax" ? "MiniMax" : "Replicate";
-      toast.success(`Voz clonada (${label})`);
+      toast.success(`✓ Voz "${cloneName}" clonada (${label} · ${res.voiceId.slice(0, 10)}…) e atribuída à persona`, { duration: 6000 });
       onCloned({
         provider: res.provider,
         voiceId: res.voiceId,
