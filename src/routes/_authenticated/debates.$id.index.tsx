@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getDebate, generateNextTurn, generateVerdict, generateMultiVerdict, drawSubtemas, injectSubtema, deleteLastTurn, type Verdict, type MultiVerdict } from "@/lib/debate.functions";
+import { getDebate, generateNextTurn, generateVerdict, generateMultiVerdict, drawSubtemas, injectSubtema, deleteLastTurn, deleteAllTurns, type Verdict, type MultiVerdict } from "@/lib/debate.functions";
 import { MultiScoreboard } from "@/components/MultiScoreboard";
 import { listParticipants } from "@/lib/debate-participants.functions";
 import { getFormat } from "@/lib/debate-formats";
@@ -97,6 +97,7 @@ function DebateDetail() {
   }
 
   const delLast = useServerFn(deleteLastTurn);
+  const delAll = useServerFn(deleteAllTurns);
   async function redoLast() {
     if (!data || data.messages.length === 0) return;
     setGenerating(true);
@@ -107,6 +108,27 @@ function DebateDetail() {
       toast.success("Última fala regenerada.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao refazer");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function redoAll() {
+    if (!data || data.messages.length === 0) return;
+    if (!window.confirm("Apagar TODAS as falas e regerar do zero? O veredito também será apagado.")) return;
+    setGenerating(true);
+    stopAllRef.current = false;
+    try {
+      await delAll({ data: { debateId: id } });
+      await refetch();
+      for (let i = 0; i < 60; i++) {
+        if (stopAllRef.current) break;
+        const r = await generateOne();
+        if (r.done) break;
+        if (r.final) { toast.success("Debate refeito!"); break; }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao refazer tudo");
     } finally {
       setGenerating(false);
     }
@@ -276,6 +298,9 @@ function DebateDetail() {
         </Button>
         <Button onClick={redoLast} disabled={generating || !data || data.messages.length === 0} variant="outline" size="sm" title="Apaga a última fala e gera de novo">
           <RotateCcw className="h-4 w-4 mr-1" /> Refazer última
+        </Button>
+        <Button onClick={redoAll} disabled={generating || !data || data.messages.length === 0} variant="outline" size="sm" title="Apaga TODAS as falas e regera o debate do zero">
+          <RotateCcw className="h-4 w-4 mr-1" /> Refazer tudo
         </Button>
         {generating && (
           <Button onClick={handleStop} variant="destructive" size="sm">
