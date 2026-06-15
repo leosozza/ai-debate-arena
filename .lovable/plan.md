@@ -1,46 +1,56 @@
-# Plano: ElevenLabs como provider padrão
+# Diagnóstico: a clonagem FUNCIONOU
 
-Agora que o plano Creator está ativo, vamos virar a chave para usar ElevenLabs como padrão em todos os pontos onde hoje o Kokoro é assumido, e reordenar a cascata de clonagem/TTS para começar pelo Eleven.
+Olhando os logs de rede, a clonagem ElevenLabs **rodou com sucesso 2 vezes** nesta sessão:
 
-## 1. Catálogo e defaults globais (`src/lib/voice-catalog.ts`)
+- Voice ID `V5y8XCbu95r3C8oxGqFp` (16:18:32)
+- Voice ID `60VPbn6ieL2Wi9gENAIk` (16:19:38)
 
-- `DEFAULT_VOICE_BY_GENDER`: trocar para Eleven com vozes PT-BR adequadas:
-  - `f` → `{ provider: "eleven", voiceId: "<voz feminina padrão do catálogo eleven-voices.ts>" }`
-  - `m` → `{ provider: "eleven", voiceId: "<voz masculina padrão>" }`
-- `normalizeProvider`: passar a devolver `"eleven"` em vez de `"kokoro"` quando o valor for inválido/nulo (legado "browser" continua mapeado).
+Ambas foram salvas na persona Enéas Carneiro (`provider=eleven`, `source=upload-eleven`). O banco está atualizado. O áudio enviado foi aceito pelo ElevenLabs e o voice_id retornado é válido.
 
-## 2. Defaults nas telas de criação/edição
+## Por que parece que "não clonou"
 
-Trocar `"kokoro"` por `"eleven"` (com `voiceId` correspondente do catálogo) nos seguintes pontos:
+O `VoicePicker` só mostra um item especial **"🎙 Voz clonada"** quando o provider é **Replicate**. Para ElevenLabs/MiniMax, quando o voiceId clonado não está no catálogo de vozes pré-definidas, ele cai num branch (`isCustomCatalog`) que exibe só `🎙 Personalizada (V5y8XCbu95r…)` — mas só no select; o dropdown ainda parecia mostrar "Rachel (F)" porque o estado do form pode não ter sido visivelmente atualizado, e não há nenhum aviso textual confirmando "voz X clonada e atribuída".
 
-- `src/routes/_authenticated/new.tsx` — `voiceProviderMod/A/B` iniciais + presets dos repórteres.
-- `src/routes/_authenticated/debates.$id.edit.tsx` — mesmos três `voiceProviderMod/A/B`.
-- `src/routes/_authenticated/presentation.$id.tsx` — `DEFAULT_SLOT`.
-- `src/components/ExportVideoButton.tsx` — fallback quando o provider é desconhecido (linhas 54–66).
-- `src/components/VoicePicker.tsx` — `provider ?? "kokoro"` (linha 39) vira `?? "eleven"`.
-- `src/lib/persona.functions.ts` e `src/routes/_authenticated/new.tsx` linha 156 — fallback do `voice_provider` lido do banco passa a ser `"eleven"` em vez de `"kokoro"`.
+## Plano
 
-Kokoro/Piper continuam disponíveis no seletor como opção grátis; só deixam de ser o padrão.
+### 1. `src/components/VoicePicker.tsx` — mostrar clone Eleven/MiniMax com nome amigável
 
-## 3. Cascata de clonagem (`src/lib/voice-clone.functions.ts`)
+Quando `provider === "eleven"` ou `"minimax"` e o `voiceId` atual não está no catálogo, exibir um item destacado tipo:
 
-A ordem já é Eleven → MiniMax → Replicate, então nada muda no `cloneVoiceCascade`. Vou apenas:
+```
+🎭 Voz clonada · {nome do preset, se existir} ({voiceId curto})
+```
 
-- Atualizar a copy do botão em `src/components/VoiceClonePanel.tsx` para deixar explícito que tenta ElevenLabs primeiro (já é o caso, mas reforçar no texto auxiliar).
-- Em `cloneVoiceReplicate`, manter como caminho avançado (só usado quando o usuário escolhe "Só Replicate").
+Buscar o nome cruzando com `presets` (já carregados no componente) via `voice_url === voiceId` — hoje só fazemos esse match para Replicate; estender para Eleven/MiniMax também.
 
-## 4. Cascata de TTS
+### 2. `src/components/VoiceClonePanel.tsx` — toast mais claro
 
-Não existe hoje uma cascata de TTS — cada provider é chamado direto pelo `VoicePicker` / engines. O TTS do Eleven (`elevenTTS` em `src/lib/elevenlabs.server.ts`) já está pronto e é o caminho usado quando `provider === "eleven"`. Com o passo 2, ele passa a ser o caminho padrão automaticamente.
+Trocar `toast.success("Voz clonada via ElevenLabs ✓")` por algo explícito:
 
-## 5. O que NÃO muda
+```
+✓ Voz "Enéas Carneiro" clonada (ElevenLabs · V5y8XCbu…) e atribuída à persona
+```
 
-- Vozes Replicate/Inworld continuam no catálogo e selecionáveis.
-- Nenhuma migração no banco: personas/debates já salvos mantêm o provider gravado. Só personas/debates novos (e fallbacks de leitura quando o valor está vazio) passam a usar Eleven.
-- `voice-replicate.functions.ts`, `replicate-voices.ts`, presets de clone Replicate — intocados.
+Inclui o nome do clone + provider + 8 chars do voiceId, deixando óbvio o que aconteceu.
+
+### 3. `src/routes/_authenticated/personas.tsx` — banner pós-clone
+
+No `onCloned` da persona, após `setForm`, mostrar um pequeno aviso fixo abaixo do `VoicePicker`:
+
+```
+🎭 Esta persona agora usa uma voz clonada (ElevenLabs · Enéas Carneiro).
+Use o botão ▶ ao lado do seletor para ouvir uma amostra.
+```
+
+Some quando o usuário muda o provider/voice manualmente.
+
+## O que NÃO muda
+
+- Lógica de cascata (`cloneVoiceCascade`) — já funciona.
+- API ElevenLabs / chaves / endpoints.
+- Banco / RLS / migrations.
 
 ## Detalhes técnicos
 
-- Vozes default escolhidas a partir de `src/lib/eleven-voices.ts` (vou ler o arquivo e pegar a primeira voz PT-BR de cada gênero; provavelmente algo como Sarah/EXAVITQu4vr4xnSDxMaL para `f` e George/JBFqnCBsd6RMkjVDRZzb para `m`, ajustando se o catálogo do projeto já tiver vozes PT-BR específicas marcadas).
-- Como `normalizeProvider` passa a devolver `"eleven"`, qualquer código que dependa de `provider === "kokoro"` como rota grátis continua funcionando (o usuário ainda pode escolher Kokoro manualmente).
-- Sem mudanças em schema, RLS, edge functions ou migrations.
+- `voice_presets` já são criados pelo `savePreset` em `voice-clone.functions.ts` (`name: "Enéas Carneiro (ElevenLabs)"`, `voice_url: voice_id`). O VoicePicker já consulta `listVoicePresets`, então tem o nome disponível — só precisa estender o match para Eleven/MiniMax (não só Replicate como hoje).
+- Nenhuma chamada de API extra.
