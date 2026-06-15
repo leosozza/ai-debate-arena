@@ -252,6 +252,7 @@ export type Database = {
           id: string
           is_default: boolean
           name: string
+          role: string
           slug: string
           sort_order: number
           style: string
@@ -268,6 +269,7 @@ export type Database = {
           id?: string
           is_default?: boolean
           name: string
+          role?: string
           slug: string
           sort_order?: number
           style: string
@@ -284,6 +286,7 @@ export type Database = {
           id?: string
           is_default?: boolean
           name?: string
+          role?: string
           slug?: string
           sort_order?: number
           style?: string
