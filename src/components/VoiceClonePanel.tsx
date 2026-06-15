@@ -64,6 +64,32 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
     }
   }
 
+  async function runCascade() {
+    if (files.length === 0) {
+      toast.error("Escolha pelo menos 1 arquivo de áudio.");
+      return;
+    }
+    const cloneName = (name || defaultName || "Voz personalizada").trim();
+    const fd = new FormData();
+    fd.append("name", cloneName);
+    for (const f of files) fd.append("files", f, f.name);
+    setBusy("cascade");
+    setLastError(null);
+    try {
+      const res = await cloneCascade({ data: fd as unknown as never });
+      const label = res.provider === "eleven" ? "ElevenLabs" : res.provider === "minimax" ? "MiniMax" : "Replicate";
+      toast.success(`Voz clonada via ${label} ✓`);
+      onCloned({ provider: res.provider, voiceId: res.voiceId, source: res.source, cloneName });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Falha ao clonar";
+      setLastError(msg);
+      toast.error(msg);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+
   function applyManual() {
     const id = manualId.trim();
     if (id.length < 3) {
