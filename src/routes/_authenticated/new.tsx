@@ -19,7 +19,7 @@ import { Reveal } from "@/components/Reveal";
 import { toast } from "sonner";
 import { Sparkles, Users, Wand2, Swords, Dices } from "lucide-react";
 import { VoicePicker } from "@/components/VoicePicker";
-import { type VoiceProvider } from "@/lib/voice-catalog";
+import { type VoiceProvider, voiceLabel } from "@/lib/voice-catalog";
 import { DEBATE_FORMATS, getFormat, type DebateFormatId } from "@/lib/debate-formats";
 import { Badge } from "@/components/ui/badge";
 import { ExtraParticipantsPanel, makeEmptyExtra, type ExtraParticipantDraft } from "@/components/ExtraParticipantsPanel";
@@ -508,29 +508,25 @@ function NewDebate() {
           </div>
         </Card>
 
-        <Card className="p-6 space-y-4">
+        <Card className="p-6 space-y-3">
           <div>
             <h3 className="font-display font-semibold mb-1">Vozes</h3>
-            <p className="text-xs text-muted-foreground">As vozes podem vir das personas, mas você pode trocar aqui — vale só para este debate. As vozes são filtradas pelo gênero da persona/mediador para evitar trocas.</p>
+            <p className="text-xs text-muted-foreground">Cada persona e o mediador já trazem a voz definida no cadastro. Para alterar, edite a persona/mediador.</p>
           </div>
-          {(() => {
-            const med = mediators.find((m: MediatorRow) => m.id === mediatorId) ?? null;
-            const genderA = personaGenderFrom({ name: form.debaterAName, gender: null });
-            const genderB = personaGenderFrom({ name: form.debaterBName, gender: null });
-            return (
-              <>
-                <VoicePicker label="Mediador" provider={form.voiceProviderMod} voiceId={form.voiceIdMod}
-                  filterGender={med?.gender ?? null}
-                  onChange={(p, v) => setForm({ ...form, voiceProviderMod: p, voiceIdMod: v })} />
-                <VoicePicker label={form.debaterAName || "Debatedor A"} provider={form.voiceProviderA} voiceId={form.voiceIdA}
-                  filterGender={genderA}
-                  onChange={(p, v) => setForm({ ...form, voiceProviderA: p, voiceIdA: v })} />
-                <VoicePicker label={form.debaterBName || "Debatedor B"} provider={form.voiceProviderB} voiceId={form.voiceIdB}
-                  filterGender={genderB}
-                  onChange={(p, v) => setForm({ ...form, voiceProviderB: p, voiceIdB: v })} />
-              </>
-            );
-          })()}
+          <ul className="text-sm divide-y divide-border/60 rounded-md border border-border/60 bg-card/40">
+            <li className="flex items-center justify-between gap-3 px-3 py-2">
+              <span className="text-muted-foreground">🎙 Mediador{form.moderatorName ? ` · ${form.moderatorName}` : ""}</span>
+              <span className="font-medium text-right truncate">{voiceLabel(form.voiceProviderMod, form.voiceIdMod)}</span>
+            </li>
+            <li className="flex items-center justify-between gap-3 px-3 py-2">
+              <span className="text-side-a">● {form.debaterAName || "Debatedor A"}</span>
+              <span className="font-medium text-right truncate">{voiceLabel(form.voiceProviderA, form.voiceIdA)}</span>
+            </li>
+            <li className="flex items-center justify-between gap-3 px-3 py-2">
+              <span className="text-side-b">● {form.debaterBName || "Debatedor B"}</span>
+              <span className="font-medium text-right truncate">{voiceLabel(form.voiceProviderB, form.voiceIdB)}</span>
+            </li>
+          </ul>
         </Card>
 
         <Card className="p-6 space-y-4">
