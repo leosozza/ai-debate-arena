@@ -271,13 +271,13 @@ export const cloneVoiceCascade = createServerFn({ method: "POST" })
     );
   });
 
-type AuthContext = { supabase: { from: (t: string) => { insert: (v: Record<string, unknown>) => Promise<{ error: unknown } | unknown> } }; userId: string };
-async function savePreset(
-  context: AuthContext,
+async function savePreset<C extends { supabase: { from: (t: string) => { insert: (v: Record<string, unknown>) => unknown } }; userId: string }>(
+  context: C,
   name: string,
   voiceId: string,
   provider: "eleven" | "minimax" | "replicate",
 ) {
+
 
 
   try {
