@@ -18,6 +18,8 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Sparkles, Trash2, Plus, Globe, Lock, Mic, Library } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CastManager } from "@/components/CastManager";
 import { HologramAvatar } from "@/components/HologramAvatar";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
 import { VoiceClonePanel } from "@/components/VoiceClonePanel";
@@ -197,6 +199,14 @@ function PersonasPage() {
 
   return (
     <main className="container mx-auto px-4 py-10 max-w-5xl">
+      <Tabs defaultValue="personas" className="w-full">
+        <TabsList className="mb-6">
+          <TabsTrigger value="personas">🎭 Personas</TabsTrigger>
+          <TabsTrigger value="mediators">🎙 Mediadores</TabsTrigger>
+          <TabsTrigger value="commentators">💬 Comentadores</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="personas">
       <header className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold mb-2">Personas</h1>
@@ -235,6 +245,8 @@ function PersonasPage() {
           </div>
         )}
       </header>
+
+
 
       {showForm && (
         <>
@@ -521,6 +533,17 @@ function PersonasPage() {
           ))}
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="mediators">
+          <CastManager role="mediator" />
+        </TabsContent>
+
+        <TabsContent value="commentators">
+          <CastManager role="commentator" />
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }
+

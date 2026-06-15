@@ -1,0 +1,2 @@
+ALTER TABLE public.mediators ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'mediator' CHECK (role IN ('mediator','commentator'));
+CREATE INDEX IF NOT EXISTS mediators_role_idx ON public.mediators(role);
