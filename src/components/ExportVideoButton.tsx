@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { createDebateExportUpload, finalizeDebateExport } from "@/lib/debate-exports.functions";
+import { createDebateExportUpload, finalizeDebateExport, listDebateExports } from "@/lib/debate-exports.functions";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -26,12 +26,7 @@ import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx } from "@/components/TimelineEditor";
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 import { KOKORO_VOICE_IDS, kokoroFallback } from "@/lib/kokoro-voices";
-
-function hashContent(s: string): string {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
-}
+import { ttsCacheGet, ttsCachePut, ttsCachePrune, blobToUrl, dataUrlToBlob, hashContent } from "@/lib/tts-cache";
 
 type Slot = { provider: VoiceProvider; voiceId: string | null };
 
@@ -53,21 +48,26 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const rpTts = useServerFn(replicateTts);
   const createUpload = useServerFn(createDebateExportUpload);
   const finalizeUpload = useServerFn(finalizeDebateExport);
+  const listExports = useServerFn(listDebateExports);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["debate", debateId], queryFn: () => get({ data: { id: debateId } }) });
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
+  const { data: savedExports } = useQuery({
+    queryKey: ["debate-exports", debateId],
+    queryFn: () => listExports({ data: { debateId } }),
+  });
 
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [clips, setClips] = useState<TimelineClip[]>([]);
 
-  // Cache de áudio entre cliques: chave = provider|voiceId|msgId|hash(content).
-  // Sobrevive a re-abrir o editor, alternar entre "Exportar MP4" e "Exportar bloco…",
-  // e a re-exportar o mesmo bloco. Invalida quando o conjunto de mensagens muda
-  // (ex.: "Refazer tudo" gera novos ids).
-  const audioCacheRef = useRef<Map<string, { url: string; duration: number }>>(new Map());
-  const msgIdsKey = (data?.messages.map((m) => m.id).join(",") ?? "");
-  useEffect(() => { audioCacheRef.current = new Map(); }, [msgIdsKey]);
+  // Cache em memória das URLs criadas a partir do cache IDB nesta sessão.
+  // O cache PERSISTENTE de TTS vive em IndexedDB (src/lib/tts-cache.ts),
+  // chaveado por provider|voiceId|msgId|hash(content) — sobrevive a refresh,
+  // re-abrir editor e re-exportar. Aqui guardamos só as object URLs ativas.
+  const sessionUrlCacheRef = useRef<Map<string, { url: string; duration: number }>>(new Map());
+  // Roda 1× por sessão pra apagar entradas IDB antigas.
+  useEffect(() => { void ttsCachePrune(); }, []);
 
   function resolveSlot(
     provider: string | null | undefined,
@@ -190,7 +190,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     all: PreparedMsg[],
     slots: { slotMod: Slot; slotA: Slot; slotB: Slot },
   ): Promise<TimelineClip[] | null> {
-    const cache = audioCacheRef.current;
+    const sessionCache = sessionUrlCacheRef.current;
     const cacheKey = (m: PreparedMsg, slot: Slot) =>
       `${slot.provider}|${slot.voiceId}|${m.id}|${hashContent(m.content)}`;
     const todo = all.map((m) => ({
@@ -200,14 +200,25 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const audioByMsg = new Map<string, { url: string; duration: number }>();
     const errors: { role: string; reason: string }[] = [];
     const pending: typeof todo = [];
+
+    // 1) Cache em memória da sessão
+    // 2) Cache persistente em IndexedDB (sobrevive a refresh)
     for (const item of todo) {
-      const hit = cache.get(cacheKey(item.m, item.slot));
-      if (hit) audioByMsg.set(item.m.id, hit);
-      else pending.push(item);
+      const key = cacheKey(item.m, item.slot);
+      const hot = sessionCache.get(key);
+      if (hot) { audioByMsg.set(item.m.id, hot); continue; }
+      const persisted = await ttsCacheGet(key);
+      if (persisted) {
+        const entry = { url: blobToUrl(persisted.blob), duration: persisted.duration };
+        sessionCache.set(key, entry);
+        audioByMsg.set(item.m.id, entry);
+        continue;
+      }
+      pending.push(item);
     }
     const reused = audioByMsg.size;
     if (reused > 0) {
-      setProgress({ label: `Reaproveitando ${reused} áudio(s) do cache`, pct: reused / todo.length });
+      setProgress({ label: `Reaproveitando ${reused} voz(es) do cache`, pct: reused / todo.length });
     }
 
     let done = reused;
@@ -224,9 +235,16 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         try {
           const url = await fetchAudioUrl(slot, m.content);
           const duration = await getAudioDuration(url);
+          // Persiste em IDB pra próxima sessão.
+          try {
+            const blob = url.startsWith("data:")
+              ? await dataUrlToBlob(url)
+              : await (await fetch(url)).blob();
+            await ttsCachePut(cacheKey(m, slot), blob, duration);
+          } catch { /* cache best-effort */ }
           const entry = { url, duration };
           audioByMsg.set(m.id, entry);
-          cache.set(cacheKey(m, slot), entry);
+          sessionCache.set(cacheKey(m, slot), entry);
         } catch (e) {
           errors.push({ role: labelFor(m.role), reason: e instanceof Error ? e.message : String(e) });
         }
@@ -378,6 +396,23 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     if ((d.format ?? "duel") !== "duel") {
       toast.error("Exportação de vídeo ainda só suporta o formato Duelo.");
       return;
+    }
+    // Atalho: se já tem MP4 salvo pro mesmo escopo, baixa direto sem regerar.
+    const existing = (savedExports ?? []).find((e) =>
+      blockIndex === null ? e.kind === "full" : e.kind === "block" && e.block_index === blockIndex,
+    );
+    if (existing && existing.download_url) {
+      const reuse = window.confirm(
+        `Já existe um MP4 salvo desse ${blockIndex === null ? "debate" : "bloco"} (${(existing.size_bytes / 1024 / 1024).toFixed(1)}MB). Baixar o existente em vez de gerar de novo?`,
+      );
+      if (reuse) {
+        const a = document.createElement("a");
+        a.href = existing.download_url;
+        a.download = `debate-${debateId.slice(0, 8)}${blockIndex === null ? "" : `-bloco-${blockIndex + 1}`}.mp4`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        toast.success("Vídeo salvo baixado.");
+        return;
+      }
     }
     setProgress({ label: "Preparando vozes", pct: 0 });
     const slots = resolveSlotsOrWarn();
