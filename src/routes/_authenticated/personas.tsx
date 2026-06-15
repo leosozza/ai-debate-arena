@@ -84,6 +84,7 @@ function PersonasPage() {
   const [genStage, setGenStage] = useState<string>("");
   const [sources, setSources] = useState<Array<{ title: string; url: string }>>([]);
   const [saving, setSaving] = useState(false);
+  const [clonedInfo, setClonedInfo] = useState<{ provider: VoiceProvider; voiceId: string; cloneName: string } | null>(null);
 
   function openNew() {
     setEditingId(null);
