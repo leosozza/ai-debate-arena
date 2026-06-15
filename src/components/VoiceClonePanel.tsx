@@ -149,7 +149,7 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
           Clonar voz (qualidade máxima)
         </Button>
         <p className="text-[11px] text-muted-foreground">
-          Tenta ElevenLabs → MiniMax → Replicate (Chatterbox) automaticamente. Envie 30s–2min de fala limpa em PT-BR.
+          Usa ElevenLabs (Creator) por padrão; cai para MiniMax → Replicate (Chatterbox) só se falhar. Envie 30s–2min de fala limpa em PT-BR.
         </p>
       </div>
 

@@ -115,20 +115,20 @@ function NewDebate() {
     rounds: 3,
     blocksCount: 4,
     dynamicFlow: false,
-    voiceProviderMod: "kokoro" as VoiceProvider,
-    voiceIdMod: null as string | null,
-    voiceProviderA: "kokoro" as VoiceProvider,
-    voiceIdA: null as string | null,
-    voiceProviderB: "kokoro" as VoiceProvider,
-    voiceIdB: null as string | null,
+    voiceProviderMod: "eleven" as VoiceProvider,
+    voiceIdMod: "21m00Tcm4TlvDq8ikWAM" as string | null, // Rachel
+    voiceProviderA: "eleven" as VoiceProvider,
+    voiceIdA: "pNInz6obpgDQGcFmaJgB" as string | null, // Adam
+    voiceProviderB: "eleven" as VoiceProvider,
+    voiceIdB: "ErXwobaYiN019PkySvjV" as string | null, // Antoni
   });
   const [extras, setExtras] = useState<ExtraParticipantDraft[]>([]);
   const [commentators, setCommentators] = useState<Array<{ name: string; persona: string; voiceProvider: VoiceProvider | null; voiceId: string | null }>>([]);
   function toggleCommentators(on: boolean) {
     setCommentators(on
       ? [
-          { name: "Repórter 1", persona: "Comentarista esportivo de debates, analítico e direto.", voiceProvider: "kokoro", voiceId: "pm_alex" },
-          { name: "Repórter 2", persona: "Comentarista perspicaz, foca em retórica e impacto no público.", voiceProvider: "kokoro", voiceId: "pf_dora" },
+          { name: "Repórter 1", persona: "Comentarista esportivo de debates, analítico e direto.", voiceProvider: "eleven", voiceId: "pNInz6obpgDQGcFmaJgB" },
+          { name: "Repórter 2", persona: "Comentarista perspicaz, foca em retórica e impacto no público.", voiceProvider: "eleven", voiceId: "EXAVITQu4vr4xnSDxMaL" },
         ]
       : []);
   }
@@ -153,7 +153,7 @@ function NewDebate() {
   function applyPersona(side: "A" | "B", personaId: string) {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
-    let vp = ((p.voice_provider === "kokoro" || p.voice_provider === "piper" || p.voice_provider === "eleven" || p.voice_provider === "minimax" || p.voice_provider === "replicate") ? p.voice_provider : "kokoro") as VoiceProvider;
+    let vp = ((p.voice_provider === "kokoro" || p.voice_provider === "piper" || p.voice_provider === "eleven" || p.voice_provider === "minimax" || p.voice_provider === "replicate") ? p.voice_provider : "eleven") as VoiceProvider;
     let vid = p.voice_id ?? null;
     // Sem voz real definida → sugere uma voz grátis do gênero da persona.
     if (!vid) {

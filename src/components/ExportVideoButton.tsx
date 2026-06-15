@@ -56,8 +56,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
     const p = ((provider === "kokoro" || provider === "piper" || provider === "eleven" || provider === "minimax" || provider === "replicate")
       ? provider
-      : "kokoro") as VoiceProvider;
-    return { provider: p, voiceId: voiceId ?? (p === "kokoro" ? "pf_dora" : null) };
+      : "eleven") as VoiceProvider;
+    return { provider: p, voiceId: voiceId ?? (p === "kokoro" ? "pf_dora" : p === "eleven" ? "pNInz6obpgDQGcFmaJgB" : null) };
   }
 
   async function fetchAudioUrl(slot: Slot, text: string): Promise<string> {

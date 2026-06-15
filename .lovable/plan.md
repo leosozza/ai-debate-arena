@@ -1,38 +1,46 @@
-## Objetivo
+# Plano: ElevenLabs como provider padrão
 
-Adicionar mais vozes Inworld (`iw:`) ao catálogo curado em `src/lib/replicate-voices.ts`. Hoje só temos 6 (Hades, Marcus, Theodore, Olivia, Serena, Luna — herdadas do TTS 1.5). O modelo `inworld/realtime-tts-2` na Replicate documenta oficialmente apenas 4 presets, mas aceita qualquer voice ID da plataforma Inworld.
+Agora que o plano Creator está ativo, vamos virar a chave para usar ElevenLabs como padrão em todos os pontos onde hoje o Kokoro é assumido, e reordenar a cascata de clonagem/TTS para começar pelo Eleven.
 
-## Mudanças
+## 1. Catálogo e defaults globais (`src/lib/voice-catalog.ts`)
 
-### 1. `src/lib/replicate-voices.ts` — bloco `iw:` ampliado
+- `DEFAULT_VOICE_BY_GENDER`: trocar para Eleven com vozes PT-BR adequadas:
+  - `f` → `{ provider: "eleven", voiceId: "<voz feminina padrão do catálogo eleven-voices.ts>" }`
+  - `m` → `{ provider: "eleven", voiceId: "<voz masculina padrão>" }`
+- `normalizeProvider`: passar a devolver `"eleven"` em vez de `"kokoro"` quando o valor for inválido/nulo (legado "browser" continua mapeado).
 
-Acrescentar as **4 vozes oficiais do TTS-2** (confirmadas no README da Replicate):
+## 2. Defaults nas telas de criação/edição
 
-| ID | Descrição (do README) |
-|---|---|
-| `iw:Ashley` | Voz feminina quente e natural |
-| `iw:Dennis` | Masculino meia-idade, calmo e amigável |
-| `iw:Alex` | Masculino expressivo, levemente nasal |
-| `iw:Darlene` | Feminina sulista suave, ideal para narração |
+Trocar `"kokoro"` por `"eleven"` (com `voiceId` correspondente do catálogo) nos seguintes pontos:
 
-Manter as 6 atuais (Hades, Marcus, Theodore, Olivia, Serena, Luna) — Inworld compartilha pool de vozes entre modelos, então continuam funcionando.
+- `src/routes/_authenticated/new.tsx` — `voiceProviderMod/A/B` iniciais + presets dos repórteres.
+- `src/routes/_authenticated/debates.$id.edit.tsx` — mesmos três `voiceProviderMod/A/B`.
+- `src/routes/_authenticated/presentation.$id.tsx` — `DEFAULT_SLOT`.
+- `src/components/ExportVideoButton.tsx` — fallback quando o provider é desconhecido (linhas 54–66).
+- `src/components/VoicePicker.tsx` — `provider ?? "kokoro"` (linha 39) vira `?? "eleven"`.
+- `src/lib/persona.functions.ts` e `src/routes/_authenticated/new.tsx` linha 156 — fallback do `voice_provider` lido do banco passa a ser `"eleven"` em vez de `"kokoro"`.
 
-Total: **10 vozes Inworld** no seletor, com rótulos PT-BR claros (gênero + característica).
+Kokoro/Piper continuam disponíveis no seletor como opção grátis; só deixam de ser o padrão.
 
-### 2. Sem mudanças em `voice-replicate.functions.ts`
+## 3. Cascata de clonagem (`src/lib/voice-clone.functions.ts`)
 
-O resolver já trata o prefixo `iw:` → modelo `inworld/realtime-tts-2` com `{ text, voice }`. Nada a alterar.
+A ordem já é Eleven → MiniMax → Replicate, então nada muda no `cloneVoiceCascade`. Vou apenas:
 
-### 3. Nota sobre steering (opcional, sem código)
+- Atualizar a copy do botão em `src/components/VoiceClonePanel.tsx` para deixar explícito que tenta ElevenLabs primeiro (já é o caso, mas reforçar no texto auxiliar).
+- Em `cloneVoiceReplicate`, manter como caminho avançado (só usado quando o usuário escolhe "Só Replicate").
 
-O TTS-2 aceita tags `[say excitedly]`, `[whisper]`, `[laugh]` direto no texto. Não precisa expor isso na UI agora — usuários avançados podem incluir nas falas das personas e funciona automaticamente.
+## 4. Cascata de TTS
 
-## Fora de escopo
+Não existe hoje uma cascata de TTS — cada provider é chamado direto pelo `VoicePicker` / engines. O TTS do Eleven (`elevenTTS` em `src/lib/elevenlabs.server.ts`) já está pronto e é o caminho usado quando `provider === "eleven"`. Com o passo 2, ele passa a ser o caminho padrão automaticamente.
 
-- Cloning Inworld (não existe na Replicate, só via API direta Inworld).
-- Adicionar TTS 1.5 Mini/Max separadamente — TTS-2 já é o mais expressivo.
-- UI para steering tags.
+## 5. O que NÃO muda
 
-## Resultado
+- Vozes Replicate/Inworld continuam no catálogo e selecionáveis.
+- Nenhuma migração no banco: personas/debates já salvos mantêm o provider gravado. Só personas/debates novos (e fallbacks de leitura quando o valor está vazio) passam a usar Eleven.
+- `voice-replicate.functions.ts`, `replicate-voices.ts`, presets de clone Replicate — intocados.
 
-Seletor de vozes passa a oferecer 4 timbres Inworld oficialmente documentados + os 6 já existentes, totalizando 10 opções `iw:` em PT-BR (graças ao multilingual nativo).
+## Detalhes técnicos
+
+- Vozes default escolhidas a partir de `src/lib/eleven-voices.ts` (vou ler o arquivo e pegar a primeira voz PT-BR de cada gênero; provavelmente algo como Sarah/EXAVITQu4vr4xnSDxMaL para `f` e George/JBFqnCBsd6RMkjVDRZzb para `m`, ajustando se o catálogo do projeto já tiver vozes PT-BR específicas marcadas).
+- Como `normalizeProvider` passa a devolver `"eleven"`, qualquer código que dependa de `provider === "kokoro"` como rota grátis continua funcionando (o usuário ainda pode escolher Kokoro manualmente).
+- Sem mudanças em schema, RLS, edge functions ou migrations.
