@@ -221,15 +221,28 @@ export const updateDebate = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => UpdateDebateSchema.parse(d))
   .handler(async ({ data, context }) => {
     const { id, ...d } = data;
-    // Mudança de estrutura (rounds/blocks) só é permitida se ainda não há falas geradas
+    // Mudança de estrutura (rounds/blocks) só é permitida se ainda não há falas geradas.
+    // Comparar com o valor atual: se o usuário só re-salvou o mesmo número, não bloqueia.
     if (d.rounds !== undefined || d.blocksCount !== undefined) {
-      const { count } = await context.supabase
-        .from("debate_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("debate_id", id);
-      if ((count ?? 0) > 0) {
-        throw new Error("Não dá pra mudar rodadas ou blocos depois que o debate começou. Apague as falas primeiro.");
+      const { data: current } = await context.supabase
+        .from("debates")
+        .select("rounds, blocks_count")
+        .eq("id", id)
+        .single();
+      const roundsChanged = d.rounds !== undefined && current && d.rounds !== current.rounds;
+      const blocksChanged = d.blocksCount !== undefined && current && d.blocksCount !== current.blocks_count;
+      if (roundsChanged || blocksChanged) {
+        const { count } = await context.supabase
+          .from("debate_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("debate_id", id);
+        if ((count ?? 0) > 0) {
+          throw new Error("Não dá pra mudar rodadas ou blocos depois que o debate começou. Apague as falas primeiro.");
+        }
       }
+      // Se não mudou, remove do patch para não disparar reset de subtopics
+      if (d.rounds !== undefined && !roundsChanged) d.rounds = undefined;
+      if (d.blocksCount !== undefined && !blocksChanged) d.blocksCount = undefined;
     }
     const patch: Record<string, string | number | boolean | null> = {};
     if (d.topic !== undefined) patch.topic = d.topic;
