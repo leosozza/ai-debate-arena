@@ -46,8 +46,8 @@ export interface ExportInput {
   onProgress?: (stage: string, pct: number) => void;
 }
 
-const W = 1280;
-const H = 720;
+export const W = 1280;
+export const H = 720;
 
 /** Loads an HTMLImageElement (with crossOrigin for canvas tainting safety). */
 function loadImage(src: string): Promise<HTMLImageElement | null> {
