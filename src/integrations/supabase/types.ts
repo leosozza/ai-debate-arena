@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      debate_exports: {
+        Row: {
+          block_index: number | null
+          block_title: string | null
+          created_at: string
+          debate_id: string
+          duration_seconds: number | null
+          id: string
+          kind: string
+          size_bytes: number
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          block_index?: number | null
+          block_title?: string | null
+          created_at?: string
+          debate_id: string
+          duration_seconds?: number | null
+          id?: string
+          kind: string
+          size_bytes?: number
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          block_index?: number | null
+          block_title?: string | null
+          created_at?: string
+          debate_id?: string
+          duration_seconds?: number | null
+          id?: string
+          kind?: string
+          size_bytes?: number
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debate_exports_debate_id_fkey"
+            columns: ["debate_id"]
+            isOneToOne: false
+            referencedRelation: "debates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       debate_messages: {
         Row: {
           block_index: number
