@@ -1,49 +1,46 @@
-## Problemas identificados
+## Por que não exporta e por que refaz tudo a cada clique
 
-1. **"Editor de vídeo" parece não abrir**: O debate `cea98432…` tem `voice_id_b` vazio (string `""`) para o Karl Marx no provedor `eleven`. Em `ExportVideoButton.resolveSlot`, o fallback usa `??`, que **não** captura string vazia — então todas as falas do Marx falham silenciosamente em `fetchAudioUrl`. Pior: a preparação fica rodando ("Preparando vozes 1/31…") sem feedback claro e, dependendo do timing, o botão parece travado. Não tem mensagem específica avisando que falta voz para um participante.
+Dois bugs independentes batendo juntos no debate `cea98432`:
 
-2. **Não tem "Exportar vídeo" direto**: hoje só existe o caminho "abrir editor → exportar". Para quem só quer baixar, isso é fricção desnecessária.
+### Bug 1 — Voz do moderador inválida (Kokoro `pm_santa`)
+O banco tem `voice_provider_mod=kokoro`, `voice_id_mod=pm_santa`. Essa voz está listada em `src/lib/kokoro-voices.ts`, mas o modelo Kokoro atual no esm.sh **não tem mais `pm_santa`** — o console mostra `Voice "pm_santa" not found` para cada tentativa. Como o moderador fala em quase todas as mensagens (abertura, transições, encerramento), a maioria dos clipes falha. O `synthesizeClips` engole o erro por mensagem e segue, mas no fim resta tão pouca coisa que o vídeo sai vazio/quebrado (ou nem chega a renderizar).
 
-3. **Vídeos longos pesam demais**: este debate tem 4 blocos / 31 falas. Renderizar tudo de uma vez é lento e o MP4 fica grande. Faz sentido ter "Exportar bloco 1, bloco 2, …" gerando 4 MP4s menores.
+Hoje o `catch` é silencioso (`/* ignore individual */`), então o usuário não vê motivo nenhum — só "não exportou".
 
-## Mudanças
+### Bug 2 — Cada clique regenera tudo do zero
+`synthesizeClips` cria um `Map` local novo a cada chamada. O cache do Kokoro/Piper (`urlCache` dentro de `kokoro-tts.ts` / `piper-tts.ts`) ajuda para essas duas, mas **ElevenLabs / MiniMax / Replicate não têm cache nenhum** — toda exportação chama a API de novo, paga de novo, espera de novo. E mesmo Kokoro/Piper recalculam a duração do áudio (`getAudioDuration`) a cada clique.
 
-### 1. Corrigir o resolvedor de voz (`src/components/ExportVideoButton.tsx`)
+## O que vou mudar (`src/components/ExportVideoButton.tsx` + `src/lib/kokoro-voices.ts`)
 
-- Trocar `voiceId ?? fallback` por uma checagem que também trate `""` como ausente (`const id = (voiceId ?? "").trim(); return id || fallback`).
-- Antes de começar a sintetizar, validar slots e mostrar `toast.error` claro listando QUEM está sem voz ("Karl Marx está sem voz. Configure em Editar > Vozes."), em vez de só falhar silenciosamente fala a fala.
-- Mostrar o estado "Preparando…" desde o primeiro clique (já existe, mas garantir que o `setProgress` é chamado síncrono no `onClick`).
+### 1. Catálogo Kokoro alinhado ao modelo real
+Remover `pm_santa` da lista (não existe mais no Kokoro v1.0 ONNX). Manter `pf_dora` e `pm_alex`. Não preciso mexer no banco — o passo 2 cobre debates antigos.
 
-### 2. Adicionar botão "Exportar vídeo" (direto, sem editor)
+### 2. Fallback automático para voz Kokoro inválida
+Em `fetchAudioUrl`, ao usar Kokoro, validar contra `KOKORO_VOICES`; se `voiceId` não estiver na lista, cair para `pm_alex` (moderador masculino) ou `pf_dora` (feminino) em vez de lançar erro. Isso destrava o debate atual sem o usuário precisar editar nada.
 
-- Novo botão ao lado do "Editor de vídeo" no `debates.$id.index.tsx`, rotulado **"Exportar MP4"**.
-- Reaproveita 100% da pipeline já em `ExportVideoButton` (TTS + `exportDebateMp4`), pulando o `TimelineEditor` — gera com defaults (música ligada, legendas ligadas, sem SFX customizados) e dispara o download direto.
+### 3. Erros de síntese visíveis
+Trocar o `catch` silencioso em `synthesizeClips` por:
+- coletar `{msgId, error}`,
+- mostrar um `toast.error` com os 2 primeiros motivos reais ("Moderador: Voice pm_santa not found"),
+- abortar cedo se **mais de 50%** das mensagens falharem (não faz sentido renderizar um vídeo aleijado).
 
-### 3. Exportar **por bloco**
+### 4. Cache de áudio entre cliques
+Subir o `Map<string, {url, duration}>` para um `useRef` do componente, com chave `${provider}|${voiceId}|${msgId}|${contentHash}`. Assim:
+- 1º clique: gera tudo, popula o cache.
+- Cliques seguintes (mesmo bloco, bloco diferente, ou trocar entre "Editor"/"Exportar MP4"/"Exportar bloco…"): reaproveita áudio e duração; só sintetiza o que mudou.
+- `contentHash` é um `djb2` simples do `content` — se o usuário editar uma fala e reexportar, aquela mensagem (e só ela) é refeita.
 
-- Novo menu (dropdown) **"Exportar bloco…"** com itens:
-  - "Bloco 1: <título>" → exporta só falas com `block_index = 0`
-  - "Bloco 2: <título>"
-  - "Bloco 3: <título>"
-  - "Bloco 4: <título>"
-  - "Tudo (vídeo único)" → comportamento atual
-- A geração por bloco filtra `data.messages` por `block_index`, prepende a abertura virtual só se for o bloco 0, e nomeia o arquivo `debate-<id8>-bloco-<n>.mp4`.
-- Cada bloco vira um arquivo MP4 independente, muito mais rápido de gerar e baixar.
+Também invalido o cache quando `data.messages` muda de identidade após `Refazer tudo` (uso `useEffect` zerando o ref quando os ids do `data.messages` mudam em conjunto).
 
-### 4. UX
+### 5. Pequeno extra
+Renomear o label do progresso para `"Reaproveitando áudio (N/M)"` quando vier do cache, pra deixar claro que não está pagando ElevenLabs de novo.
 
-- Os 3 controles (`Editor de vídeo`, `Exportar MP4`, `Exportar bloco…`) ficam agrupados num único container, sem inflar a barra de ações.
-- Quando o debate só tem 1 bloco, esconder o dropdown "Exportar bloco…".
+## Fora de escopo
+- Não vou mudar o pipeline em `src/lib/video-export.ts`.
+- Não vou criar fila no servidor (Stack Overflow sugere isso, mas o trabalho aqui é client-side via Web APIs / ffmpeg.wasm — o gargalo real era voz inválida + ausência de cache, não timeout de edge function).
+- Não vou tocar no banco para corrigir `pm_santa` retroativamente; o fallback do passo 2 já resolve.
 
-## Arquivos afetados
-
-- `src/components/ExportVideoButton.tsx` — fix do `resolveSlot`, validação de vozes, exportação direta, exportação por bloco, dropdown de blocos.
-- `src/routes/_authenticated/debates.$id.index.tsx` — só se precisar repassar `block_subtopics` (já vem em `data.debate`).
-
-Nada de mudança no `video-export.ts` — a função já aceita qualquer lista de `messages`.
-
-## Validação
-
-- Recarregar `/debates/cea98432-…/`: o botão "Editor de vídeo" deve abrir o editor mesmo com Marx sem voz (pulando só as falas dele com aviso claro), ou mostrar erro direto pedindo para configurar a voz.
-- Clicar "Exportar MP4" baixa um único MP4 sem passar pelo editor.
-- "Exportar bloco → Bloco 2" baixa só as falas do bloco 2.
+## Resultado esperado
+- Clicar "Exportar MP4" no debate `cea98432` agora gera o vídeo (moderador cai pra `pm_alex` automaticamente).
+- Re-clicar "Exportar bloco 2" depois de já ter exportado o bloco 1 reaproveita o áudio do moderador e dos participantes que aparecem em ambos — só sintetiza falas novas.
+- Se algo falhar de verdade, aparece um toast dizendo qual voz/qual papel quebrou.
