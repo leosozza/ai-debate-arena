@@ -272,11 +272,12 @@ export const cloneVoiceCascade = createServerFn({ method: "POST" })
   });
 
 async function savePreset(
-  context: { supabase: { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } }; userId: string },
+  context: { supabase: SupabaseLike; userId: string },
   name: string,
   voiceId: string,
   provider: "eleven" | "minimax" | "replicate",
 ) {
+
   try {
     // Para Replicate, voiceId já vem como "chatterbox:<url>"; extrai URL para voice_url.
     // Para Eleven/MiniMax, salvamos o voice_id no próprio voice_url (não é URL, mas
