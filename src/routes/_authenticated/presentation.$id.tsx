@@ -265,6 +265,12 @@ function PresentMode() {
     const cached = audioCache.current.get(cacheKey);
     if (cached) return cached;
     let url: string;
+    // IDs com prefixo "el:" são vozes ElevenLabs (incluindo clones do usuário).
+    // Clones custom só funcionam pela API direta da ElevenLabs — o modelo
+    // eleven-v3 do Replicate só conhece as vozes da conta dele. Por isso
+    // tratamos "el:" sempre via elTts primeiro, e só caímos pro Replicate se
+    // a chamada direta falhar (ex.: créditos esgotados).
+    const isElevenId = slot.provider === "eleven" || voiceId.startsWith("el:");
     if (slot.provider === "kokoro") {
       // Voz neural grátis, sintetizada no próprio navegador (sem custo).
       const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
@@ -272,13 +278,15 @@ function PresentMode() {
     } else if (slot.provider === "piper") {
       const { piperSynthUrl } = await import("@/lib/piper-tts");
       url = await piperSynthUrl(clean, voiceId);
-    } else if (slot.provider === "eleven") {
-      const res = await elTts({ data: { text: clean, voiceId } });
+    } else if (isElevenId) {
+      const rawId = voiceId.startsWith("el:") ? voiceId.slice(3) : voiceId;
+      const res = await elTts({ data: { text: clean, voiceId: rawId } });
       if ("error" in res && res.error) {
-        // Fallback automático: tenta a mesma voz ElevenLabs via Replicate (modelo eleven-v3).
+        // Fallback: tenta via Replicate eleven-v3 (só funciona para vozes
+        // públicas da ElevenLabs, não para clones custom).
         console.warn("[tts] ElevenLabs direto falhou, tentando via Replicate:", res.error);
-        const rp = await rpTts({ data: { text: clean, voiceId: `el:${voiceId}` } });
-        if ("error" in rp && rp.error) throw new Error(`${res.error} | Replicate: ${rp.error}`);
+        const rp = await rpTts({ data: { text: clean, voiceId: `el:${rawId}` } });
+        if ("error" in rp && rp.error) throw new Error(`ElevenLabs: ${res.error} | Replicate: ${rp.error}`);
         url = `data:${rp.mime};base64,${rp.audioBase64}`;
       } else {
         url = `data:${res.mime};base64,${res.audio}`;
@@ -296,6 +304,7 @@ function PresentMode() {
       if ("error" in res && res.error) throw new Error(res.error);
       url = `data:${res.mime};base64,${res.audioBase64}`;
     }
+
     audioCache.current.set(cacheKey, url);
     return url;
   }
