@@ -23,7 +23,8 @@ import { OpeningVignette } from "@/components/OpeningVignette";
 import { PreparationScreen } from "@/components/PreparationScreen";
 import { Teleprompter } from "@/components/Teleprompter";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
-import { type VoiceProvider } from "@/lib/voice-catalog";
+import { type VoiceProvider, normalizeProvider, isProvider } from "@/lib/voice-catalog";
+import { personaGenderFrom, defaultVoiceForGender } from "@/lib/persona-gender";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { toast } from "sonner";
 import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Users, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
@@ -38,7 +39,17 @@ type Side = "moderator" | "a" | "b" | string;
 
 type VoiceSlot = { provider: VoiceProvider; voiceId: string | null; settings: VoiceSettings };
 
-const DEFAULT_SLOT: VoiceSlot = { provider: "browser", voiceId: null, settings: DEFAULT_VOICE_SETTINGS };
+const DEFAULT_SLOT: VoiceSlot = { provider: "kokoro", voiceId: "pf_dora", settings: DEFAULT_VOICE_SETTINGS };
+
+/** Resolve voz default por gênero (fallback quando persona/debate antigo não tem voz). */
+function defaultSlotByName(name?: string | null): VoiceSlot {
+  const g = personaGenderFrom({ name: name ?? null, gender: null });
+  if (g) {
+    const d = defaultVoiceForGender(g);
+    return { provider: d.provider, voiceId: d.voiceId, settings: DEFAULT_VOICE_SETTINGS };
+  }
+  return DEFAULT_SLOT;
+}
 
 /** Tom do holograma por papel do participante (multi-formatos). */
 function roleTone(role: string, slot: number): "blue" | "gold" | "neutral" {
