@@ -337,7 +337,7 @@ function DebateDetail() {
             accent: accentForRole(e.role, e.slot),
           })),
         ];
-        return <CastStrip formatLabel={fmt ? `${fmt.emoji} ${fmt.label}` : undefined} members={cast} />;
+        return <CastStrip formatLabel={fmt ? `${fmt.emoji} ${fmt.label}` : undefined} members={cast} onMemberClick={() => router.navigate({ to: "/debates/$id/edit", params: { id } })} />;
       })()}
 
       {!isMulti && verdict && <Scoreboard verdict={verdict} aName={data.debate.debater_a_name} bName={data.debate.debater_b_name} />}
