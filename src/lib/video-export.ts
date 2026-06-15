@@ -46,11 +46,11 @@ export interface ExportInput {
   onProgress?: (stage: string, pct: number) => void;
 }
 
-const W = 1280;
-const H = 720;
+export const W = 1280;
+export const H = 720;
 
 /** Loads an HTMLImageElement (with crossOrigin for canvas tainting safety). */
-function loadImage(src: string): Promise<HTMLImageElement | null> {
+export function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -77,7 +77,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
-function drawStageFrame(
+export function drawStageFrame(
   ctx: CanvasRenderingContext2D,
   opts: {
     topic: string;
@@ -217,7 +217,7 @@ function drawStageFrame(
 
 
 /** Opening disclaimer card: full-screen AI simulation warning. */
-function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
+export function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
   const bg = ctx.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, "#05060d");
   bg.addColorStop(1, "#0b1020");
@@ -255,7 +255,7 @@ function drawDisclaimerFrame(ctx: CanvasRenderingContext2D) {
 }
 
 /** Cinematic vignette frame: LEGENDS ARENA + topic. */
-function drawVignetteFrame(ctx: CanvasRenderingContext2D, topic: string) {
+export function drawVignetteFrame(ctx: CanvasRenderingContext2D, topic: string) {
   // Deep radial gradient bg
   const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W);
   bg.addColorStop(0, "#1a1845");
@@ -309,7 +309,7 @@ function drawVignetteFrame(ctx: CanvasRenderingContext2D, topic: string) {
 }
 
 /** Opening frame: two guests side-by-side with bios, Roda Viva style. */
-function drawIntroFrame(
+export function drawIntroFrame(
   ctx: CanvasRenderingContext2D,
   opts: {
     topic: string;
@@ -576,6 +576,24 @@ function getAudioDuration(url: string): Promise<number> {
 }
 
 export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
+  // Try the fast WebCodecs path first; on any failure or unsupported browser,
+  // fall back to the slow ffmpeg.wasm path below.
+  try {
+    const { tryExportDebateMp4Webcodecs } = await import("./video-export-webcodecs");
+    const t0 = performance.now();
+    const blob = await tryExportDebateMp4Webcodecs(input);
+    if (blob) {
+      console.info(`[video-export] webcodecs ok in ${Math.round(performance.now() - t0)}ms (${(blob.size / 1024 / 1024).toFixed(1)}MB)`);
+      return blob;
+    }
+    console.warn("[video-export] webcodecs unsupported, falling back to ffmpeg.wasm");
+  } catch (e) {
+    console.warn("[video-export] webcodecs failed, falling back to ffmpeg.wasm:", e);
+  }
+  return exportDebateMp4Ffmpeg(input);
+}
+
+async function exportDebateMp4Ffmpeg(input: ExportInput): Promise<Blob> {
   const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, adaptiveBeds, bedsVolume = 0.18, onProgress } = input;
   const log = (stage: string, pct: number) => onProgress?.(stage, Math.max(0, Math.min(1, pct)));
 
