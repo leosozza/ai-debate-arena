@@ -141,7 +141,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
     }
   }
 
-  const pitchSupported = p === "browser" || p === "minimax";
+  const pitchSupported = p === "minimax";
 
   return (
     <div className="space-y-2">
@@ -153,33 +153,19 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
             onValueChange={(v) => {
               stop();
               const np = v as VoiceProvider;
-              if (np === "browser") onChange(np, null);
-              else {
-                const first = filterVoicesByGender(np, filterGender)[0]?.id ?? VOICE_CATALOG[np][0]?.id ?? null;
-                onChange(np, first);
-              }
+              const first = filterVoicesByGender(np, filterGender)[0]?.id ?? VOICE_CATALOG[np][0]?.id ?? null;
+              onChange(np, first);
             }}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {(["browser", "kokoro", "piper", "eleven", "minimax", "replicate"] as const).map((k) => (
+              {(["kokoro", "piper", "eleven", "minimax", "replicate"] as const).map((k) => (
                 <SelectItem key={k} value={k}>{PROVIDER_LABEL[k]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          {p === "browser" ? (
-            <Select value={voiceId ?? "__auto"} onValueChange={(v) => { stop(); onChange("browser", v === "__auto" ? null : v); }}>
-              <SelectTrigger><SelectValue placeholder="Auto" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__auto">Automática (pt-BR)</SelectItem>
-                {browserVoices.map((v) => (
-                  <SelectItem key={v.name} value={v.name}>{v.name} ({v.lang})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            (() => {
+          {(() => {
               const catalog = filterVoicesByGender(p, filterGender);
               const fallback = catalog[0]?.id ?? VOICE_CATALOG[p]?.[0]?.id ?? "";
               const currentId = voiceId && voiceId.length > 0 ? voiceId : fallback;
