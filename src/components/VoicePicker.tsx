@@ -81,28 +81,6 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
     }
     const text = sampleText?.trim() || DEFAULT_SAMPLE;
     try {
-      if (p === "browser") {
-        if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = "pt-BR";
-        u.rate = Math.max(0.1, Math.min(10, s.speed));
-        // pitch do Web Speech: 0..2 (1 = normal). Mapeia semitons -12..12 → 0..2.
-        u.pitch = Math.max(0, Math.min(2, 1 + s.pitch / 12));
-        u.volume = Math.max(0, Math.min(1, s.volume));
-        if (voiceId) {
-          const v = browserVoices.find((bv) => bv.name === voiceId);
-          if (v) u.voice = v;
-        } else {
-          const v = browserVoices.find((bv) => bv.lang?.toLowerCase().startsWith("pt"));
-          if (v) u.voice = v;
-        }
-        u.onend = () => setPlaying(false);
-        u.onerror = () => setPlaying(false);
-        setPlaying(true);
-        window.speechSynthesis.speak(u);
-        return;
-      }
 
       if (p === "kokoro" || p === "piper") {
         setLoading(true);
