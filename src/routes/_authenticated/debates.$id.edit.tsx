@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { VoicePicker } from "@/components/VoicePicker";
-import { type VoiceProvider } from "@/lib/voice-catalog";
+import { type VoiceProvider, normalizeProvider } from "@/lib/voice-catalog";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 
@@ -41,11 +41,11 @@ function EditDebate() {
     rounds: 3,
     blocksCount: 4,
     dynamicFlow: false,
-    voiceProviderMod: "browser" as VoiceProvider,
+    voiceProviderMod: "kokoro" as VoiceProvider,
     voiceIdMod: null as string | null,
-    voiceProviderA: "browser" as VoiceProvider,
+    voiceProviderA: "kokoro" as VoiceProvider,
     voiceIdA: null as string | null,
-    voiceProviderB: "browser" as VoiceProvider,
+    voiceProviderB: "kokoro" as VoiceProvider,
     voiceIdB: null as string | null,
   });
 
@@ -65,11 +65,11 @@ function EditDebate() {
       rounds: d.rounds,
       blocksCount: d.blocks_count ?? 4,
       dynamicFlow: d.dynamic_flow,
-      voiceProviderMod: ((d.voice_provider_mod as VoiceProvider | null) ?? "browser"),
+      voiceProviderMod: normalizeProvider(d.voice_provider_mod),
       voiceIdMod: d.voice_id_mod ?? null,
-      voiceProviderA: ((d.voice_provider_a as VoiceProvider | null) ?? "browser"),
+      voiceProviderA: normalizeProvider(d.voice_provider_a),
       voiceIdA: d.voice_id_a ?? null,
-      voiceProviderB: ((d.voice_provider_b as VoiceProvider | null) ?? "browser"),
+      voiceProviderB: normalizeProvider(d.voice_provider_b),
       voiceIdB: d.voice_id_b ?? null,
     });
   }, [data]);

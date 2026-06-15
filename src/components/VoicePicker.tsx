@@ -36,9 +36,8 @@ interface Props {
 const DEFAULT_SAMPLE = "Olá! Esta é uma amostra da minha voz para o debate.";
 
 export function VoicePicker({ label, provider, voiceId, onChange, settings, onSettingsChange, sampleText, filterGender }: Props) {
-  const p: VoiceProvider = provider ?? "browser";
+  const p: VoiceProvider = provider ?? "kokoro";
   const s: VoiceSettings = settings ?? DEFAULT_VOICE_SETTINGS;
-  const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
@@ -55,14 +54,6 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
   const presets = presetsQuery.data ?? [];
 
   useEffect(() => {
-    function load() {
-      if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-      setBrowserVoices(window.speechSynthesis.getVoices());
-    }
-    load();
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = load;
-    }
     return () => stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -90,28 +81,6 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
     }
     const text = sampleText?.trim() || DEFAULT_SAMPLE;
     try {
-      if (p === "browser") {
-        if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = "pt-BR";
-        u.rate = Math.max(0.1, Math.min(10, s.speed));
-        // pitch do Web Speech: 0..2 (1 = normal). Mapeia semitons -12..12 → 0..2.
-        u.pitch = Math.max(0, Math.min(2, 1 + s.pitch / 12));
-        u.volume = Math.max(0, Math.min(1, s.volume));
-        if (voiceId) {
-          const v = browserVoices.find((bv) => bv.name === voiceId);
-          if (v) u.voice = v;
-        } else {
-          const v = browserVoices.find((bv) => bv.lang?.toLowerCase().startsWith("pt"));
-          if (v) u.voice = v;
-        }
-        u.onend = () => setPlaying(false);
-        u.onerror = () => setPlaying(false);
-        setPlaying(true);
-        window.speechSynthesis.speak(u);
-        return;
-      }
 
       if (p === "kokoro" || p === "piper") {
         setLoading(true);
@@ -172,7 +141,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
     }
   }
 
-  const pitchSupported = p === "browser" || p === "minimax";
+  const pitchSupported = p === "minimax";
 
   return (
     <div className="space-y-2">
@@ -184,33 +153,19 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
             onValueChange={(v) => {
               stop();
               const np = v as VoiceProvider;
-              if (np === "browser") onChange(np, null);
-              else {
-                const first = filterVoicesByGender(np, filterGender)[0]?.id ?? VOICE_CATALOG[np][0]?.id ?? null;
-                onChange(np, first);
-              }
+              const first = filterVoicesByGender(np, filterGender)[0]?.id ?? VOICE_CATALOG[np][0]?.id ?? null;
+              onChange(np, first);
             }}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {(["browser", "kokoro", "piper", "eleven", "minimax", "replicate"] as const).map((k) => (
+              {(["kokoro", "piper", "eleven", "minimax", "replicate"] as const).map((k) => (
                 <SelectItem key={k} value={k}>{PROVIDER_LABEL[k]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          {p === "browser" ? (
-            <Select value={voiceId ?? "__auto"} onValueChange={(v) => { stop(); onChange("browser", v === "__auto" ? null : v); }}>
-              <SelectTrigger><SelectValue placeholder="Auto" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__auto">Automática (pt-BR)</SelectItem>
-                {browserVoices.map((v) => (
-                  <SelectItem key={v.name} value={v.name}>{v.name} ({v.lang})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            (() => {
+          {(() => {
               const catalog = filterVoicesByGender(p, filterGender);
               const fallback = catalog[0]?.id ?? VOICE_CATALOG[p]?.[0]?.id ?? "";
               const currentId = voiceId && voiceId.length > 0 ? voiceId : fallback;
@@ -267,8 +222,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                   </SelectContent>
                 </Select>
               );
-            })()
-          )}
+            })()}
         </div>
         {onSettingsChange && (
           <Button

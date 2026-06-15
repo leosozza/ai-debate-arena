@@ -115,11 +115,11 @@ function NewDebate() {
     rounds: 3,
     blocksCount: 4,
     dynamicFlow: false,
-    voiceProviderMod: "browser" as VoiceProvider,
+    voiceProviderMod: "kokoro" as VoiceProvider,
     voiceIdMod: null as string | null,
-    voiceProviderA: "browser" as VoiceProvider,
+    voiceProviderA: "kokoro" as VoiceProvider,
     voiceIdA: null as string | null,
-    voiceProviderB: "browser" as VoiceProvider,
+    voiceProviderB: "kokoro" as VoiceProvider,
     voiceIdB: null as string | null,
   });
   const [extras, setExtras] = useState<ExtraParticipantDraft[]>([]);
@@ -153,10 +153,10 @@ function NewDebate() {
   function applyPersona(side: "A" | "B", personaId: string) {
     const p = personas.find((x) => x.id === personaId);
     if (!p) return;
-    let vp = (p.voice_provider as VoiceProvider | null) ?? "browser";
+    let vp = ((p.voice_provider === "kokoro" || p.voice_provider === "piper" || p.voice_provider === "eleven" || p.voice_provider === "minimax" || p.voice_provider === "replicate") ? p.voice_provider : "kokoro") as VoiceProvider;
     let vid = p.voice_id ?? null;
     // Sem voz real definida → sugere uma voz grátis do gênero da persona.
-    if (vp === "browser" || !vid) {
+    if (!vid) {
       const g = personaGenderFrom(p);
       if (g) { const d = defaultVoiceForGender(g); vp = d.provider; vid = d.voiceId; }
     }

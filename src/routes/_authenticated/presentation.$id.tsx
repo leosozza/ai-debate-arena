@@ -23,7 +23,8 @@ import { OpeningVignette } from "@/components/OpeningVignette";
 import { PreparationScreen } from "@/components/PreparationScreen";
 import { Teleprompter } from "@/components/Teleprompter";
 import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/components/VoicePicker";
-import { type VoiceProvider } from "@/lib/voice-catalog";
+import { type VoiceProvider, normalizeProvider, isProvider } from "@/lib/voice-catalog";
+import { personaGenderFrom, defaultVoiceForGender } from "@/lib/persona-gender";
 import { stripMarkdownForTts } from "@/lib/text-utils";
 import { toast } from "sonner";
 import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Users, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
@@ -38,7 +39,17 @@ type Side = "moderator" | "a" | "b" | string;
 
 type VoiceSlot = { provider: VoiceProvider; voiceId: string | null; settings: VoiceSettings };
 
-const DEFAULT_SLOT: VoiceSlot = { provider: "browser", voiceId: null, settings: DEFAULT_VOICE_SETTINGS };
+const DEFAULT_SLOT: VoiceSlot = { provider: "kokoro", voiceId: "pf_dora", settings: DEFAULT_VOICE_SETTINGS };
+
+/** Resolve voz default por gênero (fallback quando persona/debate antigo não tem voz). */
+function defaultSlotByName(name?: string | null): VoiceSlot {
+  const g = personaGenderFrom({ name: name ?? null, gender: null });
+  if (g) {
+    const d = defaultVoiceForGender(g);
+    return { provider: d.provider, voiceId: d.voiceId, settings: DEFAULT_VOICE_SETTINGS };
+  }
+  return DEFAULT_SLOT;
+}
 
 /** Tom do holograma por papel do participante (multi-formatos). */
 function roleTone(role: string, slot: number): "blue" | "gold" | "neutral" {
@@ -133,15 +144,15 @@ function PresentMode() {
       const persona = findPersona(personaName);
       const pp = persona?.voice_provider as VoiceProvider | null | undefined;
       const pid = persona?.voice_id ?? null;
-      // A persona só sobrescreve se tiver voz REAL (não-navegador, com id);
-      // senão usa a voz definida no debate.
-      if (pp && pp !== "browser" && pid && (pp === "kokoro" || pp === "piper" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
+      // A persona só sobrescreve se tiver voz REAL com id; senão usa a voz definida no debate.
+      if (pp && pid && isProvider(pp)) {
         return { provider: pp, voiceId: pid, settings: DEFAULT_VOICE_SETTINGS };
       }
-      if (!provider) return null;
-      const p = provider as VoiceProvider;
-      if (p !== "browser" && p !== "kokoro" && p !== "piper" && p !== "eleven" && p !== "minimax" && p !== "replicate") return null;
-      return { provider: p, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
+      // Migra valor antigo "browser" / nulo → Kokoro com voz default por gênero da persona.
+      if (!isProvider(provider)) {
+        return defaultSlotByName(personaName);
+      }
+      return { provider, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
     };
     const m = apply(d.voice_provider_mod, d.voice_id_mod); if (m) setSlotMod(m);
     const a = apply(d.voice_provider_a, d.voice_id_a, d.debater_a_name); if (a) setSlotA(a);
@@ -200,16 +211,21 @@ function PresentMode() {
       const e = extras.find((x) => x.slot === slot);
       if (e) {
         const ov = extraVoiceOverrides[e.id];
-        return {
-          provider: ov?.provider ?? ((e.voice_provider as VoiceProvider | null) ?? "browser"),
-          voiceId: ov?.voiceId ?? e.voice_id ?? null,
-          settings: DEFAULT_VOICE_SETTINGS,
-        };
+        const ep = ov?.provider ?? (isProvider(e.voice_provider) ? e.voice_provider : null);
+        const eid = ov?.voiceId ?? e.voice_id ?? null;
+        if (ep && eid) {
+          return { provider: ep, voiceId: eid, settings: DEFAULT_VOICE_SETTINGS };
+        }
+        return defaultSlotByName(e.display_name ?? null);
       }
     }
     if (role === "c0" || role === "c1") {
       const c = commentatorList[role === "c0" ? 0 : 1];
-      if (c) return { provider: (c.voiceProvider as VoiceProvider | null) ?? "browser", voiceId: c.voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
+      if (c) {
+        const cp = isProvider(c.voiceProvider) ? c.voiceProvider : null;
+        if (cp && c.voiceId) return { provider: cp, voiceId: c.voiceId, settings: DEFAULT_VOICE_SETTINGS };
+        return defaultSlotByName(c.name ?? null);
+      }
     }
     return slotB;
   }
@@ -290,14 +306,11 @@ function PresentMode() {
     const slot = slotFor(role);
     const clean = stripMarkdownForTts(text);
     setVoiceFallback((f) => (f?.msgId === msgId ? null : f));
-    if (slot.provider === "browser" || !slot.voiceId) {
-      // Avisa quando um debatedor (A/B) cai para voz do navegador por falta de voiceId —
-      // sintoma típico do "a voz do convidado não tocou".
-      if (role !== "moderator" && slot.provider !== "browser" && !slot.voiceId) {
-        const who = role === "a" ? "Convidado A" : role === "b" ? "Convidado B" : "Participante";
-        toast.warning(`${who} sem voz configurada — usando voz do navegador. Ajuste em Configurações.`, { duration: 5000 });
-        setVoiceFallback({ msgId, reason: "Nenhuma voz selecionada para este participante." });
-      }
+    if (!slot.voiceId) {
+      // Sem voz configurada: avisa e cai para SpeechSynthesis (emergência).
+      const who = role === "a" ? "Convidado A" : role === "b" ? "Convidado B" : role === "moderator" ? "Mediador" : "Participante";
+      toast.warning(`${who} sem voz configurada — usando fallback de emergência. Ajuste em Configurações.`, { duration: 5000 });
+      setVoiceFallback({ msgId, reason: "Nenhuma voz selecionada para este participante." });
       browserSpeak(clean, role, token, onEnd);
       return;
     }
@@ -359,7 +372,7 @@ function PresentMode() {
       const m = messages[index + k];
       if (!m) return;
       const slot = slotFor((m.role ?? "moderator") as Side);
-      if (slot.provider === "browser" || !slot.voiceId) continue;
+      if (!slot.voiceId) continue;
       try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* silencioso */ }
     }
   }
@@ -368,9 +381,9 @@ function PresentMode() {
   async function pregenerateAll() {
     const todo = messages
       .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
-      .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId);
+      .filter(({ slot }) => !!slot.voiceId);
     if (todo.length === 0) {
-      toast.info("Nada para pré-gerar (todas as vozes são do navegador).");
+      toast.info("Nada para pré-gerar (selecione vozes para os participantes).");
       return;
     }
     setPregenProgress({ done: 0, total: todo.length });
@@ -400,10 +413,10 @@ function PresentMode() {
     }
     const browserSlots = messages.filter((m) => {
       const s = slotFor((m.role ?? "moderator") as Side);
-      return s.provider === "browser" || !s.voiceId;
+      return !s.voiceId;
     });
     if (browserSlots.length > 0) {
-      toast.error("Defina uma voz não-navegador para todos os participantes antes de exportar.");
+      toast.error("Defina uma voz para todos os participantes antes de exportar.");
       return;
     }
     setExportProgress({ label: "Preparando vozes", pct: 0 });
@@ -491,10 +504,10 @@ function PresentMode() {
     }
     const browserSlots = messages.filter((m) => {
       const s = slotFor((m.role ?? "moderator") as Side);
-      return s.provider === "browser" || !s.voiceId;
+      return !s.voiceId;
     });
     if (browserSlots.length > 0) {
-      toast.error("Defina uma voz não-navegador para todos os participantes antes de exportar.");
+      toast.error("Defina uma voz para todos os participantes antes de exportar.");
       return;
     }
     setShortProgress({ label: "Selecionando melhores momentos", pct: 0.02 });
@@ -633,7 +646,7 @@ function PresentMode() {
     (async () => {
       const todo = messages
         .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
-        .filter(({ slot }) => slot.provider !== "browser" && slot.voiceId)
+        .filter(({ slot }) => !!slot.voiceId)
         .slice(0, 1);
       if (todo.length === 0) {
         setPrepVoices({ done: 0, total: 0, status: "done" });

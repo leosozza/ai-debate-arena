@@ -93,7 +93,7 @@ export function ExtraParticipantsPanel({ format, extras, setExtras, personas }: 
     if (!p) return;
     let vp = (p.voice_provider as VoiceProvider | null) ?? null;
     let vid = p.voice_id ?? null;
-    if (!vp || vp === "browser" || !vid) {
+    if (!vp || !vid) {
       const g = personaGenderFrom(p);
       if (g) { const d = defaultVoiceForGender(g); vp = d.provider; vid = d.voiceId; }
     }
