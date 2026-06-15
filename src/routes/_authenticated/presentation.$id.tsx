@@ -641,27 +641,19 @@ function PresentMode() {
     // Garante elemento de áudio criado por gesto (clique no disclaimer já contou).
     ensureAudioEl();
 
-    // 1) Vozes — só pré-gera a 1ª fala (para começar rápido, máx ~5s). O
-    // restante é sintetizado sob demanda durante a transmissão (com cache).
+    // 1) Vozes — pré-gera a 1ª fala em background, SEM bloquear o início.
+    // O cache evita re-síntese quando a transmissão começar.
     (async () => {
       const todo = messages
         .map((m) => ({ m, slot: slotFor((m.role ?? "moderator") as Side) }))
         .filter(({ slot }) => !!slot.voiceId)
         .slice(0, 1);
-      if (todo.length === 0) {
-        setPrepVoices({ done: 0, total: 0, status: "done" });
-        return;
+      if (todo.length === 0) return;
+      for (const { m, slot } of todo) {
+        try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* ignora */ }
       }
-      setPrepVoices({ done: 0, total: todo.length, status: "running" });
-      const deadline = new Promise<void>((r) => setTimeout(r, 5000));
-      const work = (async () => {
-        for (const { m, slot } of todo) {
-          try { await fetchAudioUrl(slot, m.id, m.content); } catch { /* ignora */ }
-        }
-      })();
-      await Promise.race([work, deadline]);
-      setPrepVoices({ done: todo.length, total: todo.length, status: "done" });
     })();
+    setPrepVoices({ done: 1, total: 1, status: "done" });
 
     // 2) Vinhetas das personas (paralelo, não bloqueante para abrir o programa)
     const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
@@ -688,12 +680,11 @@ function PresentMode() {
     void fetchVig(pB, setPrepVigB, setVignetteB);
   }, [phase, data, personas, messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-avança para a vinheta cinematográfica quando vozes terminam.
+  // Avança imediatamente para o aviso assim que a preparação inicia.
   useEffect(() => {
     if (phase !== "preparing") return;
     if (prepVoices.status === "done") {
-      const t = setTimeout(() => setPhase("disclaimer"), 600);
-      return () => clearTimeout(t);
+      setPhase("disclaimer");
     }
   }, [phase, prepVoices.status]);
 
