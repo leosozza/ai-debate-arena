@@ -97,6 +97,7 @@ function DebateDetail() {
   }
 
   const delLast = useServerFn(deleteLastTurn);
+  const delAll = useServerFn(deleteAllTurns);
   async function redoLast() {
     if (!data || data.messages.length === 0) return;
     setGenerating(true);
@@ -107,6 +108,27 @@ function DebateDetail() {
       toast.success("Última fala regenerada.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao refazer");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function redoAll() {
+    if (!data || data.messages.length === 0) return;
+    if (!window.confirm("Apagar TODAS as falas e regerar do zero? O veredito também será apagado.")) return;
+    setGenerating(true);
+    stopAllRef.current = false;
+    try {
+      await delAll({ data: { debateId: id } });
+      await refetch();
+      for (let i = 0; i < 60; i++) {
+        if (stopAllRef.current) break;
+        const r = await generateOne();
+        if (r.done) break;
+        if (r.final) { toast.success("Debate refeito!"); break; }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao refazer tudo");
     } finally {
       setGenerating(false);
     }
