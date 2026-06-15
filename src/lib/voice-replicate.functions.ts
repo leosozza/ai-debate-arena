@@ -65,9 +65,10 @@ function buildInput(model: ReplicateModelKey, voiceParam: string, text: string):
         maxMs: 120_000,
       };
     case "eleven-v3":
-      // voiceParam = ID de voz ElevenLabs; language_code ISO 639-1.
+      // voiceParam = ID de voz ElevenLabs; o modelo elevenlabs/v3 no Replicate
+      // espera `prompt` (não `text`) para o texto a ser narrado.
       return {
-        input: { text, voice_id: voiceParam, language_code: "pt" },
+        input: { prompt: text, voice_id: voiceParam, language_code: "pt" },
         useVersion: false,
         maxMs: 150_000,
       };

@@ -364,7 +364,7 @@ function PresentMode() {
       if (token !== playTokenRef.current) return;
       const label = slot.provider === "eleven" ? "ElevenLabs" : slot.provider === "minimax" ? "MiniMax" : "Replicate";
       const reason = err instanceof Error ? err.message : "erro desconhecido";
-      toast.error(`${label} falhou: ${reason.slice(0, 120)} — usando voz do navegador.`, { duration: 6000 });
+      toast.error(`${label} falhou: ${reason.slice(0, 120)} — fallback de emergência no navegador.`, { duration: 6000 });
       setVoiceFallback({ msgId, reason });
       browserSpeak(clean, role, token, onEnd);
     } finally {
@@ -1116,7 +1116,7 @@ function PresentMode() {
                     <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
                       <div className="flex items-center gap-2 min-w-0">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">Voz clonada falhou — usando voz do navegador. <span className="opacity-70">({voiceFallback.reason.slice(0, 80)})</span></span>
+                        <span className="truncate">Voz premium falhou — fallback de emergência. <span className="opacity-70">({voiceFallback.reason.slice(0, 80)})</span></span>
                       </div>
                       <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={retryCurrent}>
                         <RotateCcw className="h-3 w-3 mr-1" /> Tentar de novo
