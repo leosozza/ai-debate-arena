@@ -299,6 +299,9 @@ function DebateDetail() {
         <Button onClick={redoLast} disabled={generating || !data || data.messages.length === 0} variant="outline" size="sm" title="Apaga a última fala e gera de novo">
           <RotateCcw className="h-4 w-4 mr-1" /> Refazer última
         </Button>
+        <Button onClick={redoAll} disabled={generating || !data || data.messages.length === 0} variant="outline" size="sm" title="Apaga TODAS as falas e regera o debate do zero">
+          <RotateCcw className="h-4 w-4 mr-1" /> Refazer tudo
+        </Button>
         {generating && (
           <Button onClick={handleStop} variant="destructive" size="sm">
             <Square className="h-4 w-4 mr-1" /> Parar
