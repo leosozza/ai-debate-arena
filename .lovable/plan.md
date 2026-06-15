@@ -1,53 +1,40 @@
-# Plano: Clonagem de voz que realmente funciona
+## Objetivo
 
-## Diagnóstico
+Elevar a qualidade da clonagem usando **cascata automática** com o melhor provedor primeiro:
+**ElevenLabs (IVC) → MiniMax (speech-02-hd) → Replicate (Chatterbox)**.
 
-Hoje "clonar com Replicate" só **faz upload** do áudio e devolve a URL, que depois é usada como referência *zero-shot* pelo Chatterbox (default quando o `voiceId` é uma URL crua). Problemas conhecidos desse caminho:
-
-- Chatterbox é um modelo da comunidade — exige resolver versão, é instável e frequentemente devolve áudio vazio/curto, caindo no erro "Modelo devolveu áudio vazio".
-- Não há feedback claro de qual modelo gerou — o usuário só vê "não funcionou".
-- Não há retry/fallback automático para outro modelo de clone.
+Hoje o botão principal aponta para Fish Audio (Replicate), que tem soado artificial. ElevenLabs e MiniMax já estão conectados e produzem qualidade muito superior em PT-BR.
 
 ## Mudanças
 
-### 1. Priorizar Fish Audio (`lucataco/fish-speech-1.5`) para áudio com referência
+### 1. `src/lib/voice-clone.functions.ts` — nova função em cascata
+- Adicionar `cloneVoiceCascade` que aceita o mesmo `FormData` (name + files) e tenta na ordem:
+  1. **ElevenLabs IVC** (`/v1/voices/add`) — melhor qualidade, voz permanente reutilizável.
+  2. **MiniMax** (upload + `/v1/voice_clone`) — fallback se Eleven retornar 401/402/422.
+  3. **Replicate** (upload do áudio → URL com prefixo `chatterbox:`) — último recurso.
+- Cada tentativa loga o motivo da falha; retorna `{ provider, voiceId, name, source, fallbackChain: string[] }`.
+- Salvar resultado em `voice_presets` com `is_real_person: true` e `name` incluindo o provedor usado (ex: "Dr. Enéas (ElevenLabs)") para o usuário saber qual ficou.
 
-Em `src/lib/replicate-voices.ts` → `resolveReplicateVoice()`: quando o `voiceId` for uma URL `https://...` crua (caso pós-upload), passar a rotear para **fish** ao invés de chatterbox. Chatterbox vira opção explícita via prefixo `cb:`.
+### 2. `src/lib/voice-replicate.functions.ts` — trocar default Fish→Chatterbox
+- Em `cloneVoiceReplicate`, trocar o prefixo retornado de `fish:` para `chatterbox:` (Chatterbox multilingual tem qualidade mais consistente que Fish 1.5 em PT-BR).
+- Manter cascata interna `chatterbox → xtts → fish` no `replicateTts` para tocar clones existentes.
 
-### 2. Tornar `cloneVoiceReplicate` mais robusto
+### 3. `src/components/VoiceClonePanel.tsx` — UI simplificada
+- Botão principal: **"Clonar voz (qualidade máxima)"** chamando `cloneVoiceCascade`.
+- Mostrar no toast de sucesso qual provedor foi efetivamente usado (ex: "Voz clonada via ElevenLabs ✓").
+- Manter botões individuais Eleven/MiniMax/Replicate como "avançado" (collapsable) para quem quiser forçar.
+- Atualizar texto de ajuda: "Tenta ElevenLabs → MiniMax → Replicate automaticamente. Envie 30s–2min de fala limpa em PT-BR."
 
-Em `src/lib/voice-replicate.functions.ts`:
-- Continuar fazendo upload do áudio para obter URL persistente.
-- Marcar o `voiceId` retornado com prefixo `fish:` explícito (em vez de URL crua) para evitar ambiguidade futura.
-- Validar duração mínima (avisar se < 5s) e formato.
+### 4. Re-clonar vozes existentes
+- Em `src/routes/_authenticated/personas.tsx` (ou onde lista presets), adicionar botão **"Re-clonar com qualidade máxima"** ao lado de cada preset Fish/Replicate antigo.
+- O botão baixa o `voice_url` original do preset, embrulha em `File`, e chama `cloneVoiceCascade` com o mesmo nome + sufixo " (HD)".
+- Novo preset aparece como item separado; o antigo permanece intacto.
 
-### 3. Fallback em cascata no `replicateTts`
+### 5. Sem mudanças de schema
+- Tabela `voice_presets` já tem todos os campos (`name`, `voice_url`, `is_real_person`, `user_id`).
+- Nenhum secret novo (Eleven, MiniMax, Replicate já conectados).
 
-Quando o modelo é de clone (fish/chatterbox/xtts) e a chamada falha (erro, áudio vazio, timeout), tentar automaticamente o próximo na ordem:
-1. `fish` (lucataco/fish-speech-1.5) — premium, mais consistente
-2. `xtts` (lucataco/xtts-v2) — legado, mais permissivo
-3. `chatterbox` — última tentativa
+## Resultado esperado
 
-Log de qual modelo serviu o áudio para debug.
-
-### 4. UI no `VoiceClonePanel`
-
-- Renomear botão "Replicate (XTTS-v2)" → **"Clonar com Fish Audio (Replicate)"**.
-- Mensagem de ajuda atualizada: "Fish Audio: 10–30s de fala limpa, melhor qualidade zero-shot para PT-BR".
-- Mostrar qual modelo foi usado no toast de sucesso.
-
-### 5. Persistência da URL de clone
-
-O upload do Replicate é persistente (não expira em 1h como `replicate.delivery`), então o `voiceId` `fish:<url>` continua funcionando entre sessões. Sem mudança de banco.
-
-## Arquivos afetados
-
-- `src/lib/replicate-voices.ts` — roteamento de URL crua → fish; novo prefixo `fish:` documentado.
-- `src/lib/voice-replicate.functions.ts` — retornar `voiceId` com prefixo `fish:`, validações, fallback em cascata no `replicateTts`.
-- `src/components/VoiceClonePanel.tsx` — textos do botão e mensagem.
-
-## Fora de escopo
-
-- Webhooks assíncronos (a sandbox de runtime aguenta os ~30–60s típicos de fish-speech; só viraria necessário se passar de 5min).
-- Trocar provedor padrão para MiniMax (você pediu Fish + fallback).
-- Mexer no ElevenLabs/MiniMax existentes — continuam disponíveis como botões alternativos.
+- Toda nova clonagem tenta ElevenLabs primeiro (qualidade de estúdio); se o plano Eleven não permitir IVC, cai para MiniMax HD; só vai para Replicate em último caso.
+- Usuário pode re-clonar vozes Fish antigas com um clique e comparar lado a lado.
