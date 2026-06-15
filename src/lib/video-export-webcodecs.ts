@@ -299,7 +299,7 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
       numberOfFrames: frames,
       numberOfChannels: channels,
       timestamp: ts,
-      data,
+      data: data.buffer as ArrayBuffer,
     });
     try {
       audioEncoder.encode(ad);
