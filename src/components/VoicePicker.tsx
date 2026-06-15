@@ -208,7 +208,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                       </SelectGroup>
                     )}
                     {isCustomUrl && !presetMatch && (
-                      <SelectItem value={cleanId}>🎙 Personalizada (URL)</SelectItem>
+                      <SelectItem value={currentId}>🎙 Voz clonada (personalizada)</SelectItem>
                     )}
                     {isCustomCatalog && (
                       <SelectItem value={currentId}>🎙 Personalizada ({currentId.slice(0, 12)}…)</SelectItem>

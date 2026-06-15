@@ -155,8 +155,19 @@ export const cloneVoiceReplicate = createServerFn({ method: "POST" })
     if (file.size < 30 * 1024) throw new Error("Áudio muito curto. Envie pelo menos ~5s de fala.");
     return { name, file };
   })
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const url = await uploadFile(data.file);
+    // Salva como preset para aparecer em "Meus presets" com nome.
+    try {
+      await context.supabase.from("voice_presets").insert({
+        user_id: context.userId,
+        name: data.name,
+        voice_url: url,
+        is_real_person: true,
+      });
+    } catch (e) {
+      console.warn("[cloneVoiceReplicate] falha ao salvar preset:", e);
+    }
     // Prefixo fish: → roteia para lucataco/fish-speech-1.5 (melhor zero-shot PT-BR).
     return {
       provider: "replicate" as const,

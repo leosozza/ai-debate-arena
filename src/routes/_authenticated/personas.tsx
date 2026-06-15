@@ -381,6 +381,7 @@ function PersonasPage() {
                   defaultName={form.name || undefined}
                   onCloned={async ({ provider, voiceId, source, cloneName }) => {
                     setForm((f) => ({ ...f, voice_provider: provider, voice_id: voiceId }));
+                    qc.invalidateQueries({ queryKey: ["voice-presets"] });
                     if (editingId) {
                       try {
                         await attachVoice({ data: { personaId: editingId, provider, voiceId, source, cloneName } });
