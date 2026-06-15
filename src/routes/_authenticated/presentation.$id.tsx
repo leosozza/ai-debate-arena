@@ -1073,19 +1073,19 @@ function PresentMode() {
           </div>
         ) : (
           <div key={current?.id} className="mx-auto flex h-full w-full max-w-7xl flex-col gap-4 animate-in fade-in duration-500">
-            <section className={`relative mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border px-4 py-3 md:px-6 md:py-4 ${moderatorSpeaking ? "border-primary/60 bg-primary/10 shadow-[0_0_60px_oklch(0.62_0.205_277_/_0.20)]" : "border-border/70 glass"}`}>
+            <section className={`relative mx-auto w-full overflow-hidden rounded-2xl border transition-all duration-500 ${moderatorSpeaking ? "max-w-6xl px-6 py-6 md:px-10 md:py-8 border-primary/60 bg-primary/10 shadow-[0_0_60px_oklch(0.62_0.205_277_/_0.20)]" : "max-w-5xl px-4 py-3 md:px-6 md:py-4 border-border/70 glass"}`}>
               <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" aria-hidden />
               <div className="flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border ${moderatorSpeaking ? "border-primary/50 bg-primary text-primary-foreground" : "border-border/70 bg-secondary text-muted-foreground"}`}>
-                    <Mic2 className="h-6 w-6" />
+                  <div className={`flex shrink-0 items-center justify-center rounded-full border transition-all duration-500 ${moderatorSpeaking ? "h-20 w-20 md:h-24 md:w-24 border-primary/60 bg-primary text-primary-foreground" : "h-12 w-12 border-border/70 bg-secondary text-muted-foreground"} ${!moderatorSpeaking ? "" : ""}`}>
+                    <Mic2 className={moderatorSpeaking ? "h-10 w-10 md:h-12 md:w-12" : "h-6 w-6"} />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                       <Radio className="h-3.5 w-3.5 text-primary" />
                       Mediador
                     </div>
-                    <h2 className="font-display text-xl font-extrabold text-foreground md:text-3xl">Estúdio Central</h2>
+                    <h2 className={`font-display font-extrabold text-foreground ${moderatorSpeaking ? "text-2xl md:text-4xl" : "text-xl md:text-3xl"}`}>Estúdio Central</h2>
                   </div>
                 </div>
                 <div className="hidden w-40 shrink-0 md:block">
@@ -1093,12 +1093,12 @@ function PresentMode() {
                 </div>
               </div>
               {moderatorSpeaking ? (
-                <div className="mt-3">
+                <div className="mt-4">
                   <Teleprompter
                     text={speakerContent}
                     active={playing && !loading}
                     durationMs={currentAudioMs}
-                    heightRem={6}
+                    heightRem={14}
                   />
                   {voiceFallback && current?.id === voiceFallback.msgId && (
                     <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -1118,6 +1118,7 @@ function PresentMode() {
                 </p>
               )}
             </section>
+
 
             {isMulti ? (
               <MultiSpeakerStage
@@ -1321,12 +1322,12 @@ function StageDebaterPanel({
             {active ? phase : "Aguardando"}
           </div>
           {active ? (
-            <div className="mx-auto max-w-xl">
+            <div className="mx-auto w-full max-w-3xl">
               <Teleprompter
                 text={content}
                 active={speaking}
                 durationMs={durationMs ?? null}
-                heightRem={7}
+                heightRem={14}
               />
               {fallbackReason && (
                 <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -1342,6 +1343,7 @@ function StageDebaterPanel({
                 </div>
               )}
             </div>
+
           ) : (
             <p className="mx-auto max-w-xl text-base leading-relaxed md:text-xl text-muted-foreground">
               {""}
