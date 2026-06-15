@@ -144,15 +144,15 @@ function PresentMode() {
       const persona = findPersona(personaName);
       const pp = persona?.voice_provider as VoiceProvider | null | undefined;
       const pid = persona?.voice_id ?? null;
-      // A persona só sobrescreve se tiver voz REAL (não-navegador, com id);
-      // senão usa a voz definida no debate.
-      if (pp && pp !== "browser" && pid && (pp === "kokoro" || pp === "piper" || pp === "eleven" || pp === "minimax" || pp === "replicate")) {
+      // A persona só sobrescreve se tiver voz REAL com id; senão usa a voz definida no debate.
+      if (pp && pid && isProvider(pp)) {
         return { provider: pp, voiceId: pid, settings: DEFAULT_VOICE_SETTINGS };
       }
-      if (!provider) return null;
-      const p = provider as VoiceProvider;
-      if (p !== "browser" && p !== "kokoro" && p !== "piper" && p !== "eleven" && p !== "minimax" && p !== "replicate") return null;
-      return { provider: p, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
+      // Migra valor antigo "browser" / nulo → Kokoro com voz default por gênero da persona.
+      if (!isProvider(provider)) {
+        return defaultSlotByName(personaName);
+      }
+      return { provider, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
     };
     const m = apply(d.voice_provider_mod, d.voice_id_mod); if (m) setSlotMod(m);
     const a = apply(d.voice_provider_a, d.voice_id_a, d.debater_a_name); if (a) setSlotA(a);
