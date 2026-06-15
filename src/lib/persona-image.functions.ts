@@ -148,10 +148,18 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
       data.description ? `, ${data.description}` : ""
     }. Centered face, neutral dignified expression, soft studio lighting, plain dark neutral background, ultra-detailed, sharp focus on the face, 85mm lens, color photograph, museum-quality reference portrait. No text, no watermarks, no frames, no special effects, no holograms. Square 1:1 framing.`;
 
+    const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY);
+    const instruction = refDataUrls.length > 0
+      ? `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully. Output a clean photorealistic portrait (NOT a hologram, NOT stylized) — just a high-quality reference photo of this person.`
+      : baseInstruction;
+
     let b64: string;
     try {
-      if (refDataUrls.length > 0) {
-        const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully. Output a clean photorealistic portrait (NOT a hologram, NOT stylized) — just a high-quality reference photo of this person.`;
+      if (hasGeminiKey) {
+        // Caminho preferido: API nativa do Google Gemini com a chave do projeto
+        // (não consome créditos do Lovable AI).
+        b64 = await callGeminiDirect(instruction, refDataUrls);
+      } else if (refDataUrls.length > 0) {
         b64 = await callImageGateway({
           model: "google/gemini-3.1-flash-image-preview",
           messages: [
@@ -175,8 +183,6 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
         });
       }
     } catch (err) {
-      // não relança: retorna um envelope para o cliente exibir mensagem amigável
-      // sem disparar o overlay de runtime error (que causa tela branca).
       const msg = err instanceof Error ? err.message : "Falha ao gerar imagem";
       console.error("[generatePersonaImage]", msg);
       return { imageUrl: null as string | null, referencesUsed: refDataUrls.length, error: msg, fallback: true as const };
