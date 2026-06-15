@@ -141,7 +141,7 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
         </Button>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Replicate é zero-shot e funciona com 10–60s de áudio limpo — recomendado quando você não tem plano pago dos outros.
+        Fish Audio: zero-shot premium, 10–30s de fala limpa em PT-BR. Em caso de falha, tenta XTTS-v2 e Chatterbox automaticamente.
       </p>
 
       {lastError && (
