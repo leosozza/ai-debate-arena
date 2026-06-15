@@ -48,9 +48,14 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const rpTts = useServerFn(replicateTts);
   const createUpload = useServerFn(createDebateExportUpload);
   const finalizeUpload = useServerFn(finalizeDebateExport);
+  const listExports = useServerFn(listDebateExports);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["debate", debateId], queryFn: () => get({ data: { id: debateId } }) });
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
+  const { data: savedExports } = useQuery({
+    queryKey: ["debate-exports", debateId],
+    queryFn: () => listExports({ data: { debateId } }),
+  });
 
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
