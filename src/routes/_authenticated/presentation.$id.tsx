@@ -377,9 +377,9 @@ function PresentMode() {
     if (!current) return;
     // Invalida cache desta mensagem para forçar nova chamada.
     const slot = slotFor((current.role ?? "moderator") as Side);
-    const cacheKeyPrefix = `${slot.provider}:${current.id}:`;
+    const cacheKeyContains = `|${current.id}|`;
     for (const k of Array.from(audioCache.current.keys())) {
-      if (k.startsWith(cacheKeyPrefix)) audioCache.current.delete(k);
+      if (k.startsWith(`${slot.provider}|`) && k.includes(cacheKeyContains)) audioCache.current.delete(k);
     }
     setVoiceFallback(null);
     stopAll();
