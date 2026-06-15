@@ -117,7 +117,7 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
           disabled={busy !== null || files.length === 0}
         >
           {busy === "replicate" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-          Clonar com Replicate (XTTS-v2)
+          Clonar com Fish Audio (Replicate)
         </Button>
         <Button
           type="button"
