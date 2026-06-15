@@ -3,7 +3,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 const ModelSchema = z.string().min(3).max(80);
-const VoiceProviderSchema = z.enum(["browser", "kokoro", "piper", "eleven", "minimax", "replicate"]).nullable().optional();
+// Aceita "browser" (legado) e converte para "kokoro" antes de gravar.
+const VoiceProviderSchema = z.enum(["browser", "kokoro", "piper", "eleven", "minimax", "replicate"]).nullable().optional()
+  .transform((v) => (v === "browser" ? "kokoro" : v));
 const VoiceIdSchema = z.string().trim().max(2048).nullable().optional();
 
 const FormatSchema = z.enum([
