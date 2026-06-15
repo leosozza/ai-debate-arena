@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,13 @@ import { stripMarkdownForTts } from "@/lib/text-utils";
 import { AI_DISCLAIMER_TEXT } from "@/components/AIDisclaimer";
 import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx } from "@/components/TimelineEditor";
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
+import { KOKORO_VOICE_IDS, kokoroFallback } from "@/lib/kokoro-voices";
+
+function hashContent(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
 
 type Slot = { provider: VoiceProvider; voiceId: string | null };
 
@@ -48,6 +55,14 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [clips, setClips] = useState<TimelineClip[]>([]);
+
+  // Cache de áudio entre cliques: chave = provider|voiceId|msgId|hash(content).
+  // Sobrevive a re-abrir o editor, alternar entre "Exportar MP4" e "Exportar bloco…",
+  // e a re-exportar o mesmo bloco. Invalida quando o conjunto de mensagens muda
+  // (ex.: "Refazer tudo" gera novos ids).
+  const audioCacheRef = useRef<Map<string, { url: string; duration: number }>>(new Map());
+  const msgIdsKey = (data?.messages.map((m) => m.id).join(",") ?? "");
+  useEffect(() => { audioCacheRef.current = new Map(); }, [msgIdsKey]);
 
   function resolveSlot(
     provider: string | null | undefined,
@@ -75,8 +90,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     if (!slot.voiceId) throw new Error("voz_nao_definida");
     const clean = stripMarkdownForTts(text).slice(0, 5000);
     if (slot.provider === "kokoro") {
+      // Modelo Kokoro pode não conhecer a voz salva no banco (ex.: pm_santa removido).
+      // Cai pra um fallback válido em vez de quebrar a exportação inteira.
+      const safeId = KOKORO_VOICE_IDS.has(slot.voiceId) ? slot.voiceId : kokoroFallback(slot.voiceId);
       const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
-      return await kokoroSynthUrl(clean, slot.voiceId);
+      return await kokoroSynthUrl(clean, safeId);
     }
     if (slot.provider === "piper") {
       const { piperSynthUrl } = await import("@/lib/piper-tts");
@@ -167,22 +185,46 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     all: PreparedMsg[],
     slots: { slotMod: Slot; slotA: Slot; slotB: Slot },
   ): Promise<TimelineClip[] | null> {
-    const audioByMsg = new Map<string, string>();
+    const cache = audioCacheRef.current;
+    const cacheKey = (m: PreparedMsg, slot: Slot) =>
+      `${slot.provider}|${slot.voiceId}|${m.id}|${hashContent(m.content)}`;
     const todo = all.map((m) => ({
       m,
       slot: m.role === "a" ? slots.slotA : m.role === "b" ? slots.slotB : slots.slotMod,
     }));
-    let done = 0;
+    const audioByMsg = new Map<string, { url: string; duration: number }>();
+    const errors: { role: string; reason: string }[] = [];
+    const pending: typeof todo = [];
+    for (const item of todo) {
+      const hit = cache.get(cacheKey(item.m, item.slot));
+      if (hit) audioByMsg.set(item.m.id, hit);
+      else pending.push(item);
+    }
+    const reused = audioByMsg.size;
+    if (reused > 0) {
+      setProgress({ label: `Reaproveitando ${reused} áudio(s) do cache`, pct: reused / todo.length });
+    }
+
+    let done = reused;
     let cursor = 0;
     const concurrency = 3;
+    const labelFor = (role: string) =>
+      role === "a" ? (data?.debate.debater_a_name ?? "Debatedor A")
+      : role === "b" ? (data?.debate.debater_b_name ?? "Debatedor B")
+      : "Moderador";
     const worker = async () => {
-      while (cursor < todo.length) {
+      while (cursor < pending.length) {
         const i = cursor++;
-        const { m, slot } = todo[i];
+        const { m, slot } = pending[i];
         try {
           const url = await fetchAudioUrl(slot, m.content);
-          audioByMsg.set(m.id, url);
-        } catch { /* ignore individual */ }
+          const duration = await getAudioDuration(url);
+          const entry = { url, duration };
+          audioByMsg.set(m.id, entry);
+          cache.set(cacheKey(m, slot), entry);
+        } catch (e) {
+          errors.push({ role: labelFor(m.role), reason: e instanceof Error ? e.message : String(e) });
+        }
         done++;
         setProgress({ label: `Gerando vozes ${done}/${todo.length}`, pct: done / todo.length });
       }
@@ -190,30 +232,31 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     await Promise.all(Array.from({ length: concurrency }, worker));
 
     const missing = all.filter((m) => !audioByMsg.get(m.id));
-    if (missing.length === all.length) {
+    if (missing.length > all.length / 2) {
+      const sample = errors.slice(0, 2).map((e) => `${e.role}: ${e.reason}`).join(" | ");
       toast.error(
-        "Nenhuma voz pôde ser gerada. Defina Kokoro (grátis) ou uma voz premium para os participantes.",
-        { duration: 7000 },
+        `Falha ao gerar ${missing.length}/${all.length} áudios. ${sample || "Verifique as vozes configuradas."}`,
+        { duration: 9000 },
       );
       return null;
     }
     if (missing.length > 0) {
-      toast.warning(`${missing.length} fala(s) sem áudio foram puladas.`, { duration: 6000 });
+      const sample = errors.slice(0, 2).map((e) => `${e.role}: ${e.reason}`).join(" | ");
+      toast.warning(`${missing.length} fala(s) sem áudio foram puladas. ${sample}`, { duration: 7000 });
     }
 
-    setProgress({ label: "Analisando áudios", pct: 0.95 });
+    setProgress({ label: "Montando timeline", pct: 0.97 });
     const built: TimelineClip[] = [];
     for (const m of all) {
-      const url = audioByMsg.get(m.id);
-      if (!url) continue;
-      const dur = await getAudioDuration(url);
+      const entry = audioByMsg.get(m.id);
+      if (!entry) continue;
       built.push({
         id: m.id,
         role: m.role,
         phase: m.phase,
         content: m.content,
-        audioUrl: url,
-        duration: dur,
+        audioUrl: entry.url,
+        duration: entry.duration,
         trimStart: 0,
         trimEnd: 0,
         subtitle: true,
