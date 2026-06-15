@@ -17,7 +17,7 @@ import { ExportVideoButton } from "@/components/ExportVideoButton";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/debates/$id")({
+export const Route = createFileRoute("/_authenticated/debates/$id/")({
   component: DebateDetail,
 });
 
