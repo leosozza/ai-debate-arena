@@ -1,14 +1,24 @@
-// Server-only Lovable AI Gateway helper.
-const ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
+// Server-only AI Gateway helper.
+// Supports two providers:
+//   - Lovable AI Gateway (default, models like "google/gemini-3-flash-preview")
+//   - Google AI Studio direto via endpoint OpenAI-compatible (models prefixed "google-direct/")
+// Quando o Lovable retorna 402 (créditos esgotados) e há GEMINI_API_KEY,
+// automaticamente faz fallback para o modelo Gemini equivalente.
+
+const LOVABLE_ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const GOOGLE_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 export const DEFAULT_MODEL = "google/gemini-3-flash-preview";
 
 export const AVAILABLE_MODELS = [
-  { id: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (rápido)" },
-  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (forte)" },
-  { id: "openai/gpt-5-mini", label: "GPT-5 Mini" },
-  { id: "openai/gpt-5", label: "GPT-5 (forte)" },
-  { id: "openai/gpt-5-nano", label: "GPT-5 Nano (barato)" },
+  { id: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Lovable)" },
+  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (Lovable)" },
+  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (Lovable)" },
+  { id: "google-direct/gemini-2.5-flash", label: "Gemini 2.5 Flash (Google API direta)" },
+  { id: "google-direct/gemini-2.5-pro", label: "Gemini 2.5 Pro (Google API direta)" },
+  { id: "google-direct/gemini-2.0-flash", label: "Gemini 2.0 Flash (Google API direta)" },
+  { id: "openai/gpt-5-mini", label: "GPT-5 Mini (Lovable)" },
+  { id: "openai/gpt-5", label: "GPT-5 (Lovable)" },
+  { id: "openai/gpt-5-nano", label: "GPT-5 Nano (Lovable)" },
 ] as const;
 
 export interface ChatMessage {
@@ -16,19 +26,54 @@ export interface ChatMessage {
   content: string;
 }
 
-function apiKey() {
+function lovableKey() {
   const k = process.env.LOVABLE_API_KEY;
   if (!k) throw new Error("LOVABLE_API_KEY ausente. Configure Lovable AI.");
   return k;
 }
 
-function handleStatus(status: number, body: string) {
+function geminiKey(): string | null {
+  return process.env.GEMINI_API_KEY || null;
+}
+
+/** Decide endpoint + headers + body model for a given logical model id. */
+function resolveTarget(model: string): { endpoint: string; headers: Record<string, string>; modelName: string; provider: "lovable" | "google-direct" } {
+  if (model.startsWith("google-direct/")) {
+    const key = geminiKey();
+    if (!key) throw new Error("GEMINI_API_KEY ausente. Adicione sua chave do Google AI Studio.");
+    return {
+      endpoint: GOOGLE_ENDPOINT,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      modelName: model.replace(/^google-direct\//, ""),
+      provider: "google-direct",
+    };
+  }
+  return {
+    endpoint: LOVABLE_ENDPOINT,
+    headers: { "Content-Type": "application/json", "Lovable-API-Key": lovableKey() },
+    modelName: model,
+    provider: "lovable",
+  };
+}
+
+/** Map a Lovable Gemini model to the closest google-direct equivalent for automatic fallback. */
+function fallbackModel(model: string): string | null {
+  if (!geminiKey()) return null;
+  if (model.startsWith("google-direct/")) return null;
+  if (model.startsWith("google/")) {
+    if (model.includes("pro")) return "google-direct/gemini-2.5-pro";
+    return "google-direct/gemini-2.5-flash";
+  }
+  // OpenAI models — fall back to gemini flash as best-effort when Lovable falha por crédito.
+  return "google-direct/gemini-2.5-flash";
+}
+
+function handleStatus(status: number, body: string): never {
   if (status === 429) throw new Error("Limite de uso atingido. Tente em instantes.");
-  if (status === 402) throw new Error("Créditos de IA esgotados. Adicione créditos no workspace.");
+  if (status === 402) throw new Error("CREDITS_EXHAUSTED");
   throw new Error(`Falha na IA (${status}): ${body.slice(0, 200)}`);
 }
 
-/** fetch with an abort-based timeout so a stalled gateway fails loudly instead of hanging forever. */
 async function fetchWithTimeout(input: string, init: RequestInit, ms = 75000): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
@@ -42,8 +87,6 @@ async function fetchWithTimeout(input: string, init: RequestInit, ms = 75000): P
   }
 }
 
-/** Retenta falhas transitórias (timeout, 5xx, 429) com backoff. Não retenta
- *  erros terminais (créditos esgotados, chave ausente). */
 async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseMs = 800): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -52,19 +95,20 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3, baseMs = 800): P
     } catch (e) {
       lastErr = e;
       const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("Créditos") || msg.includes("LOVABLE_API_KEY") || msg.includes("Resposta vazia")) throw e;
+      if (msg === "CREDITS_EXHAUSTED" || msg.includes("LOVABLE_API_KEY") || msg.includes("GEMINI_API_KEY") || msg.includes("Resposta vazia")) throw e;
       if (i < attempts - 1) await new Promise((r) => setTimeout(r, baseMs * Math.pow(2, i)));
     }
   }
   throw lastErr;
 }
 
-export async function chatComplete(messages: ChatMessage[], model: string = DEFAULT_MODEL): Promise<string> {
+async function doChatComplete(model: string, messages: ChatMessage[]): Promise<string> {
   return withRetry(async () => {
-    const res = await fetchWithTimeout(ENDPOINT, {
+    const t = resolveTarget(model);
+    const res = await fetchWithTimeout(t.endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey() },
-      body: JSON.stringify({ model, messages }),
+      headers: t.headers,
+      body: JSON.stringify({ model: t.modelName, messages }),
     });
     if (!res.ok) handleStatus(res.status, await res.text());
     const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
@@ -74,14 +118,51 @@ export async function chatComplete(messages: ChatMessage[], model: string = DEFA
   });
 }
 
-/** Returns a ReadableStream<string> of text deltas, plus a promise that resolves with the full text. */
+export async function chatComplete(messages: ChatMessage[], model: string = DEFAULT_MODEL): Promise<string> {
+  try {
+    return await doChatComplete(model, messages);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "CREDITS_EXHAUSTED") {
+      const fb = fallbackModel(model);
+      if (fb) {
+        console.warn(`[ai-gateway] Lovable sem créditos. Fazendo fallback para ${fb}.`);
+        return await doChatComplete(fb, messages);
+      }
+      throw new Error("Créditos de IA esgotados. Adicione créditos no workspace ou configure GEMINI_API_KEY.");
+    }
+    throw e;
+  }
+}
+
+/** Streaming chat completion. Returns text deltas + a getFullText() once done. */
 export async function chatStream(messages: ChatMessage[], model: string = DEFAULT_MODEL) {
-  const res = await fetchWithTimeout(ENDPOINT, {
+  let target = resolveTarget(model);
+  let res = await fetchWithTimeout(target.endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey() },
-    body: JSON.stringify({ model, messages, stream: true }),
+    headers: target.headers,
+    body: JSON.stringify({ model: target.modelName, messages, stream: true }),
   });
-  if (!res.ok || !res.body) handleStatus(res.status, await res.text());
+
+  if (!res.ok) {
+    // Try to map credit-exhausted to fallback before streaming starts.
+    if (res.status === 402) {
+      const fb = fallbackModel(model);
+      if (fb) {
+        console.warn(`[ai-gateway] Lovable sem créditos (stream). Fallback para ${fb}.`);
+        target = resolveTarget(fb);
+        res = await fetchWithTimeout(target.endpoint, {
+          method: "POST",
+          headers: target.headers,
+          body: JSON.stringify({ model: target.modelName, messages, stream: true }),
+        });
+      }
+    }
+    if (!res.ok || !res.body) {
+      const body = await res.text();
+      handleStatus(res.status, body);
+    }
+  }
 
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
