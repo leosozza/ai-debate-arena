@@ -1,37 +1,32 @@
-## Diagnóstico
+## Plano refinado
 
-O Enéas das falas atuais vira caricatura por dois motivos somados:
+Aplicar o prompt otimizado (versão TTS-safe, com regras comportamentais e few-shot) na persona do Enéas e no debate atual, mais o endurecimento global contra refrões.
 
-1. **No prompt salvo da persona** (tabela `personas`, registro do Enéas Carneiro), o bloco "Estilo de fala" diz literalmente *"Repete a TESE como bordão argumentativo"* e logo abaixo lista bordões ("Brasil acima de tudo!", "É preciso ter uma indústria de base!" etc.). Isso instrui o modelo a martelar exatamente o que você critica.
-2. **No prompt global** (`DEBATER_STAGE_RULES` em `src/lib/debate.functions.ts`) só existe regra contra o bordão identitário ("Meu nome é Enéas!"). Não há nada barrando refrões argumentativos repetidos a cada turno ("A TESE é…", "Brasil acima de tudo").
+### 1. Migração SQL — `UPDATE` em duas linhas
 
-## Mudanças
+**a) `public.personas`** (id `85fcc8b0-f61a-4c1b-a43b-f72faea9b0a8`)
+Substituir `persona_prompt` pelo texto refinado que você forneceu, na íntegra, em 1ª pessoa ("Você é o Dr. Enéas..."), incluindo:
+- Aviso de TTS (sem markdown pesado).
+- Seção 1: oratória/ritmo.
+- Seção 2: regras anti-bordão (proibido abrir com "A tese é…", "Meus senhores!", "Veja bem…"; "Meu nome é Enéas!" só no clímax/encerramento).
+- Seção 3: base de conhecimento (obras, economia, geopolítica, rejeição aos dois extremos).
+- Seção 4: few-shot de calibração (pergunta + resposta-exemplo sobre economia brasileira).
 
-### 1. Migração — atualizar `personas.persona_prompt` do Enéas
+**b) `public.debates`** (id `cea98432-ee13-4818-a673-02ebab6c8eee`)
+Confirmo qual coluna o Enéas ocupa (`debater_a_persona` vs `debater_b_persona` — pelo contexto anterior ele é o debater_b) e atualizo a mesma string lá, para que as próximas regenerações deste debate já usem o novo prompt (o campo é uma cópia tirada no momento de criação do debate).
 
-Reescrever as seções **Estilo de fala**, **Bordões e frases típicas** e **Como argumenta em debate** para refletir o Enéas real: erudito, vocabulário técnico (médico, militar, econômico, geopolítico), lógica formal, ritmo de metralhadora com precisão cirúrgica, indignação moral fundamentada em dados — sem muletas. Em particular:
+### 2. `src/lib/debate.functions.ts` — `DEBATER_STAGE_RULES`
 
-- Remover "Repete a TESE como bordão argumentativo".
-- Mover toda a lista de bordões para a seção do encerramento; durante o debate, **proibir** abrir falas com "A tese é…", "Brasil acima de tudo", "Senhores" e qualquer refrão fixo.
-- Adicionar instrução positiva: "Cada fala traz dado, conceito ou exemplo histórico novo (nióbio, Meiji, Bismarck, dívida pública, mais-valia, geopolítica do Atlântico Sul etc.). Vocabulário denso, sentenças longas e bem encadeadas, alternadas com sentenças curtas de impacto. Cita números, instituições e processos históricos com precisão."
-- Manter a regra de que "Meu nome é Enéas!" só aparece no encerramento.
+Acrescentar parágrafo global (vale para todas as personas):
 
-Implementação: `supabase--migration` com `UPDATE public.personas SET persona_prompt = $$...$$ WHERE id = '85fcc8b0-f61a-4c1b-a43b-f72faea9b0a8';`.
-
-### 2. `src/lib/debate.functions.ts` — endurecer `DEBATER_STAGE_RULES`
-
-Acrescentar parágrafo:
-
-> **REGRA ANTI-REFRÃO:** não abra duas falas seguidas com a mesma fórmula, não repita frases-âncora identitárias da persona ("A tese é…", "Brasil acima de tudo", "Senhores!", etc.) fora do encerramento. Varie aberturas, varie conectores, e em cada turno introduza um dado, exemplo histórico ou conceito novo em vez de reciclar o anterior.
-
-Vale para todas as personas — corrige o problema na raiz e não só pro Enéas.
+> REGRA ANTI-REFRÃO E TTS: sua fala vira áudio. Não use markdown (`**`, `*`, listas, cabeçalhos). Não abra dois turnos seguidos com a mesma fórmula. Não repita frases-âncora identitárias da persona ("A tese é…", "Meus senhores!", "Brasil acima de tudo", "Meu nome é X!") fora do encerramento. Varie aberturas e conectores; cada turno traz dado, conceito ou exemplo histórico novo.
 
 ### Fora de escopo
+- Regenerar as falas já gravadas — você dispara quando quiser pelo botão de regenerar.
+- Mexer em outras personas ou ajustar TTS/voz.
 
-- Reescrever falas já geradas do debate atual: a IA só vai melhorar nas próximas gerações. Se quiser, regenero o bloco depois.
-- Mexer em outras personas — só faço se você pedir.
+### Ordem de execução
+1. `supabase--migration` com os dois `UPDATE`s (precisa de aprovação sua).
+2. Após aprovação, edito `debate.functions.ts` com o parágrafo anti-refrão+TTS.
 
-## Detalhes técnicos
-
-- `id` da persona Enéas: `85fcc8b0-f61a-4c1b-a43b-f72faea9b0a8`.
-- O `persona_prompt` é injetado em `buildSystemPrompt` (linha ~1124 de `debate.functions.ts`) via `debate.debater_a_persona`/`debater_b_persona`, copiados do persona no momento da criação do debate. Logo, debates **já criados** (incluindo este) continuam com o texto antigo no campo `debates.debater_a_persona`. Para esse debate específico atualizo também `debates.debater_a_persona`/`debater_b_persona` correspondente se o Enéas estiver lá — confirmo qual lado ele ocupa e atualizo a linha do debate `cea98432-…` na mesma migração.
+Aprovando, sigo nessa ordem.
