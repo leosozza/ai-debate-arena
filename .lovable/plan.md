@@ -1,38 +1,37 @@
-## Objetivo
+## Diagnóstico
 
-Trazer para `/debates/$id/edit` os mesmos seletores que existem em `/new`:
+O Enéas das falas atuais vira caricatura por dois motivos somados:
 
-1. **Personas salvas** — dropdown agrupado por categoria em cada card (Debatedor A / B), que preenche nome, persona, voz e imagem do debatedor escolhido.
-2. **Mediador** — grade de cards de mediadores salvos (de `listMediators`), que define `moderatorName`, `moderatorStyle`, `moderatorTone` e a voz do mediador.
-3. **Comentaristas pós-bloco** — switch + dois cards (nome, estilo, voz), idêntico ao do `/new`.
-4. **Direcionamento do debate** (opcional, textarea) — campo `direction` que já existe no banco mas não está na tela.
+1. **No prompt salvo da persona** (tabela `personas`, registro do Enéas Carneiro), o bloco "Estilo de fala" diz literalmente *"Repete a TESE como bordão argumentativo"* e logo abaixo lista bordões ("Brasil acima de tudo!", "É preciso ter uma indústria de base!" etc.). Isso instrui o modelo a martelar exatamente o que você critica.
+2. **No prompt global** (`DEBATER_STAGE_RULES` em `src/lib/debate.functions.ts`) só existe regra contra o bordão identitário ("Meu nome é Enéas!"). Não há nada barrando refrões argumentativos repetidos a cada turno ("A TESE é…", "Brasil acima de tudo").
 
 ## Mudanças
 
-### `src/lib/debate.functions.ts` — `UpdateDebateSchema` + handler `updateDebate`
-Adicionar (todos opcionais) ao schema e ao patch:
-- `direction` (string nullable)
-- `moderatorName` (string nullable) → `moderator_name`
-- `moderatorStyle` (string nullable) → `moderator_style`
-- `commentators` (array de `{ name, persona, voiceProvider, voiceId }`, max 2, nullable) → coluna `commentators` (jsonb); salvar `null` quando o array vier vazio.
+### 1. Migração — atualizar `personas.persona_prompt` do Enéas
 
-Nada é obrigatório — campos não enviados continuam preservados, igual aos já existentes.
+Reescrever as seções **Estilo de fala**, **Bordões e frases típicas** e **Como argumenta em debate** para refletir o Enéas real: erudito, vocabulário técnico (médico, militar, econômico, geopolítico), lógica formal, ritmo de metralhadora com precisão cirúrgica, indignação moral fundamentada em dados — sem muletas. Em particular:
 
-### `src/routes/_authenticated/debates.$id.edit.tsx`
-- Carregar `personas` (`listPersonas`) e `mediators` (`listMediators`) via `useQuery`.
-- Reutilizar o helper `PersonaSelectItems` (extrair para `src/components/PersonaSelectItems.tsx` — já existe arquivo com esse nome, vou conferir e reusar; caso contrário, criar). Copiar `applyPersona(side, personaId)` e `pickMediator(m)` do `new.tsx`.
-- Estender o `form` com `direction`, `moderatorName`, `moderatorStyle`, `debaterAImageUrl`, `debaterBImageUrl`, `commentators` e popular no `useEffect` a partir de `data.debate` (incluindo `data.debate.commentators` se vier como array).
-- Adicionar na UI:
-  - Textarea **"Direcionamento do debate"** logo abaixo do Tema.
-  - Em cada card de Debatedor: `<Select>` "Carregar persona salva" no topo (igual ao `new.tsx`).
-  - Card **"Mediador do programa"** com a grade de botões, antes do "Modelo do mediador".
-  - Card **"Comentaristas (pós-bloco)"** ao final, com switch e dois `VoicePicker` (mesmo JSX do `new.tsx`).
-- `handleSave` passa os novos campos ao `update({ data: { ... } })`. Para comentaristas: enviar o array (vazio vira `null` no handler).
+- Remover "Repete a TESE como bordão argumentativo".
+- Mover toda a lista de bordões para a seção do encerramento; durante o debate, **proibir** abrir falas com "A tese é…", "Brasil acima de tudo", "Senhores" e qualquer refrão fixo.
+- Adicionar instrução positiva: "Cada fala traz dado, conceito ou exemplo histórico novo (nióbio, Meiji, Bismarck, dívida pública, mais-valia, geopolítica do Atlântico Sul etc.). Vocabulário denso, sentenças longas e bem encadeadas, alternadas com sentenças curtas de impacto. Cita números, instituições e processos históricos com precisão."
+- Manter a regra de que "Meu nome é Enéas!" só aparece no encerramento.
+
+Implementação: `supabase--migration` com `UPDATE public.personas SET persona_prompt = $$...$$ WHERE id = '85fcc8b0-f61a-4c1b-a43b-f72faea9b0a8';`.
+
+### 2. `src/lib/debate.functions.ts` — endurecer `DEBATER_STAGE_RULES`
+
+Acrescentar parágrafo:
+
+> **REGRA ANTI-REFRÃO:** não abra duas falas seguidas com a mesma fórmula, não repita frases-âncora identitárias da persona ("A tese é…", "Brasil acima de tudo", "Senhores!", etc.) fora do encerramento. Varie aberturas, varie conectores, e em cada turno introduza um dado, exemplo histórico ou conceito novo em vez de reciclar o anterior.
+
+Vale para todas as personas — corrige o problema na raiz e não só pro Enéas.
 
 ### Fora de escopo
-- Editor de convidados extras (mesa redonda etc.) e formato/cenário — exigem mais mudanças no schema e no banco (`debate_participants`). Não foram pedidos; faço em uma rodada seguinte se quiser.
+
+- Reescrever falas já geradas do debate atual: a IA só vai melhorar nas próximas gerações. Se quiser, regenero o bloco depois.
+- Mexer em outras personas — só faço se você pedir.
 
 ## Detalhes técnicos
-- `VoicePicker` já recebe `filterGender`; aplico o mesmo padrão do `new.tsx` (gênero do mediador selecionado, gênero inferido dos nomes A/B).
-- O schema atual exige `voiceProviderMod/A/B` e `voiceIdMod/A/B` sem `.optional()`; mantenho como está — o form sempre envia.
-- `data.debate.commentators` em `getDebate` já retorna o JSON do banco; faço cast defensivo (`Array.isArray`).
+
+- `id` da persona Enéas: `85fcc8b0-f61a-4c1b-a43b-f72faea9b0a8`.
+- O `persona_prompt` é injetado em `buildSystemPrompt` (linha ~1124 de `debate.functions.ts`) via `debate.debater_a_persona`/`debater_b_persona`, copiados do persona no momento da criação do debate. Logo, debates **já criados** (incluindo este) continuam com o texto antigo no campo `debates.debater_a_persona`. Para esse debate específico atualizo também `debates.debater_a_persona`/`debater_b_persona` correspondente se o Enéas estiver lá — confirmo qual lado ele ocupa e atualizo a linha do debate `cea98432-…` na mesma migração.
