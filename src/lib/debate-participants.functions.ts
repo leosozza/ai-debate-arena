@@ -60,7 +60,22 @@ export const listParticipants = createServerFn({ method: "POST" })
       .gte("slot", 2)
       .order("slot", { ascending: true });
     if (error) throw new Error(error.message);
-    return rows ?? [];
+    const list = rows ?? [];
+    // Fallback: backfill image_url from persona when missing
+    const missing = list.filter((r) => !r.image_url && r.persona_id).map((r) => r.persona_id as string);
+    if (missing.length > 0) {
+      const { data: personas } = await context.supabase
+        .from("personas")
+        .select("id, image_url")
+        .in("id", missing);
+      const map = new Map((personas ?? []).map((p) => [p.id, p.image_url]));
+      for (const r of list) {
+        if (!r.image_url && r.persona_id && map.get(r.persona_id)) {
+          r.image_url = map.get(r.persona_id) ?? null;
+        }
+      }
+    }
+    return list;
   });
 
 export const upsertParticipant = createServerFn({ method: "POST" })
