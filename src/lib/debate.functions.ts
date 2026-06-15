@@ -380,6 +380,21 @@ export const deleteLastTurn = createServerFn({ method: "POST" })
     return { deleted: true };
   });
 
+/** Apaga TODAS as falas do debate (para refazer do zero). Reabre o debate e limpa veredito. */
+export const deleteAllTurns = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ debateId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("debate_messages").delete()
+      .eq("debate_id", data.debateId).eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    await context.supabase.from("debates")
+      .update({ status: "ready", verdict: null, verdict_multi: null })
+      .eq("id", data.debateId).eq("user_id", context.userId);
+    return { ok: true };
+  });
+
 // ===== Criação assistida por IA (gerador de tema / debatedores opostos) =====
 
 export const generateDebateTopic = createServerFn({ method: "POST" })
