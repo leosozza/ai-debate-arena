@@ -110,15 +110,16 @@ export const replicateTts = createServerFn({ method: "POST" })
       // Cascata de fallback APENAS para clones com URL de referência.
       const isCloneWithRef =
         /^https?:\/\//i.test(voiceParam) &&
-        (model === "fish" || model === "chatterbox" || model === "xtts");
+        (model === "chatterbox" || model === "xtts");
       const chain: ReplicateModelKey[] = isCloneWithRef
-        ? (["chatterbox", "xtts", "fish"].filter((m, i, arr) => arr.indexOf(m) === i) as ReplicateModelKey[])
+        ? (["chatterbox", "xtts"] as ReplicateModelKey[])
         : [model];
       // garantir que o modelo escolhido vem primeiro
       if (isCloneWithRef && chain[0] !== model) {
         chain.splice(chain.indexOf(model), 1);
         chain.unshift(model);
       }
+
 
       const errors: string[] = [];
       for (const m of chain) {
