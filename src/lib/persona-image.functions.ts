@@ -51,6 +51,46 @@ async function callImageGateway(body: object): Promise<string> {
   return b64;
 }
 
+/** Chama a API nativa do Google Gemini (gemini-2.5-flash-image) usando a
+ *  GEMINI_API_KEY do projeto — não depende dos créditos do Lovable AI. */
+async function callGeminiDirect(prompt: string, refDataUrls: string[]): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY ausente.");
+  const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+  for (const url of refDataUrls) {
+    const m = /^data:([^;]+);base64,(.+)$/.exec(url);
+    if (!m) continue;
+    parts.push({ inline_data: { mime_type: m[1], data: m[2] } });
+  }
+  const model = "gemini-2.5-flash-image";
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+      }),
+    },
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    if (res.status === 429) throw new Error("Gemini: limite de uso atingido. Tente em instantes.");
+    throw new Error(`Gemini falhou (${res.status}): ${txt.slice(0, 300)}`);
+  }
+  const json = (await res.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string }; inline_data?: { data?: string } }> } }>;
+  };
+  for (const cand of json.candidates ?? []) {
+    for (const p of cand.content?.parts ?? []) {
+      const b64 = p.inlineData?.data ?? p.inline_data?.data;
+      if (b64) return b64;
+    }
+  }
+  throw new Error("Gemini não retornou imagem.");
+}
+
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -108,10 +148,18 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
       data.description ? `, ${data.description}` : ""
     }. Centered face, neutral dignified expression, soft studio lighting, plain dark neutral background, ultra-detailed, sharp focus on the face, 85mm lens, color photograph, museum-quality reference portrait. No text, no watermarks, no frames, no special effects, no holograms. Square 1:1 framing.`;
 
+    const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY);
+    const instruction = refDataUrls.length > 0
+      ? `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully. Output a clean photorealistic portrait (NOT a hologram, NOT stylized) — just a high-quality reference photo of this person.`
+      : baseInstruction;
+
     let b64: string;
     try {
-      if (refDataUrls.length > 0) {
-        const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully. Output a clean photorealistic portrait (NOT a hologram, NOT stylized) — just a high-quality reference photo of this person.`;
+      if (hasGeminiKey) {
+        // Caminho preferido: API nativa do Google Gemini com a chave do projeto
+        // (não consome créditos do Lovable AI).
+        b64 = await callGeminiDirect(instruction, refDataUrls);
+      } else if (refDataUrls.length > 0) {
         b64 = await callImageGateway({
           model: "google/gemini-3.1-flash-image-preview",
           messages: [
@@ -135,8 +183,6 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
         });
       }
     } catch (err) {
-      // não relança: retorna um envelope para o cliente exibir mensagem amigável
-      // sem disparar o overlay de runtime error (que causa tela branca).
       const msg = err instanceof Error ? err.message : "Falha ao gerar imagem";
       console.error("[generatePersonaImage]", msg);
       return { imageUrl: null as string | null, referencesUsed: refDataUrls.length, error: msg, fallback: true as const };
