@@ -43,7 +43,7 @@ export function isProvider(v: unknown): v is VoiceProvider {
 /** Normaliza valores vindos do banco/cache antigo: trata "browser" e nulos
  *  como Kokoro (padrão grátis recomendado). */
 export function normalizeProvider(v: unknown): VoiceProvider {
-  return isProvider(v) ? v : "kokoro";
+  return isProvider(v) ? v : "eleven";
 }
 
 export function voiceLabel(provider: VoiceProvider | null | undefined, id: string | null | undefined): string {
@@ -52,9 +52,9 @@ export function voiceLabel(provider: VoiceProvider | null | undefined, id: strin
   return `${PROVIDER_LABEL[provider]} · ${found?.label ?? id ?? "auto"}`;
 }
 
-/** Voz padrão (Kokoro) por gênero — usada quando uma persona/debate antigo
+/** Voz padrão (ElevenLabs) por gênero — usada quando uma persona/debate antigo
  *  estava marcado como "browser" ou nulo. */
 export const DEFAULT_VOICE_BY_GENDER: Record<VoiceGender, { provider: VoiceProvider; voiceId: string }> = {
-  f: { provider: "kokoro", voiceId: "pf_dora" },
-  m: { provider: "kokoro", voiceId: "pm_alex" },
+  f: { provider: "eleven", voiceId: "EXAVITQu4vr4xnSDxMaL" }, // Bella
+  m: { provider: "eleven", voiceId: "pNInz6obpgDQGcFmaJgB" }, // Adam
 };

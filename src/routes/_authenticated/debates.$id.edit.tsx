@@ -41,12 +41,12 @@ function EditDebate() {
     rounds: 3,
     blocksCount: 4,
     dynamicFlow: false,
-    voiceProviderMod: "kokoro" as VoiceProvider,
-    voiceIdMod: null as string | null,
-    voiceProviderA: "kokoro" as VoiceProvider,
-    voiceIdA: null as string | null,
-    voiceProviderB: "kokoro" as VoiceProvider,
-    voiceIdB: null as string | null,
+    voiceProviderMod: "eleven" as VoiceProvider,
+    voiceIdMod: "21m00Tcm4TlvDq8ikWAM" as string | null,
+    voiceProviderA: "eleven" as VoiceProvider,
+    voiceIdA: "pNInz6obpgDQGcFmaJgB" as string | null,
+    voiceProviderB: "eleven" as VoiceProvider,
+    voiceIdB: "ErXwobaYiN019PkySvjV" as string | null,
   });
 
   useEffect(() => {

@@ -39,7 +39,7 @@ type Side = "moderator" | "a" | "b" | string;
 
 type VoiceSlot = { provider: VoiceProvider; voiceId: string | null; settings: VoiceSettings };
 
-const DEFAULT_SLOT: VoiceSlot = { provider: "kokoro", voiceId: "pf_dora", settings: DEFAULT_VOICE_SETTINGS };
+const DEFAULT_SLOT: VoiceSlot = { provider: "eleven", voiceId: "pNInz6obpgDQGcFmaJgB", settings: DEFAULT_VOICE_SETTINGS };
 
 /** Resolve voz default por gênero (fallback quando persona/debate antigo não tem voz). */
 function defaultSlotByName(name?: string | null): VoiceSlot {
