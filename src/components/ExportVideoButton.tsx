@@ -387,7 +387,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       if (!built || built.length === 0) { setProgress(null); return; }
       setProgress({ label: "Renderizando vídeo", pct: 0 });
       const suffix = blockIndex === null ? "" : `-bloco-${blockIndex + 1}`;
-      await renderAndDownload(built, suffix);
+      const blockTitle = blockIndex === null ? null : (subtopics[blockIndex]?.title ?? null);
+      await renderAndDownload(built, suffix, { blockIndex, blockTitle });
       toast.success(blockIndex === null ? "Vídeo MP4 exportado!" : `Bloco ${blockIndex + 1} exportado!`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao exportar vídeo");
