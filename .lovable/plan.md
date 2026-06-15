@@ -1,20 +1,31 @@
-## Problema
+## Objetivo
 
-O persona prompt do Enéas (em `src/lib/persona-seed-data.ts`) instrui literalmente: *"conclui sempre com 'Meu nome é Enéas'"* e *"Fecha com sentença identitária e o nome próprio para selar"*. Como esse prompt é enviado em TODA fala (resposta, réplica, etc.), o bordão acaba aparecendo em cada turno. O real Enéas só usava o bordão no fim do horário eleitoral — não em cada fala de debate.
+Semear 4 comentaristas (2 masc + 2 fem) no estilo jornalista-intelectual (Pedro Bial, William Waack, etc.) na aba **Comentadores** de `/personas`, e corrigir o erro de runtime do Radix Tabs.
 
-Já existe um `DEBATER_STAGE_RULES` que tenta proibir reapresentação, mas o persona prompt específico do Enéas o sobrepõe.
+## Comentaristas propostos
 
-## Correções
+Personagens fictícios inspirados em arquétipos do jornalismo brasileiro (não usamos nomes reais para evitar problemas de imagem/voz):
 
-1. **`src/lib/persona-seed-data.ts`** — reescrever os campos do Enéas:
-   - Trocar *"conclui sempre com 'Meu nome é Enéas'"* por: *"Reserva o bordão 'Meu nome é Enéas!' EXCLUSIVAMENTE para as considerações finais / encerramento — nunca usa em resposta, réplica ou turno comum."*
-   - Ajustar o campo de tática de fechamento para refletir o mesmo: bordão identitário só no fim do debate.
+| # | Nome | Gênero | Arquétipo / referência | Tom |
+|---|------|--------|------------------------|-----|
+| 1 | **Ricardo Bial** | M | Âncora-poeta, reflexivo, frases longas, citações literárias | descontraído |
+| 2 | **Otávio Waack** | M | Comentarista geopolítico, sério, analítico, vocabulário técnico | formal |
+| 3 | **Mariana Godoy** | F | Jornalista-âncora elegante, factual, ritmo de telejornal | formal |
+| 4 | **Heloísa Castro** | F | Intelectual-colunista, ácida, irônica, viés sociológico | acadêmico |
 
-2. **Atualizar a linha existente em `public.personas`** (migration) — o seed só afeta novos seeds; a persona "Enéas Carneiro" já está no banco com o prompt antigo. Atualizar `persona_prompt` com o texto corrigido para o usuário atual.
+Cada um recebe:
+- `role = 'commentator'`
+- voz ElevenLabs adequada ao gênero (default já existente no catálogo)
+- `tagline` curta + `style` (prompt de personalidade ~ 3-5 linhas explicando ângulo, vocabulário e como reage às falas dos debatedores)
+- `sort_order` 1–4
 
-3. **`src/lib/debate.functions.ts`** — reforçar `DEBATER_STAGE_RULES` adicionando regra explícita: *"Se a sua persona tem um bordão identitário (ex.: 'Meu nome é X'), use-o APENAS na fase 'considerações finais' ou 'veredito'. Em respostas e réplicas comuns, jamais."*
+## Como entregar
+
+1. **Migration única** — `INSERT` dos 4 registros em `public.mediators` com `role='commentator'`, vozes ElevenLabs por gênero (Adam/Brian para M, Bella/Rachel para F) e `style` redigido em PT-BR. `ON CONFLICT (slug) DO NOTHING` para ser idempotente.
+2. **Fix do erro de runtime** — instalar `@radix-ui/react-tabs` (o componente `src/components/ui/tabs.tsx` importa o pacote mas ele não está em `package.json`, por isso o Vite devolveu 504 na aba). Sem isso a aba "Comentadores" nem abre.
 
 ## Fora do escopo
 
-- Não vou reescrever mensagens já geradas neste debate — só falas futuras seguirão a nova regra.
-- Sem mudanças em UI, voz ou clonagem.
+- Sem mudanças de UI (o `CastManager` já lista/edita comentadores).
+- Sem clonagem de voz: usamos vozes ElevenLabs padrão; o usuário pode trocar pela aba depois.
+- Sem fotos/avatares (deixar em branco; pode subir depois via formulário).
