@@ -397,6 +397,23 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       toast.error("Exportação de vídeo ainda só suporta o formato Duelo.");
       return;
     }
+    // Atalho: se já tem MP4 salvo pro mesmo escopo, baixa direto sem regerar.
+    const existing = (savedExports ?? []).find((e) =>
+      blockIndex === null ? e.kind === "full" : e.kind === "block" && e.block_index === blockIndex,
+    );
+    if (existing && existing.download_url) {
+      const reuse = window.confirm(
+        `Já existe um MP4 salvo desse ${blockIndex === null ? "debate" : "bloco"} (${(existing.size_bytes / 1024 / 1024).toFixed(1)}MB). Baixar o existente em vez de gerar de novo?`,
+      );
+      if (reuse) {
+        const a = document.createElement("a");
+        a.href = existing.download_url;
+        a.download = `debate-${debateId.slice(0, 8)}${blockIndex === null ? "" : `-bloco-${blockIndex + 1}`}.mp4`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        toast.success("Vídeo salvo baixado.");
+        return;
+      }
+    }
     setProgress({ label: "Preparando vozes", pct: 0 });
     const slots = resolveSlotsOrWarn();
     if (!slots) { setProgress(null); return; }
