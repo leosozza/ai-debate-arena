@@ -35,24 +35,23 @@ function buildInput(model: ReplicateModelKey, voiceParam: string, text: string):
       };
     case "chatterbox": {
       const input: Record<string, unknown> = {
-        prompt: text,
-        language_id: "pt",
+        text: text.slice(0, 300), // chatterbox limita a 300 chars
+        language: "pt",
         exaggeration: 0.5,
         cfg_weight: 0.5,
       };
       if (voiceParam && /^https?:\/\//i.test(voiceParam)) {
-        input.audio_prompt_path = voiceParam;
+        input.reference_audio = voiceParam;
       }
       // Community model on Replicate → precisa resolver versão.
       return { input, useVersion: true, maxMs: 180_000 };
     }
     case "fish": {
-      const input: Record<string, unknown> = { text };
-      if (voiceParam && /^https?:\/\//i.test(voiceParam)) {
-        input.reference_audio = voiceParam;
-      }
-      return { input, useVersion: true, maxMs: 240_000 };
+      // Fish-speech-1.5 foi removido do Replicate (404). Mantemos o case
+      // só para não quebrar a tipagem; o chamador deve preferir chatterbox/xtts.
+      throw new Error("Modelo fish-speech indisponível no Replicate. Use Chatterbox ou XTTS.");
     }
+
     case "xtts":
       return {
         input: { text, speaker: voiceParam, language: "pt" },
