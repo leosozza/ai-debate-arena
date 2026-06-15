@@ -1,32 +1,49 @@
-## Plano refinado
+## Problemas identificados
 
-Aplicar o prompt otimizado (versão TTS-safe, com regras comportamentais e few-shot) na persona do Enéas e no debate atual, mais o endurecimento global contra refrões.
+1. **"Editor de vídeo" parece não abrir**: O debate `cea98432…` tem `voice_id_b` vazio (string `""`) para o Karl Marx no provedor `eleven`. Em `ExportVideoButton.resolveSlot`, o fallback usa `??`, que **não** captura string vazia — então todas as falas do Marx falham silenciosamente em `fetchAudioUrl`. Pior: a preparação fica rodando ("Preparando vozes 1/31…") sem feedback claro e, dependendo do timing, o botão parece travado. Não tem mensagem específica avisando que falta voz para um participante.
 
-### 1. Migração SQL — `UPDATE` em duas linhas
+2. **Não tem "Exportar vídeo" direto**: hoje só existe o caminho "abrir editor → exportar". Para quem só quer baixar, isso é fricção desnecessária.
 
-**a) `public.personas`** (id `85fcc8b0-f61a-4c1b-a43b-f72faea9b0a8`)
-Substituir `persona_prompt` pelo texto refinado que você forneceu, na íntegra, em 1ª pessoa ("Você é o Dr. Enéas..."), incluindo:
-- Aviso de TTS (sem markdown pesado).
-- Seção 1: oratória/ritmo.
-- Seção 2: regras anti-bordão (proibido abrir com "A tese é…", "Meus senhores!", "Veja bem…"; "Meu nome é Enéas!" só no clímax/encerramento).
-- Seção 3: base de conhecimento (obras, economia, geopolítica, rejeição aos dois extremos).
-- Seção 4: few-shot de calibração (pergunta + resposta-exemplo sobre economia brasileira).
+3. **Vídeos longos pesam demais**: este debate tem 4 blocos / 31 falas. Renderizar tudo de uma vez é lento e o MP4 fica grande. Faz sentido ter "Exportar bloco 1, bloco 2, …" gerando 4 MP4s menores.
 
-**b) `public.debates`** (id `cea98432-ee13-4818-a673-02ebab6c8eee`)
-Confirmo qual coluna o Enéas ocupa (`debater_a_persona` vs `debater_b_persona` — pelo contexto anterior ele é o debater_b) e atualizo a mesma string lá, para que as próximas regenerações deste debate já usem o novo prompt (o campo é uma cópia tirada no momento de criação do debate).
+## Mudanças
 
-### 2. `src/lib/debate.functions.ts` — `DEBATER_STAGE_RULES`
+### 1. Corrigir o resolvedor de voz (`src/components/ExportVideoButton.tsx`)
 
-Acrescentar parágrafo global (vale para todas as personas):
+- Trocar `voiceId ?? fallback` por uma checagem que também trate `""` como ausente (`const id = (voiceId ?? "").trim(); return id || fallback`).
+- Antes de começar a sintetizar, validar slots e mostrar `toast.error` claro listando QUEM está sem voz ("Karl Marx está sem voz. Configure em Editar > Vozes."), em vez de só falhar silenciosamente fala a fala.
+- Mostrar o estado "Preparando…" desde o primeiro clique (já existe, mas garantir que o `setProgress` é chamado síncrono no `onClick`).
 
-> REGRA ANTI-REFRÃO E TTS: sua fala vira áudio. Não use markdown (`**`, `*`, listas, cabeçalhos). Não abra dois turnos seguidos com a mesma fórmula. Não repita frases-âncora identitárias da persona ("A tese é…", "Meus senhores!", "Brasil acima de tudo", "Meu nome é X!") fora do encerramento. Varie aberturas e conectores; cada turno traz dado, conceito ou exemplo histórico novo.
+### 2. Adicionar botão "Exportar vídeo" (direto, sem editor)
 
-### Fora de escopo
-- Regenerar as falas já gravadas — você dispara quando quiser pelo botão de regenerar.
-- Mexer em outras personas ou ajustar TTS/voz.
+- Novo botão ao lado do "Editor de vídeo" no `debates.$id.index.tsx`, rotulado **"Exportar MP4"**.
+- Reaproveita 100% da pipeline já em `ExportVideoButton` (TTS + `exportDebateMp4`), pulando o `TimelineEditor` — gera com defaults (música ligada, legendas ligadas, sem SFX customizados) e dispara o download direto.
 
-### Ordem de execução
-1. `supabase--migration` com os dois `UPDATE`s (precisa de aprovação sua).
-2. Após aprovação, edito `debate.functions.ts` com o parágrafo anti-refrão+TTS.
+### 3. Exportar **por bloco**
 
-Aprovando, sigo nessa ordem.
+- Novo menu (dropdown) **"Exportar bloco…"** com itens:
+  - "Bloco 1: <título>" → exporta só falas com `block_index = 0`
+  - "Bloco 2: <título>"
+  - "Bloco 3: <título>"
+  - "Bloco 4: <título>"
+  - "Tudo (vídeo único)" → comportamento atual
+- A geração por bloco filtra `data.messages` por `block_index`, prepende a abertura virtual só se for o bloco 0, e nomeia o arquivo `debate-<id8>-bloco-<n>.mp4`.
+- Cada bloco vira um arquivo MP4 independente, muito mais rápido de gerar e baixar.
+
+### 4. UX
+
+- Os 3 controles (`Editor de vídeo`, `Exportar MP4`, `Exportar bloco…`) ficam agrupados num único container, sem inflar a barra de ações.
+- Quando o debate só tem 1 bloco, esconder o dropdown "Exportar bloco…".
+
+## Arquivos afetados
+
+- `src/components/ExportVideoButton.tsx` — fix do `resolveSlot`, validação de vozes, exportação direta, exportação por bloco, dropdown de blocos.
+- `src/routes/_authenticated/debates.$id.index.tsx` — só se precisar repassar `block_subtopics` (já vem em `data.debate`).
+
+Nada de mudança no `video-export.ts` — a função já aceita qualquer lista de `messages`.
+
+## Validação
+
+- Recarregar `/debates/cea98432-…/`: o botão "Editor de vídeo" deve abrir o editor mesmo com Marx sem voz (pulando só as falas dele com aviso claro), ou mostrar erro direto pedindo para configurar a voz.
+- Clicar "Exportar MP4" baixa um único MP4 sem passar pelo editor.
+- "Exportar bloco → Bloco 2" baixa só as falas do bloco 2.
