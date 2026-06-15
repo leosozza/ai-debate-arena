@@ -113,7 +113,7 @@ export const replicateTts = createServerFn({ method: "POST" })
         /^https?:\/\//i.test(voiceParam) &&
         (model === "fish" || model === "chatterbox" || model === "xtts");
       const chain: ReplicateModelKey[] = isCloneWithRef
-        ? (["fish", "xtts", "chatterbox"].filter((m, i, arr) => arr.indexOf(m) === i) as ReplicateModelKey[])
+        ? (["chatterbox", "xtts", "fish"].filter((m, i, arr) => arr.indexOf(m) === i) as ReplicateModelKey[])
         : [model];
       // garantir que o modelo escolhido vem primeiro
       if (isCloneWithRef && chain[0] !== model) {
@@ -168,12 +168,14 @@ export const cloneVoiceReplicate = createServerFn({ method: "POST" })
     } catch (e) {
       console.warn("[cloneVoiceReplicate] falha ao salvar preset:", e);
     }
-    // Prefixo fish: → roteia para lucataco/fish-speech-1.5 (melhor zero-shot PT-BR).
+    // Prefixo chatterbox: → mais consistente em PT-BR que Fish 1.5.
     return {
       provider: "replicate" as const,
-      voiceId: `fish:${url}`,
+      voiceId: `chatterbox:${url}`,
       name: data.name,
       source: "upload-replicate" as const,
+      audioUrl: url,
     };
   });
+
 
