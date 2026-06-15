@@ -138,40 +138,40 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2">
         <Button
           type="button"
-          size="sm"
-          onClick={() => run("replicate")}
+          onClick={runCascade}
           disabled={busy !== null || files.length === 0}
+          className="w-full"
         >
-          {busy === "replicate" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-          Clonar com Fish Audio (Replicate)
+          {busy === "cascade" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+          Clonar voz (qualidade máxima)
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => run("eleven")}
-          disabled={busy !== null || files.length === 0}
-        >
-          {busy === "eleven" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-          ElevenLabs
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => run("minimax")}
-          disabled={busy !== null || files.length === 0}
-        >
-          {busy === "minimax" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-          MiniMax
-        </Button>
+        <p className="text-[11px] text-muted-foreground">
+          Tenta ElevenLabs → MiniMax → Replicate (Chatterbox) automaticamente. Envie 30s–2min de fala limpa em PT-BR.
+        </p>
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        Fish Audio: zero-shot premium, 10–30s de fala limpa em PT-BR. Em caso de falha, tenta XTTS-v2 e Chatterbox automaticamente.
-      </p>
+
+      <details className="border-t border-border/60 pt-3" open={showAdvanced} onToggle={(e) => setShowAdvanced((e.target as HTMLDetailsElement).open)}>
+        <summary className="text-xs uppercase tracking-wide text-muted-foreground cursor-pointer select-none">
+          Avançado — forçar provedor específico
+        </summary>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <Button type="button" size="sm" variant="outline" onClick={() => run("eleven")} disabled={busy !== null || files.length === 0}>
+            {busy === "eleven" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+            Só ElevenLabs
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => run("minimax")} disabled={busy !== null || files.length === 0}>
+            {busy === "minimax" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+            Só MiniMax
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => run("replicate")} disabled={busy !== null || files.length === 0}>
+            {busy === "replicate" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+            Só Replicate
+          </Button>
+        </div>
+      </details>
 
       {lastError && (
         <div className="flex items-start gap-2 rounded border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
@@ -191,16 +191,13 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
               <SelectItem value="minimax">MiniMax</SelectItem>
             </SelectContent>
           </Select>
-          <Input
-            placeholder="voice_id"
-            value={manualId}
-            onChange={(e) => setManualId(e.target.value)}
-          />
+          <Input placeholder="voice_id" value={manualId} onChange={(e) => setManualId(e.target.value)} />
           <Button type="button" size="sm" variant="secondary" onClick={applyManual}>
             <Check className="h-3.5 w-3.5 mr-1" /> Aplicar
           </Button>
         </div>
       </div>
+
     </div>
   );
 }
