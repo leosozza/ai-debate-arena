@@ -285,13 +285,14 @@ async function savePreset<C extends { supabase: { from: (t: string) => { insert:
     // Para Eleven/MiniMax, salvamos o voice_id no próprio voice_url (não é URL, mas
     // serve como identificador estável para o picker reusar).
     const voiceUrl = provider === "replicate" ? voiceId.replace(/^chatterbox:/, "") : voiceId;
-    await context.supabase.from("voice_presets").insert({
+    await (context.supabase.from("voice_presets").insert({
       user_id: context.userId,
       name,
       voice_url: voiceUrl,
       is_real_person: true,
       notes: `provider=${provider};voice_id=${voiceId}`,
-    });
+    }) as Promise<unknown>);
+
   } catch (e) {
     console.warn("[savePreset] falha:", e);
   }
