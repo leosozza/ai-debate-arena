@@ -67,25 +67,46 @@ function Avatar({ name, src, accent }: { name: string; src: string | null; accen
   );
 }
 
-export function CastStrip({ formatLabel, members }: { formatLabel?: string; members: CastMember[] }) {
+export function CastStrip({ formatLabel, members, onMemberClick }: { formatLabel?: string; members: CastMember[]; onMemberClick?: (key: string) => void }) {
+  const scrollRef = (el: HTMLDivElement | null) => {
+    if (!el) return;
+    // Convert vertical wheel to horizontal scroll for easier discovery
+    el.onwheel = (e) => {
+      if (e.deltaY === 0) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+  };
   return (
-    <Card className="p-4 mb-6 bg-card/50">
+    <Card className="p-4 mb-6 bg-card/50 overflow-hidden">
       {formatLabel && (
         <div className="flex items-center gap-2 mb-3">
           <Badge variant="outline" className="text-[10px] uppercase tracking-widest">{formatLabel}</Badge>
-          <span className="text-xs text-muted-foreground">Elenco do programa</span>
+          <span className="text-xs text-muted-foreground">Elenco do programa · clique para editar</span>
         </div>
       )}
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        {members.map((m) => (
-          <div key={m.key} className="flex items-center gap-2.5 rounded-lg border border-border/50 bg-background/40 px-3 py-2 shrink-0">
-            <Avatar name={m.name} src={m.imageUrl} accent={m.accent} />
-            <div className="min-w-0">
-              <div className="font-display font-semibold text-sm leading-tight truncate max-w-[140px]">{m.name}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{m.roleLabel}</div>
-            </div>
-          </div>
-        ))}
+      <div
+        ref={scrollRef}
+        className="flex gap-3 overflow-x-auto pb-2 scroll-smooth snap-x [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full"
+      >
+        {members.map((m) => {
+          const Tag = onMemberClick ? "button" : "div";
+          return (
+            <Tag
+              key={m.key}
+              type={onMemberClick ? "button" : undefined}
+              onClick={onMemberClick ? () => onMemberClick(m.key) : undefined}
+              className={`flex items-center gap-2.5 rounded-lg border border-border/50 bg-background/40 px-3 py-2 shrink-0 snap-start text-left transition ${onMemberClick ? "hover:border-primary/60 hover:bg-background/70 cursor-pointer" : ""}`}
+            >
+              <Avatar name={m.name} src={m.imageUrl} accent={m.accent} />
+              <div className="min-w-0">
+                <div className="font-display font-semibold text-sm leading-tight truncate max-w-[140px]">{m.name}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{m.roleLabel}</div>
+              </div>
+            </Tag>
+          );
+        })}
       </div>
     </Card>
   );
