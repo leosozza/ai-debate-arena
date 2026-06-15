@@ -109,34 +109,41 @@ export const generatePersonaImage = createServerFn({ method: "POST" })
     }. Centered face, neutral dignified expression, soft studio lighting, plain dark neutral background, ultra-detailed, sharp focus on the face, 85mm lens, color photograph, museum-quality reference portrait. No text, no watermarks, no frames, no special effects, no holograms. Square 1:1 framing.`;
 
     let b64: string;
-    if (refDataUrls.length > 0) {
-      const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully. Output a clean photorealistic portrait (NOT a hologram, NOT stylized) — just a high-quality reference photo of this person.`;
-      b64 = await callImageGateway({
-        model: "google/gemini-3.1-flash-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: instruction },
-              ...refDataUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
-            ],
-          },
-        ],
-        modalities: ["image", "text"],
-      });
-    } else {
-      // fallback: sem referências, gera um avatar fictício baseado só na descrição
-      b64 = await callImageGateway({
-        model: "openai/gpt-image-2",
-        prompt: baseInstruction,
-        size: "1024x1024",
-        quality: "low",
-        n: 1,
-      });
+    try {
+      if (refDataUrls.length > 0) {
+        const instruction = `${baseInstruction}\n\nIMPORTANT: The reference images below show the REAL person — reproduce their actual face, features, ethnicity, age range and hair faithfully. Output a clean photorealistic portrait (NOT a hologram, NOT stylized) — just a high-quality reference photo of this person.`;
+        b64 = await callImageGateway({
+          model: "google/gemini-3.1-flash-image-preview",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: instruction },
+                ...refDataUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+              ],
+            },
+          ],
+          modalities: ["image", "text"],
+        });
+      } else {
+        b64 = await callImageGateway({
+          model: "openai/gpt-image-2",
+          prompt: baseInstruction,
+          size: "1024x1024",
+          quality: "low",
+          n: 1,
+        });
+      }
+    } catch (err) {
+      // não relança: retorna um envelope para o cliente exibir mensagem amigável
+      // sem disparar o overlay de runtime error (que causa tela branca).
+      const msg = err instanceof Error ? err.message : "Falha ao gerar imagem";
+      console.error("[generatePersonaImage]", msg);
+      return { imageUrl: null as string | null, referencesUsed: refDataUrls.length, error: msg, fallback: true as const };
     }
 
     const url = await uploadAndSign(context.userId, b64ToBytes(b64), "image/png", "png");
-    return { imageUrl: url, referencesUsed: refDataUrls.length };
+    return { imageUrl: url as string | null, referencesUsed: refDataUrls.length, error: null as string | null, fallback: false as const };
   });
 
 /** Upload direto de imagem da persona. */
