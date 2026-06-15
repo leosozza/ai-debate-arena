@@ -36,9 +36,8 @@ interface Props {
 const DEFAULT_SAMPLE = "Olá! Esta é uma amostra da minha voz para o debate.";
 
 export function VoicePicker({ label, provider, voiceId, onChange, settings, onSettingsChange, sampleText, filterGender }: Props) {
-  const p: VoiceProvider = provider ?? "browser";
+  const p: VoiceProvider = provider ?? "kokoro";
   const s: VoiceSettings = settings ?? DEFAULT_VOICE_SETTINGS;
-  const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
