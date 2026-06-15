@@ -210,6 +210,9 @@ const UpdateDebateSchema = z.object({
   voiceIdA: VoiceIdSchema,
   voiceProviderB: VoiceProviderSchema,
   voiceIdB: VoiceIdSchema,
+  moderatorName: z.string().trim().max(120).nullable().optional(),
+  moderatorStyle: z.string().trim().max(4000).nullable().optional(),
+  commentators: z.array(CommentatorSchema).max(2).nullable().optional(),
 });
 
 
