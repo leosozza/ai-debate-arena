@@ -50,18 +50,17 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const persona = personaName ? personas?.find((p) => norm(p.name) === norm(personaName)) ?? null : null;
     const pp = persona?.voice_provider as VoiceProvider | null | undefined;
     const pid = persona?.voice_id ?? null;
-    // A persona só sobrescreve se tiver uma voz REAL (não-navegador, com id).
-    // Senão, usa a voz definida no próprio debate (ex.: ajustada em ⚙️).
-    if (pp && pp !== "browser" && pid && ["kokoro", "piper", "eleven", "minimax", "replicate"].includes(pp)) {
+    // A persona só sobrescreve se tiver uma voz REAL com id.
+    if (pp && pid && ["kokoro", "piper", "eleven", "minimax", "replicate"].includes(pp)) {
       return { provider: pp, voiceId: pid };
     }
-    const p = (provider as VoiceProvider) ?? "browser";
-    return { provider: p, voiceId: voiceId ?? null };
+    const p = ((provider === "kokoro" || provider === "piper" || provider === "eleven" || provider === "minimax" || provider === "replicate")
+      ? provider
+      : "kokoro") as VoiceProvider;
+    return { provider: p, voiceId: voiceId ?? (p === "kokoro" ? "pf_dora" : null) };
   }
 
   async function fetchAudioUrl(slot: Slot, text: string): Promise<string> {
-    // A voz do navegador não gera bytes de áudio → não pode entrar no vídeo.
-    if (slot.provider === "browser") throw new Error("navegador_nao_grava");
     if (!slot.voiceId) throw new Error("voz_nao_definida");
     const clean = stripMarkdownForTts(text).slice(0, 5000);
     if (slot.provider === "kokoro") {
