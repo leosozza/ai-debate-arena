@@ -78,7 +78,7 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
     try {
       const res = await cloneCascade({ data: fd as unknown as never });
       const label = res.provider === "eleven" ? "ElevenLabs" : res.provider === "minimax" ? "MiniMax" : "Replicate";
-      toast.success(`Voz clonada via ${label} ✓`);
+      toast.success(`✓ Voz "${cloneName}" clonada (${label} · ${res.voiceId.slice(0, 10)}…) e atribuída à persona`, { duration: 6000 });
       onCloned({ provider: res.provider, voiceId: res.voiceId, source: res.source, cloneName });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Falha ao clonar";
