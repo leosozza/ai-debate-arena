@@ -271,12 +271,14 @@ export const cloneVoiceCascade = createServerFn({ method: "POST" })
     );
   });
 
+type AuthContext = { supabase: { from: (t: string) => { insert: (v: Record<string, unknown>) => Promise<{ error: unknown } | unknown> } }; userId: string };
 async function savePreset(
-  context: { supabase: SupabaseLike; userId: string },
+  context: AuthContext,
   name: string,
   voiceId: string,
   provider: "eleven" | "minimax" | "replicate",
 ) {
+
 
   try {
     // Para Replicate, voiceId já vem como "chatterbox:<url>"; extrai URL para voice_url.
