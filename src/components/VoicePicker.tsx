@@ -54,14 +54,6 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
   const presets = presetsQuery.data ?? [];
 
   useEffect(() => {
-    function load() {
-      if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-      setBrowserVoices(window.speechSynthesis.getVoices());
-    }
-    load();
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.onvoiceschanged = load;
-    }
     return () => stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
