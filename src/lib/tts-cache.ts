@@ -67,6 +67,27 @@ export async function ttsCachePut(key: string, blob: Blob, duration: number): Pr
   }
 }
 
+/** Procura no cache qualquer áudio cuja chave contenha `|${msgId}|` (qualquer provider/voz). */
+export async function ttsCacheFindByMsgId(msgId: string): Promise<{ blob: Blob; duration: number } | null> {
+  try {
+    const store = await tx("readonly");
+    const needle = `|${msgId}|`;
+    return await new Promise((res) => {
+      const r = store.openCursor();
+      r.onsuccess = () => {
+        const c = r.result;
+        if (!c) { res(null); return; }
+        const e = c.value as Entry;
+        if (e.key.includes(needle)) { res({ blob: e.blob, duration: e.duration }); return; }
+        c.continue();
+      };
+      r.onerror = () => res(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** Apaga entradas mais velhas que MAX_AGE_MS. Chamada uma vez por sessão. */
 let pruned = false;
 export async function ttsCachePrune(): Promise<void> {

@@ -15,6 +15,7 @@ import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil, Rota
 import { ExportPackDialog } from "@/components/ExportPackDialog";
 import { ExportVideoButton } from "@/components/ExportVideoButton";
 import { DebateExportsList } from "@/components/DebateExportsList";
+import { MessageAudioButton } from "@/components/MessageAudioButton";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -401,9 +402,12 @@ function DebateDetail() {
                 const name = roleName(m.role);
                 return (
                   <Card key={m.id} className={`p-5 border-l-4 ${color} bg-card/60 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2 duration-500`}>
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className={`font-display font-semibold ${nameColor}`}>{name}</span>
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">{m.phase}</span>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-baseline gap-2 min-w-0">
+                        <span className={`font-display font-semibold ${nameColor}`}>{name}</span>
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">{m.phase}</span>
+                      </div>
+                      <MessageAudioButton msgId={m.id} />
                     </div>
                     <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">{m.content}</p>
                   </Card>
