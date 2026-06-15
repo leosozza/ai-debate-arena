@@ -307,6 +307,23 @@ export const getDebate = createServerFn({ method: "POST" })
     const { data: messages, error: mErr } = await context.supabase
       .from("debate_messages").select("*").eq("debate_id", data.id).order("order_index");
     if (mErr) throw new Error(mErr.message);
+    // Backfill A/B image_url from personas by matching name when missing
+    const missingNames: string[] = [];
+    if (!debate.debater_a_image_url && debate.debater_a_name) missingNames.push(debate.debater_a_name);
+    if (!debate.debater_b_image_url && debate.debater_b_name) missingNames.push(debate.debater_b_name);
+    if (missingNames.length > 0) {
+      const { data: personas } = await context.supabase
+        .from("personas")
+        .select("name, image_url")
+        .in("name", missingNames);
+      const map = new Map((personas ?? []).filter((p) => p.image_url).map((p) => [p.name, p.image_url as string]));
+      if (!debate.debater_a_image_url && map.get(debate.debater_a_name)) {
+        debate.debater_a_image_url = map.get(debate.debater_a_name) ?? null;
+      }
+      if (!debate.debater_b_image_url && map.get(debate.debater_b_name)) {
+        debate.debater_b_image_url = map.get(debate.debater_b_name) ?? null;
+      }
+    }
     return { debate, messages: messages ?? [] };
   });
 
