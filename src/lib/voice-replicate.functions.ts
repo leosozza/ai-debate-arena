@@ -82,7 +82,17 @@ function buildInput(model: ReplicateModelKey, voiceParam: string, text: string):
   }
 }
 
-/** TTS via Replicate. Modelo é resolvido pelo prefixo no voiceId. */
+async function tryOne(model: ReplicateModelKey, voiceParam: string, text: string) {
+  const { input, useVersion, maxMs } = buildInput(model, voiceParam, text);
+  const modelPath = REPLICATE_MODELS[model];
+  const output = await runPrediction(modelPath, input, { maxMs, useVersion });
+  const url = pickUrl(output);
+  if (!url) throw new Error(`Replicate TTS (${model}): resposta sem áudio.`);
+  const { base64, mime } = await fetchAsBase64(url);
+  return { base64, mime };
+}
+
+/** TTS via Replicate. Modelo é resolvido pelo prefixo no voiceId. Com fallback em cascata para clones. */
 export const replicateTts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => d as { text?: unknown; voiceId?: unknown })
@@ -97,14 +107,33 @@ export const replicateTts = createServerFn({ method: "POST" })
         };
       }
       const { model, voiceParam } = resolveReplicateVoice(parsed.data.voiceId);
-      const { input, useVersion, maxMs } = buildInput(model, voiceParam, parsed.data.text);
-      const modelPath = REPLICATE_MODELS[model];
 
-      const output = await runPrediction(modelPath, input, { maxMs, useVersion });
-      const url = pickUrl(output);
-      if (!url) throw new Error("Replicate TTS: resposta sem áudio.");
-      const { base64, mime } = await fetchAsBase64(url);
-      return { audioBase64: base64, mime };
+      // Cascata de fallback APENAS para clones com URL de referência.
+      const isCloneWithRef =
+        /^https?:\/\//i.test(voiceParam) &&
+        (model === "fish" || model === "chatterbox" || model === "xtts");
+      const chain: ReplicateModelKey[] = isCloneWithRef
+        ? (["fish", "xtts", "chatterbox"].filter((m, i, arr) => arr.indexOf(m) === i) as ReplicateModelKey[])
+        : [model];
+      // garantir que o modelo escolhido vem primeiro
+      if (isCloneWithRef && chain[0] !== model) {
+        chain.splice(chain.indexOf(model), 1);
+        chain.unshift(model);
+      }
+
+      const errors: string[] = [];
+      for (const m of chain) {
+        try {
+          const { base64, mime } = await tryOne(m, voiceParam, parsed.data.text);
+          console.log(`[replicateTts] sucesso via ${m}`);
+          return { audioBase64: base64, mime };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[replicateTts] ${m} falhou: ${msg}`);
+          errors.push(`${m}: ${msg}`);
+        }
+      }
+      throw new Error(errors.join(" | "));
     } catch (e) {
       const error = e instanceof Error ? e.message : "Replicate TTS falhou.";
       console.error("[replicateTts]", error);
@@ -120,17 +149,20 @@ export const cloneVoiceReplicate = createServerFn({ method: "POST" })
     const name = String(d.get("name") ?? "").trim();
     if (name.length < 2 || name.length > 80) throw new Error("Rótulo deve ter 2 a 80 caracteres.");
     const file = d.getAll("files").find((f): f is File => f instanceof File && f.size > 0);
-    if (!file) throw new Error("Envie 1 arquivo de áudio (10–60s de fala clara).");
+    if (!file) throw new Error("Envie 1 arquivo de áudio (10–30s de fala clara).");
     if (!file.type.startsWith("audio/")) throw new Error(`"${file.name}" não é áudio.`);
     if (file.size > 12 * 1024 * 1024) throw new Error("Arquivo excede 12 MB.");
+    if (file.size < 30 * 1024) throw new Error("Áudio muito curto. Envie pelo menos ~5s de fala.");
     return { name, file };
   })
   .handler(async ({ data }) => {
     const url = await uploadFile(data.file);
+    // Prefixo fish: → roteia para lucataco/fish-speech-1.5 (melhor zero-shot PT-BR).
     return {
       provider: "replicate" as const,
-      voiceId: url,
+      voiceId: `fish:${url}`,
       name: data.name,
       source: "upload-replicate" as const,
     };
   });
+
