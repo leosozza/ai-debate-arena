@@ -1,45 +1,53 @@
-## Objetivo
-Remover totalmente o provider "browser" (Web Speech) do sistema de vozes. Kokoro vira o padrão e debates antigos que usavam navegador migram automaticamente ao abrir.
+# Plano: Clonagem de voz que realmente funciona
+
+## Diagnóstico
+
+Hoje "clonar com Replicate" só **faz upload** do áudio e devolve a URL, que depois é usada como referência *zero-shot* pelo Chatterbox (default quando o `voiceId` é uma URL crua). Problemas conhecidos desse caminho:
+
+- Chatterbox é um modelo da comunidade — exige resolver versão, é instável e frequentemente devolve áudio vazio/curto, caindo no erro "Modelo devolveu áudio vazio".
+- Não há feedback claro de qual modelo gerou — o usuário só vê "não funcionou".
+- Não há retry/fallback automático para outro modelo de clone.
 
 ## Mudanças
 
-### 1. Catálogo de vozes (`src/lib/voice-catalog.ts`)
-- Remover `"browser"` do `VoiceProvider` union (vira `"kokoro" | "piper" | "eleven" | "minimax" | "replicate"`).
-- Tirar `browser` de `PROVIDER_LABEL`, `isProvider`, e `voiceLabel`.
-- `VOICE_CATALOG` deixa de precisar de `Exclude<..., "browser">`.
+### 1. Priorizar Fish Audio (`lucataco/fish-speech-1.5`) para áudio com referência
 
-### 2. Schemas server (zod)
-Trocar `z.enum(["browser", ...])` em:
-- `src/lib/voice-clone.functions.ts`
-- `src/lib/persona.functions.ts`
-- `src/lib/debate.functions.ts`
-- `src/lib/debate-participants.functions.ts`
+Em `src/lib/replicate-voices.ts` → `resolveReplicateVoice()`: quando o `voiceId` for uma URL `https://...` crua (caso pós-upload), passar a rotear para **fish** ao invés de chatterbox. Chatterbox vira opção explícita via prefixo `cb:`.
 
-Aceitar valor antigo `"browser"` no input mas normalizar para `"kokoro"` antes de gravar (compat com clientes antigos em cache).
+### 2. Tornar `cloneVoiceReplicate` mais robusto
 
-### 3. VoicePicker (`src/components/VoicePicker.tsx`)
-- Remover branch `p === "browser"` (preview via `SpeechSynthesis`, lista de `browserVoices`, select "Automática pt-BR").
-- Default provider passa a ser `"kokoro"`.
-- Lista de providers no `Select` perde `"browser"`.
-- `pitchSupported = p === "minimax"`.
+Em `src/lib/voice-replicate.functions.ts`:
+- Continuar fazendo upload do áudio para obter URL persistente.
+- Marcar o `voiceId` retornado com prefixo `fish:` explícito (em vez de URL crua) para evitar ambiguidade futura.
+- Validar duração mínima (avisar se < 5s) e formato.
 
-### 4. Apresentação (`src/routes/_authenticated/presentation.$id.tsx`)
-- `DEFAULT_SLOT.provider` = `"kokoro"`, `voiceId` = `"pf_dora"` (mod), e regra equivalente por gênero para A/B.
-- Helper `normalizeSlot()`: se `provider === "browser"` (vindo do DB), substitui por Kokoro com voz default por gênero da persona.
-- Remover `browserSpeak()` e todos os fallbacks `slot.provider === "browser"` (passam a sintetizar via Kokoro).
-- Tirar avisos "browserSlots" / "navegador não grava" do export e do "pré-gerar todas as vozes".
+### 3. Fallback em cascata no `replicateTts`
 
-### 5. Telas de criação/edição
-- `src/routes/_authenticated/new.tsx` e `debates.$id.edit.tsx`: defaults `voiceProvider*` = `"kokoro"` (com `voiceId` default por gênero).
-- Migração ao carregar persona: `vp === "browser"` → `"kokoro"` + voz default.
+Quando o modelo é de clone (fish/chatterbox/xtts) e a chamada falha (erro, áudio vazio, timeout), tentar automaticamente o próximo na ordem:
+1. `fish` (lucataco/fish-speech-1.5) — premium, mais consistente
+2. `xtts` (lucataco/xtts-v2) — legado, mais permissivo
+3. `chatterbox` — última tentativa
 
-### 6. Export (`src/components/ExportVideoButton.tsx`)
-- Remover check `provider === "browser"` e erro `navegador_nao_grava` (já não pode acontecer).
+Log de qual modelo serviu o áudio para debug.
 
-### 7. Migração de banco (opcional, segura)
-Migration SQL: `UPDATE` em `debates` (`voice_provider_mod/a/b`) e `personas` (`voice_provider`) trocando `'browser'` por `'kokoro'` e preenchendo `voice_id` com `'pf_dora'` (F) ou `'pm_alex'` (M) conforme `gender` quando nulo. Isso garante que mesmo o `_authenticated/debates.$id.arena.tsx` e demais leituras diretas funcionem.
+### 4. UI no `VoiceClonePanel`
 
-## Notas técnicas
-- A normalização client-side cobre debates abertos antes da migration rodar.
-- Tipos: `VoiceProvider` mais restrito vai gerar erros TS nos arquivos listados — todos cobertos acima.
-- Texto/UI: nenhum copy menciona "navegador" depois disso.
+- Renomear botão "Replicate (XTTS-v2)" → **"Clonar com Fish Audio (Replicate)"**.
+- Mensagem de ajuda atualizada: "Fish Audio: 10–30s de fala limpa, melhor qualidade zero-shot para PT-BR".
+- Mostrar qual modelo foi usado no toast de sucesso.
+
+### 5. Persistência da URL de clone
+
+O upload do Replicate é persistente (não expira em 1h como `replicate.delivery`), então o `voiceId` `fish:<url>` continua funcionando entre sessões. Sem mudança de banco.
+
+## Arquivos afetados
+
+- `src/lib/replicate-voices.ts` — roteamento de URL crua → fish; novo prefixo `fish:` documentado.
+- `src/lib/voice-replicate.functions.ts` — retornar `voiceId` com prefixo `fish:`, validações, fallback em cascata no `replicateTts`.
+- `src/components/VoiceClonePanel.tsx` — textos do botão e mensagem.
+
+## Fora de escopo
+
+- Webhooks assíncronos (a sandbox de runtime aguenta os ~30–60s típicos de fish-speech; só viraria necessário se passar de 5min).
+- Trocar provedor padrão para MiniMax (você pediu Fish + fallback).
+- Mexer no ElevenLabs/MiniMax existentes — continuam disponíveis como botões alternativos.

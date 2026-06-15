@@ -133,7 +133,7 @@ export function resolveReplicateVoice(voiceId: string): {
   if (v.startsWith("cb:")) return { model: "chatterbox", voiceParam: v.slice(3) };
   if (v.startsWith("fish:")) return { model: "fish", voiceParam: v.slice(5) };
   if (v.startsWith("xtts:")) return { model: "xtts", voiceParam: v.slice(5) };
-  // URL crua de áudio → Chatterbox (nativo PT-BR, mais confiável que XTTS).
-  if (/^https?:\/\//i.test(v)) return { model: "chatterbox", voiceParam: v };
+  // URL crua de áudio → Fish Speech (clone zero-shot mais consistente).
+  if (/^https?:\/\//i.test(v)) return { model: "fish", voiceParam: v };
   return { model: "minimax-hd", voiceParam: v };
 }
