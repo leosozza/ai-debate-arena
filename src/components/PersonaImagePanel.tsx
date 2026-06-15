@@ -48,12 +48,16 @@ export function PersonaImagePanel({ name, description, value, onChange }: Props)
     try {
       if (provider === "gemini") {
         const out = await gen({ data: { name: name.trim(), description } });
-        onChange(out.imageUrl);
-        toast.success(
-          out.referencesUsed > 0
-            ? `Imagem gerada com ${out.referencesUsed} referência(s) reais da web`
-            : "Imagem gerada (sem referências reais encontradas — avatar fictício)",
-        );
+        if (!out.imageUrl) {
+          toast.error(out.error ?? "Falha ao gerar imagem");
+        } else {
+          onChange(out.imageUrl);
+          toast.success(
+            out.referencesUsed > 0
+              ? `Imagem gerada com ${out.referencesUsed} referência(s) reais da web`
+              : "Imagem gerada (sem referências reais encontradas — avatar fictício)",
+          );
+        }
       } else {
         const model = provider === "flux-schnell" ? "schnell" : "1.1-pro";
         const out = await genFlux({ data: { name: name.trim(), description, model } });
