@@ -258,6 +258,12 @@ export const updateDebate = createServerFn({ method: "POST" })
     if (d.voiceIdA !== undefined) patch.voice_id_a = d.voiceIdA;
     if (d.voiceProviderB !== undefined) patch.voice_provider_b = d.voiceProviderB;
     if (d.voiceIdB !== undefined) patch.voice_id_b = d.voiceIdB;
+    if (d.moderatorName !== undefined) patch.moderator_name = d.moderatorName;
+    if (d.moderatorStyle !== undefined) patch.moderator_style = d.moderatorStyle;
+    if (d.commentators !== undefined) {
+      (patch as Record<string, unknown>).commentators =
+        d.commentators && d.commentators.length ? d.commentators : null;
+    }
     const { error } = await context.supabase.from("debates").update(patch as never).eq("id", id);
     if (error) throw new Error(error.message);
     return { ok: true };
