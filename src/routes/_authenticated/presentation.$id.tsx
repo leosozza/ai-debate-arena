@@ -122,6 +122,7 @@ function PresentMode() {
     }
     load();
     window.speechSynthesis.onvoiceschanged = load;
+    void ttsCachePrune();
     return () => { window.speechSynthesis.cancel(); audioRef.current?.pause(); };
   }, []);
 
