@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const BUCKET = "debate-videos";
 
 async function assertOwnsDebate(
-  supabase: ReturnType<typeof requireSupabaseAuth.options.server.handler> extends never ? never : any,
+  supabase: SupabaseClient,
   userId: string,
   debateId: string,
 ) {
