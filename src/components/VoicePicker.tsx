@@ -169,14 +169,18 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
               const catalog = filterVoicesByGender(p, filterGender);
               const fallback = catalog[0]?.id ?? VOICE_CATALOG[p]?.[0]?.id ?? "";
               const currentId = voiceId && voiceId.length > 0 ? voiceId : fallback;
-              const showPresets = p === "replicate" && presets.length > 0;
-              // Para presets clonados (replicate), o usuário pode escolher o modelo:
-              // armazenamos como "<prefix>:<url>" ou só "<url>" (xtts default).
+              // Presets clonados: replicate guarda URL; eleven/minimax guardam voice_id curto.
+              const presetsForProvider = presets.filter((pr) => {
+                if (p === "replicate") return /^https?:\/\//i.test(pr.voice_url);
+                if (p === "eleven" || p === "minimax") return !/^https?:\/\//i.test(pr.voice_url);
+                return false;
+              });
+              const showPresets = presetsForProvider.length > 0;
               const stripPrefix = (s: string) => s.replace(/^(cb|fish|xtts):/, "");
               const cleanId = p === "replicate" ? stripPrefix(currentId) : currentId;
-              const presetMatch = showPresets ? presets.find((pr) => pr.voice_url === cleanId) : null;
+              const presetMatch = showPresets ? presetsForProvider.find((pr) => pr.voice_url === cleanId) : null;
               const isCustomUrl = cleanId.startsWith("http") && !presetMatch;
-              const isCustomCatalog = !cleanId.startsWith("http") && cleanId.length > 0 && !catalog.some((v) => v.id === currentId);
+              const isCustomCatalog = !cleanId.startsWith("http") && cleanId.length > 0 && !catalog.some((v) => v.id === currentId) && !presetMatch;
               if (!currentId) {
                 return (
                   <Select disabled value="__none">
@@ -187,8 +191,6 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                   </Select>
                 );
               }
-              // Quando uma URL clonada está selecionada (replicate), mostramos seletor
-              // de modelo logo abaixo do select de vozes (renderizado fora).
               return (
                 <Select
                   value={presetMatch ? presetMatch.voice_url : currentId}
@@ -199,7 +201,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                     {showPresets && (
                       <SelectGroup>
                         <SelectLabel>🎭 Meus presets (clonados)</SelectLabel>
-                        {presets.map((pr) => (
+                        {presetsForProvider.map((pr) => (
                           <SelectItem key={pr.id} value={pr.voice_url}>
                             {pr.is_real_person ? "🎭 " : "🎙 "}{pr.name}
                             {pr.is_real_person ? " · Voz simulada por IA" : ""}
@@ -211,7 +213,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
                       <SelectItem value={currentId}>🎙 Voz clonada (personalizada)</SelectItem>
                     )}
                     {isCustomCatalog && (
-                      <SelectItem value={currentId}>🎙 Personalizada ({currentId.slice(0, 12)}…)</SelectItem>
+                      <SelectItem value={currentId}>🎭 Voz clonada ({currentId.slice(0, 12)}…)</SelectItem>
                     )}
                     <SelectGroup>
                       <SelectLabel>Catálogo PT-BR &amp; Geral</SelectLabel>
