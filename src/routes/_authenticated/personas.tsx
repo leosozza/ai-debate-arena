@@ -197,6 +197,14 @@ function PersonasPage() {
 
   return (
     <main className="container mx-auto px-4 py-10 max-w-5xl">
+      <Tabs defaultValue="personas" className="w-full">
+        <TabsList className="mb-6">
+          <TabsTrigger value="personas">🎭 Personas</TabsTrigger>
+          <TabsTrigger value="mediators">🎙 Mediadores</TabsTrigger>
+          <TabsTrigger value="commentators">💬 Comentadores</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="personas">
       <header className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold mb-2">Personas</h1>
@@ -235,6 +243,8 @@ function PersonasPage() {
           </div>
         )}
       </header>
+
+
 
       {showForm && (
         <>
