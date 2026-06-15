@@ -1,54 +1,30 @@
-## Por que o salvamento parece não persistir
+## Objetivo
 
-Confirmei no banco: o debate `cea98432` continua com `voice_id_mod=pm_santa`, `voice_id_b=""` e `updated_at` de horas atrás. Nenhum `UPDATE` chegou ao Postgres.
+Quando você exporta um vídeo (completo ou por bloco), o MP4 fica guardado no debate. Da próxima vez que abrir `/debates/$id`, aparece um botão "Baixar" para cada vídeo já gerado — sem refazer TTS nem re-renderizar.
 
-O motivo é um bug no `VoicePicker` que acontece exatamente quando você troca o **provedor** de voz (ex.: de Kokoro para ElevenLabs):
+## Como vai funcionar
 
-```
-VoicePicker.tsx onValueChange:
-  const first = filterVoicesByGender(np, filterGender)[0]?.id
-              ?? VOICE_CATALOG[np][0]?.id     // ← crash aqui
-              ?? null;
-```
-
-A runtime do navegador registrou:
-```
-TypeError: Cannot read properties of undefined (reading '0')
-  at onValueChange (VoicePicker.tsx:126…)
-```
-
-Quando o array da esquerda está vazio, ele cai pro `VOICE_CATALOG[np][0]`, e em alguns providers `[0]` é `undefined` → a exceção estoura **antes** de chamar `onChange(np, first)`. Resultado: o `<Select>` da UI mostra o novo provedor, mas o `form.voiceProvider*` no estado nunca é atualizado. Aí você clica em **Salvar**, e o `updateDebate` recebe os valores antigos — exatamente o que está no banco hoje.
-
-Segundo problema, menor mas perceptível: a página `/debates/$id` (e o próprio editor, ao voltar) lê de `useQuery(["debate", id])` e **nada invalida esse cache após o save**. Mesmo um save que deu certo só "aparece" depois de F5.
-
-## O que vou mudar
-
-### 1. `src/components/VoicePicker.tsx` — corrigir o crash do provider
-Trocar a linha do fallback por uma versão totalmente defensiva:
-
-```ts
-const cat = filterVoicesByGender(np, filterGender);
-const fallbackCat = VOICE_CATALOG[np];
-const first = cat[0]?.id ?? (fallbackCat && fallbackCat[0]?.id) ?? null;
-onChange(np, first);
-```
-
-Sem `[0]` em coisa potencialmente `undefined`. Mantém o comportamento atual (`null` quando o catálogo daquele provider está vazio).
-
-### 2. `src/routes/_authenticated/debates.$id.edit.tsx` — invalidar cache após salvar
-- Adicionar `import { useQueryClient } from "@tanstack/react-query";`
-- `const qc = useQueryClient();`
-- No `handleSave`, depois do `await update(...)`:
-  - `await qc.invalidateQueries({ queryKey: ["debate", id] });`
-  - `await qc.invalidateQueries({ queryKey: ["debates"] });`
-- Aí navega para `/debates/$id`. Assim a tela de detalhe e o `ExportVideoButton` (que usa o mesmo `["debate", id]`) já leem as vozes novas — sem precisar de F5.
+1. **Storage**: novo bucket privado `debate-videos` no Lovable Cloud. Estrutura: `{user_id}/{debate_id}/{full|bloco-N}-{timestamp}.mp4`. Acesso só via signed URL (1h).
+2. **Tabela nova `debate_exports`** (migration):
+   - `id uuid pk`, `debate_id uuid fk → debates`, `user_id uuid`, `kind text` ('full' | 'block'), `block_index int null`, `block_title text null`, `storage_path text`, `size_bytes bigint`, `duration_seconds numeric null`, `created_at timestamptz default now()`
+   - RLS: dono do debate lê/insere/apaga (`debates.user_id = auth.uid()`); `service_role` total.
+   - GRANTs padrão pra `authenticated` + `service_role`.
+3. **Server fns novas em `src/lib/debate-exports.functions.ts`**:
+   - `listDebateExports({ debateId })` — lista entradas + signed URL pra cada uma.
+   - `createDebateExportUpload({ debateId, kind, blockIndex, blockTitle, sizeBytes })` — valida posse, retorna signed upload URL + `storage_path` (usa `supabaseAdmin.storage.createSignedUploadUrl`).
+   - `finalizeDebateExport({ debateId, storagePath, kind, blockIndex, blockTitle, sizeBytes, durationSeconds })` — insere a linha após upload concluído.
+   - `deleteDebateExport({ id })` — remove storage + linha.
+   - Todas com `requireSupabaseAuth` + checagem `debates.user_id = userId`.
+4. **`ExportVideoButton.tsx`**: após `renderAndDownload` gerar o `Blob`, além de baixar localmente:
+   - chama `createDebateExportUpload`, faz `fetch(PUT, blob)` direto no signed URL,
+   - chama `finalizeDebateExport`,
+   - invalida `["debate-exports", debateId]`.
+5. **UI no detalhe do debate** (`debates.$id.index.tsx`): nova seção "Vídeos exportados" listando cada export com nome (Completo / Bloco N — título), tamanho, data, botão **Baixar** (abre signed URL) e botão **Apagar**. Vazio quando não há nada — sem ruído.
 
 ## Fora de escopo
-- Não vou mudar o esquema de validação nem `updateDebate`: o server fn está correto e grava todos os campos de voz que vierem definidos.
-- Não vou mexer no catálogo Kokoro de novo (já foi feito na rodada anterior).
-- Não vou inserir migration: só código de UI.
+- Não regenera vídeos antigos retroativamente (só os novos a partir daqui ficam salvos).
+- Sem versionamento — re-exportar o mesmo bloco cria uma entrada nova; você apaga a antiga pelo botão.
+- Sem compartilhamento público; URLs são signed e expiram.
 
 ## Resultado esperado
-- Trocar o provedor de voz no editor para ElevenLabs (ou qualquer outro) deixa de quebrar; a voz selecionada vai pro `form`.
-- Clicar em "Salvar alterações" grava `voice_provider_*` / `voice_id_*` no banco (dá pra confirmar com um SELECT no `debates`).
-- Voltar pra `/debates/$id` e clicar em "Exportar MP4" já usa as vozes recém-salvas, sem refresh.
+Exportou o bloco 2 → baixa normal **e** aparece em "Vídeos exportados". Amanhã, abre o debate e clica em **Baixar** sem esperar TTS de novo.

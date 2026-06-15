@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+import { createDebateExportUpload, finalizeDebateExport } from "@/lib/debate-exports.functions";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -49,6 +51,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const elTts = useServerFn(ttsSpeak);
   const mmTts = useServerFn(minimaxTts);
   const rpTts = useServerFn(replicateTts);
+  const createUpload = useServerFn(createDebateExportUpload);
+  const finalizeUpload = useServerFn(finalizeDebateExport);
+  const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["debate", debateId], queryFn: () => get({ data: { id: debateId } }) });
   const { data: personas } = useQuery({ queryKey: ["personas"], queryFn: () => lp() });
 
@@ -287,7 +292,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
   }
 
-  async function renderAndDownload(builtClips: TimelineClip[], fileSuffix: string) {
+  async function renderAndDownload(
+    builtClips: TimelineClip[],
+    fileSuffix: string,
+    persistMeta: { blockIndex: number | null; blockTitle: string | null } | null,
+  ) {
     if (!data) return;
     const d = data.debate;
     const { exportDebateMp4 } = await import("@/lib/video-export");
@@ -330,6 +339,36 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    if (persistMeta) {
+      try {
+        setProgress({ label: "Salvando no debate…", pct: 0.99 });
+        const kind = persistMeta.blockIndex === null ? "full" : "block";
+        const up = await createUpload({ data: { debateId, kind, blockIndex: persistMeta.blockIndex } });
+        const putRes = await fetch(up.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "video/mp4" },
+          body: blob,
+        });
+        if (!putRes.ok) throw new Error(`upload ${putRes.status}`);
+        const totalDur = builtClips.reduce(
+          (s, c) => s + Math.max(0, c.duration - c.trimStart - c.trimEnd),
+          0,
+        );
+        await finalizeUpload({ data: {
+          debateId,
+          kind,
+          blockIndex: persistMeta.blockIndex,
+          blockTitle: persistMeta.blockTitle,
+          storagePath: up.storagePath,
+          sizeBytes: blob.size,
+          durationSeconds: totalDur || null,
+        } });
+        await qc.invalidateQueries({ queryKey: ["debate-exports", debateId] });
+      } catch (e) {
+        toast.warning(`Vídeo baixado, mas não foi salvo no debate: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
   }
 
   /** One-click: synth → render → download. No editor. blockIndex=null = full debate. */
@@ -348,7 +387,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       if (!built || built.length === 0) { setProgress(null); return; }
       setProgress({ label: "Renderizando vídeo", pct: 0 });
       const suffix = blockIndex === null ? "" : `-bloco-${blockIndex + 1}`;
-      await renderAndDownload(built, suffix);
+      const subs = (data.debate.block_subtopics as Array<{ title?: string }> | null) ?? [];
+      const blockTitle = blockIndex === null ? null : (subs[blockIndex]?.title ?? null);
+      await renderAndDownload(built, suffix, { blockIndex, blockTitle });
       toast.success(blockIndex === null ? "Vídeo MP4 exportado!" : `Bloco ${blockIndex + 1} exportado!`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao exportar vídeo");
@@ -402,6 +443,30 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      try {
+        setProgress({ label: "Salvando no debate…", pct: 0.99 });
+        const up = await createUpload({ data: { debateId, kind: "full", blockIndex: null } });
+        const putRes = await fetch(up.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "video/mp4" },
+          body: blob,
+        });
+        if (!putRes.ok) throw new Error(`upload ${putRes.status}`);
+        const totalDur = editedClips.reduce(
+          (s, c) => s + Math.max(0, c.duration - c.trimStart - c.trimEnd),
+          0,
+        );
+        await finalizeUpload({ data: {
+          debateId, kind: "full", blockIndex: null, blockTitle: null,
+          storagePath: up.storagePath, sizeBytes: blob.size,
+          durationSeconds: totalDur || null,
+        } });
+        await qc.invalidateQueries({ queryKey: ["debate-exports", debateId] });
+      } catch (e) {
+        toast.warning(`Vídeo baixado, mas não foi salvo no debate: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
       toast.success("Vídeo MP4 exportado!");
       setEditorOpen(false);
     } catch (e) {
