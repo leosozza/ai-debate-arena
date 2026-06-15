@@ -371,17 +371,41 @@ function PersonasPage() {
                   label="Voz padrão da persona"
                   provider={form.voice_provider}
                   voiceId={form.voice_id}
-                  onChange={(p, v) => setForm({ ...form, voice_provider: p, voice_id: v })}
+                  onChange={(p, v) => {
+                    setForm({ ...form, voice_provider: p, voice_id: v });
+                    if (clonedInfo && (p !== clonedInfo.provider || v !== clonedInfo.voiceId)) {
+                      setClonedInfo(null);
+                    }
+                  }}
                   settings={form.voice_settings}
                   onSettingsChange={(vs) => setForm((f) => ({ ...f, voice_settings: vs }))}
                 />
 
                 <p className="text-[11px] text-muted-foreground">Usada automaticamente quando esta persona for escolhida num debate. Pode ser sobrescrita.</p>
 
+                {clonedInfo && (
+                  <div className="rounded-md border border-primary/40 bg-primary/10 p-3 text-xs flex items-start gap-2">
+                    <Mic className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    <div className="space-y-0.5">
+                      <p className="font-medium text-foreground">
+                        🎭 Voz clonada ativa: "{clonedInfo.cloneName}"
+                      </p>
+                      <p className="text-muted-foreground">
+                        Provider: {clonedInfo.provider === "eleven" ? "ElevenLabs" : clonedInfo.provider === "minimax" ? "MiniMax" : "Replicate"} ·
+                        ID: <code className="font-mono">{clonedInfo.voiceId.slice(0, 14)}…</code>
+                      </p>
+                      <p className="text-muted-foreground">
+                        Use o botão ▶ ao lado do seletor para ouvir uma amostra. Salve a persona para confirmar.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <VoiceClonePanel
                   defaultName={form.name || undefined}
                   onCloned={async ({ provider, voiceId, source, cloneName }) => {
                     setForm((f) => ({ ...f, voice_provider: provider, voice_id: voiceId }));
+                    setClonedInfo({ provider, voiceId, cloneName });
                     qc.invalidateQueries({ queryKey: ["voice-presets"] });
                     if (editingId) {
                       try {
