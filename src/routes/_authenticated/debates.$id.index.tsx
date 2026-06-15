@@ -331,6 +331,9 @@ function DebateDetail() {
 
       <div className="text-xs text-muted-foreground mb-4">Progresso: {progress}/{totalTurns} falas</div>
 
+      <DebateExportsList debateId={id} />
+
+
       {(() => {
         const fmt = getFormat(data.debate.format ?? "duel");
         const isDuel = (data.debate.format ?? "duel") === "duel";
