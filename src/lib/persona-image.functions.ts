@@ -51,6 +51,46 @@ async function callImageGateway(body: object): Promise<string> {
   return b64;
 }
 
+/** Chama a API nativa do Google Gemini (gemini-2.5-flash-image) usando a
+ *  GEMINI_API_KEY do projeto — não depende dos créditos do Lovable AI. */
+async function callGeminiDirect(prompt: string, refDataUrls: string[]): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY ausente.");
+  const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+  for (const url of refDataUrls) {
+    const m = /^data:([^;]+);base64,(.+)$/.exec(url);
+    if (!m) continue;
+    parts.push({ inline_data: { mime_type: m[1], data: m[2] } });
+  }
+  const model = "gemini-2.5-flash-image";
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+      }),
+    },
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    if (res.status === 429) throw new Error("Gemini: limite de uso atingido. Tente em instantes.");
+    throw new Error(`Gemini falhou (${res.status}): ${txt.slice(0, 300)}`);
+  }
+  const json = (await res.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string }; inline_data?: { data?: string } }> } }>;
+  };
+  for (const cand of json.candidates ?? []) {
+    for (const p of cand.content?.parts ?? []) {
+      const b64 = p.inlineData?.data ?? p.inline_data?.data;
+      if (b64) return b64;
+    }
+  }
+  throw new Error("Gemini não retornou imagem.");
+}
+
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
