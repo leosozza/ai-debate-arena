@@ -18,8 +18,9 @@ interface Props {
 export function VoiceClonePanel({ defaultName, onCloned }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [name, setName] = useState(defaultName ?? "");
-  const [busy, setBusy] = useState<null | "eleven" | "minimax" | "replicate">(null);
+  const [busy, setBusy] = useState<null | "eleven" | "minimax" | "replicate" | "cascade">(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [manualProvider, setManualProvider] = useState<"eleven" | "minimax" | "replicate">("replicate");
   const [manualId, setManualId] = useState("");
@@ -27,6 +28,8 @@ export function VoiceClonePanel({ defaultName, onCloned }: Props) {
   const cloneEl = useServerFn(cloneVoiceEleven);
   const cloneMm = useServerFn(cloneVoiceMinimax);
   const cloneRp = useServerFn(cloneVoiceReplicate);
+  const cloneCascade = useServerFn(cloneVoiceCascade);
+
 
   const totalMb = files.reduce((s, f) => s + f.size, 0) / (1024 * 1024);
 
