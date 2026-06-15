@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { VoicePicker } from "@/components/VoicePicker";
-import { type VoiceProvider } from "@/lib/voice-catalog";
+import { type VoiceProvider, normalizeProvider } from "@/lib/voice-catalog";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
 
