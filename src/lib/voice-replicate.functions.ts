@@ -113,7 +113,7 @@ export const replicateTts = createServerFn({ method: "POST" })
         /^https?:\/\//i.test(voiceParam) &&
         (model === "fish" || model === "chatterbox" || model === "xtts");
       const chain: ReplicateModelKey[] = isCloneWithRef
-        ? (["fish", "xtts", "chatterbox"].filter((m, i, arr) => arr.indexOf(m) === i) as ReplicateModelKey[])
+        ? (["chatterbox", "xtts", "fish"].filter((m, i, arr) => arr.indexOf(m) === i) as ReplicateModelKey[])
         : [model];
       // garantir que o modelo escolhido vem primeiro
       if (isCloneWithRef && chain[0] !== model) {
