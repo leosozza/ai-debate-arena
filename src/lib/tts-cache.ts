@@ -11,7 +11,7 @@ const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 type Entry = {
   key: string;
   blob: Blob;
-  duration: number;
+  duration: number; // 0 quando desconhecida (chamador recalcula)
   createdAt: number;
 };
 

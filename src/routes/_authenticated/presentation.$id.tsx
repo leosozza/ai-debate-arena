@@ -26,6 +26,7 @@ import { VoicePicker, DEFAULT_VOICE_SETTINGS, type VoiceSettings } from "@/compo
 import { type VoiceProvider, normalizeProvider, isProvider } from "@/lib/voice-catalog";
 import { personaGenderFrom, defaultVoiceForGender } from "@/lib/persona-gender";
 import { stripMarkdownForTts } from "@/lib/text-utils";
+import { ttsCacheGet, ttsCachePut, ttsCachePrune, blobToUrl, dataUrlToBlob, hashContent } from "@/lib/tts-cache";
 import { toast } from "sonner";
 import { Play, Pause, SkipForward, SkipBack, ChevronsLeft, ChevronsRight, X, Settings2, Swords, Users, Loader2, Radio, Bot, Mic2, Download, Film, AlertTriangle, RotateCcw } from "lucide-react";
 import { accentForSlot, accentForRole, roleLabel as participantRoleLabel } from "@/components/CastStrip";
@@ -121,6 +122,7 @@ function PresentMode() {
     }
     load();
     window.speechSynthesis.onvoiceschanged = load;
+    void ttsCachePrune();
     return () => { window.speechSynthesis.cancel(); audioRef.current?.pause(); };
   }, []);
 
@@ -261,18 +263,25 @@ function PresentMode() {
     const voiceId = slot.voiceId ?? "";
     if (!voiceId) throw new Error("Voz não selecionada.");
     const clean = stripMarkdownForTts(text).slice(0, 5000);
-    const cacheKey = `${slot.provider}:${msgId}:${voiceId}:${slot.settings.speed}:${slot.settings.pitch}:${slot.settings.volume}`;
-    const cached = audioCache.current.get(cacheKey);
-    if (cached) return cached;
+    // Chave unificada compartilhada com o ExportVideoButton (IndexedDB).
+    // Settings só entram na chave quando o provider sintetiza com elas (minimax);
+    // para replicate/eleven speed/pitch/volume são aplicados no <audio> no playback.
+    const settingsSuffix = slot.provider === "minimax"
+      ? `|${slot.settings.speed}|${slot.settings.pitch}|${slot.settings.volume}`
+      : "";
+    const persistKey = `${slot.provider}|${voiceId}|${msgId}|${hashContent(clean)}${settingsSuffix}`;
+    const hot = audioCache.current.get(persistKey);
+    if (hot) return hot;
+    // Tenta cache persistente (sobrevive a refresh / reabrir editor / exportar).
+    const persisted = await ttsCacheGet(persistKey);
+    if (persisted) {
+      const u = blobToUrl(persisted.blob);
+      audioCache.current.set(persistKey, u);
+      return u;
+    }
     let url: string;
-    // IDs com prefixo "el:" são vozes ElevenLabs (incluindo clones do usuário).
-    // Clones custom só funcionam pela API direta da ElevenLabs — o modelo
-    // eleven-v3 do Replicate só conhece as vozes da conta dele. Por isso
-    // tratamos "el:" sempre via elTts primeiro, e só caímos pro Replicate se
-    // a chamada direta falhar (ex.: créditos esgotados).
     const isElevenId = slot.provider === "eleven" || voiceId.startsWith("el:");
     if (slot.provider === "kokoro") {
-      // Voz neural grátis, sintetizada no próprio navegador (sem custo).
       const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
       url = await kokoroSynthUrl(clean, voiceId);
     } else if (slot.provider === "piper") {
@@ -282,8 +291,6 @@ function PresentMode() {
       const rawId = voiceId.startsWith("el:") ? voiceId.slice(3) : voiceId;
       const res = await elTts({ data: { text: clean, voiceId: rawId } });
       if ("error" in res && res.error) {
-        // Fallback: tenta via Replicate eleven-v3 (só funciona para vozes
-        // públicas da ElevenLabs, não para clones custom).
         console.warn("[tts] ElevenLabs direto falhou, tentando via Replicate:", res.error);
         const rp = await rpTts({ data: { text: clean, voiceId: `el:${rawId}` } });
         if ("error" in rp && rp.error) throw new Error(`ElevenLabs: ${res.error} | Replicate: ${rp.error}`);
@@ -305,7 +312,12 @@ function PresentMode() {
       url = `data:${res.mime};base64,${res.audioBase64}`;
     }
 
-    audioCache.current.set(cacheKey, url);
+    audioCache.current.set(persistKey, url);
+    // Persiste em IndexedDB (best-effort). Duração ainda desconhecida aqui — exportador recalcula.
+    try {
+      const blob = url.startsWith("data:") ? await dataUrlToBlob(url) : await (await fetch(url)).blob();
+      await ttsCachePut(persistKey, blob, 0);
+    } catch { /* noop */ }
     return url;
   }
 
@@ -365,9 +377,9 @@ function PresentMode() {
     if (!current) return;
     // Invalida cache desta mensagem para forçar nova chamada.
     const slot = slotFor((current.role ?? "moderator") as Side);
-    const cacheKeyPrefix = `${slot.provider}:${current.id}:`;
+    const cacheKeyContains = `|${current.id}|`;
     for (const k of Array.from(audioCache.current.keys())) {
-      if (k.startsWith(cacheKeyPrefix)) audioCache.current.delete(k);
+      if (k.startsWith(`${slot.provider}|`) && k.includes(cacheKeyContains)) audioCache.current.delete(k);
     }
     setVoiceFallback(null);
     stopAll();

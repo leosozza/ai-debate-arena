@@ -191,8 +191,13 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     slots: { slotMod: Slot; slotA: Slot; slotB: Slot },
   ): Promise<TimelineClip[] | null> {
     const sessionCache = sessionUrlCacheRef.current;
-    const cacheKey = (m: PreparedMsg, slot: Slot) =>
-      `${slot.provider}|${slot.voiceId}|${m.id}|${hashContent(m.content)}`;
+    const cacheKey = (m: PreparedMsg, slot: Slot) => {
+      const clean = stripMarkdownForTts(m.content).slice(0, 5000);
+      const suffix = slot.provider === "minimax"
+        ? `|${DEFAULT_VOICE_SETTINGS.speed}|${DEFAULT_VOICE_SETTINGS.pitch}|${DEFAULT_VOICE_SETTINGS.volume}`
+        : "";
+      return `${slot.provider}|${slot.voiceId}|${m.id}|${hashContent(clean)}${suffix}`;
+    };
     const todo = all.map((m) => ({
       m,
       slot: m.role === "a" ? slots.slotA : m.role === "b" ? slots.slotB : slots.slotMod,
