@@ -15,6 +15,7 @@ import { Download, Play, SkipForward, Square, Gavel, Trophy, Dices, Pencil, Rota
 import { ExportPackDialog } from "@/components/ExportPackDialog";
 import { ExportVideoButton } from "@/components/ExportVideoButton";
 import { DebateExportsList } from "@/components/DebateExportsList";
+import { MessageAudioButton } from "@/components/MessageAudioButton";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
