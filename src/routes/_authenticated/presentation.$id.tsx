@@ -211,16 +211,21 @@ function PresentMode() {
       const e = extras.find((x) => x.slot === slot);
       if (e) {
         const ov = extraVoiceOverrides[e.id];
-        return {
-          provider: ov?.provider ?? ((e.voice_provider as VoiceProvider | null) ?? "browser"),
-          voiceId: ov?.voiceId ?? e.voice_id ?? null,
-          settings: DEFAULT_VOICE_SETTINGS,
-        };
+        const ep = ov?.provider ?? (isProvider(e.voice_provider) ? e.voice_provider : null);
+        const eid = ov?.voiceId ?? e.voice_id ?? null;
+        if (ep && eid) {
+          return { provider: ep, voiceId: eid, settings: DEFAULT_VOICE_SETTINGS };
+        }
+        return defaultSlotByName(e.display_name ?? null);
       }
     }
     if (role === "c0" || role === "c1") {
       const c = commentatorList[role === "c0" ? 0 : 1];
-      if (c) return { provider: (c.voiceProvider as VoiceProvider | null) ?? "browser", voiceId: c.voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
+      if (c) {
+        const cp = isProvider(c.voiceProvider) ? c.voiceProvider : null;
+        if (cp && c.voiceId) return { provider: cp, voiceId: c.voiceId, settings: DEFAULT_VOICE_SETTINGS };
+        return defaultSlotByName(c.name ?? null);
+      }
     }
     return slotB;
   }
