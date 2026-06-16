@@ -112,12 +112,13 @@ export async function mp4PartIdsByDebate(debateId: string): Promise<Set<string>>
     const store = await tx("readonly");
     const idx = store.index("debateId");
     await new Promise<void>((res) => {
-      const r = idx.openCursor(IDBKeyRange.only(debateId));
+      const r = idx.openKeyCursor(IDBKeyRange.only(debateId));
       r.onsuccess = () => {
         const c = r.result;
         if (!c) { res(); return; }
-        const e = c.value as Entry;
-        out.add(e.msgId);
+        const key = String(c.primaryKey ?? "");
+        const prefix = `${debateId}:`;
+        if (key.startsWith(prefix)) out.add(key.slice(prefix.length));
         c.continue();
       };
       r.onerror = () => res();
