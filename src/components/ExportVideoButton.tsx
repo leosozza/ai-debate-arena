@@ -119,6 +119,17 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   // Roda 1× por sessão pra apagar entradas IDB antigas.
   useEffect(() => { void ttsCachePrune(); void mp4PartsPrune(); }, []);
 
+  function releaseSessionAudioForMsg(msgId: string): void {
+    const needle = `|${msgId}|`;
+    for (const [key, entry] of sessionUrlCacheRef.current) {
+      if (!key.includes(needle)) continue;
+      if (entry.url.startsWith("blob:")) {
+        try { URL.revokeObjectURL(entry.url); } catch { /* noop */ }
+      }
+      sessionUrlCacheRef.current.delete(key);
+    }
+  }
+
   function resolveSlot(
     provider: string | null | undefined,
     voiceId: string | null | undefined,
@@ -768,13 +779,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       }
       return { ...p, audioUrl: c.audioUrl, duration: c.duration, status: "pending", error: undefined };
     }));
-    // Renderiza MP4 das que ganharam áudio
+    // Renderiza MP4 das que ganharam áudio. Usa a fila única em vez de abrir
+    // uma mini-fila por fala; isso reduz vazamento de memória em lotes longos.
     const renderable = msgIds.filter((id) => byId.has(id));
     if (renderable.length > 0) {
-      for (const id of renderable) {
-        // Roda uma por vez para reusar a fila de render existente.
-        await runPerSpeechExport(id);
-      }
+      await runPerSpeechExport(renderable);
       toast.success(`${renderable.length} áudio(s) corrigido(s).`);
     }
   }
@@ -804,7 +813,15 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       return { ...p, status: "pending", videoBlob: undefined, videoUrl: undefined, audioUrl: undefined, progressPct: 0, error: undefined };
     }));
     toast.info("Refazendo todos os vídeos sem o jingle…");
-    await retryAudiosForMsgIds(all.map((p) => p.msgId));
+    const ids = all.map((p) => p.msgId);
+    const batchSize = 8;
+    for (let i = 0; i < ids.length; i += batchSize) {
+      if (cancelRef.current) break;
+      setProgress({ label: `Refazendo lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(ids.length / batchSize)}`, pct: i / ids.length });
+      await retryAudiosForMsgIds(ids.slice(i, i + batchSize));
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+    setProgress(null);
   }
 
 
@@ -833,13 +850,14 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       // de base64 + buffers enquanto a fila avança.
       // O próprio MP4 também fica só no IndexedDB; carregar todos os blobs na
       // memória era o que fazia a fila parar por volta da 14ª fala.
+      releaseSessionAudioForMsg(p.msgId);
       return { ...p, audioUrl: undefined, videoBlob: undefined, videoUrl: undefined, status: "done", progressPct: 1, error: undefined };
     } catch (e) {
       return { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
     }
   }
 
-  async function runPerSpeechExport(onlyMsgId?: string) {
+  async function runPerSpeechExport(onlyMsgIds?: string[]) {
     if (perSpeechRunningRef.current) {
       toast.info("A fila já está rodando em segundo plano.", { duration: 2500 });
       await perSpeechTaskRef.current;
@@ -854,10 +872,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       cancelRef.current = false;
       await keepExportAwake(true);
       try {
+        const scope = onlyMsgIds ? new Set(onlyMsgIds) : null;
         while (!cancelRef.current) {
           const snapshot = partsRef.current;
-          const queue = onlyMsgId
-            ? snapshot.filter((p) => p.msgId === onlyMsgId)
+          const queue = scope
+            ? snapshot.filter((p) => scope.has(p.msgId))
             : snapshot.filter((p) => p.status !== "done");
           const next = queue.find((p) => !attempted.has(p.msgId) && p.audioUrl && p.duration);
           if (!next) {
@@ -885,8 +904,14 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
             progressPct: 0,
           }));
           updateParts((prev) => prev.map((x) => x.msgId === next.msgId ? updated : x));
-          await new Promise((r) => setTimeout(r, 900));
-          if (onlyMsgId) break;
+          if (attempted.size % 6 === 0) {
+            setProgress({ label: "Liberando memória antes de continuar", pct: 1 });
+            await new Promise((r) => setTimeout(r, 2500));
+            setProgress(null);
+          } else {
+            await new Promise((r) => setTimeout(r, 900));
+          }
+          if (scope && queue.every((p) => attempted.has(p.msgId) || p.status === "done")) break;
         }
       } finally {
         perSpeechRunningRef.current = false;
@@ -1157,7 +1182,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                       </Button>
                     )}
                     {(p.status === "error" || p.status === "done") && !perSpeechRunning && (
-                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => p.audioUrl ? runPerSpeechExport(p.msgId) : retryAudioForPart(p.msgId)} title="Refazer só esta">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => p.audioUrl ? runPerSpeechExport([p.msgId]) : retryAudioForPart(p.msgId)} title="Refazer só esta">
                         <RotateCcw className="h-3.5 w-3.5" />
                       </Button>
                     )}
