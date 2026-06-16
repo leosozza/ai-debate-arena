@@ -1112,11 +1112,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                 <X className="h-4 w-4 mr-1" /> Parar
               </Button>
             )}
-            {parts.some((p) => p.status === "error" && !p.audioUrl) && !perSpeechRunning && (
+            {parts.some((p) => p.status === "error" && (!p.audioUrl || !p.duration)) && !perSpeechRunning && (
               <Button size="sm" variant="secondary" onClick={retryAllMissingAudios} disabled={mergeBusy !== null}
                 title="Tenta gerar de novo os áudios das falas marcadas como ausentes, e renderiza o MP4 em seguida">
                 <Mic2 className="h-4 w-4 mr-1" />
-                Corrigir áudios faltantes ({parts.filter((p) => p.status === "error" && !p.audioUrl).length})
+                Corrigir áudios faltantes ({parts.filter((p) => p.status === "error" && (!p.audioUrl || !p.duration)).length})
               </Button>
             )}
             {parts.length > 0 && !perSpeechRunning && (
