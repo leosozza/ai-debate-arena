@@ -1,19 +1,27 @@
-## Problema
+## Objetivo
 
-Toda fala exportada (por-fala) está tocando o jingle de abertura ("Legends") como música de fundo. Causa: em `src/components/ExportVideoButton.tsx` (linha 662), o builder do per-speech passa `musicUrl: musicAsset.url` — ou seja, o MP3 da vinheta de abertura — como **bed musical** de cada fala. O encoder (`video-export-webcodecs.ts`) então mixa esse áudio embaixo de toda fala, com fade in/out.
+Permitir refazer em lote todos os vídeos por fala que já estavam prontos com o jingle, agora que a cama musical foi removida.
 
-A exportação do vídeo único completo (linha 427) também usa o mesmo MP3 como bed durante todas as falas, então tem o mesmo problema lá quando o usuário gera o vídeo inteiro.
+## Como funciona hoje
 
-## Correção
+- O cache (`mp4PartsCache` no IndexedDB) guarda cada MP4 por `(debateId, msgId)`. Como já existem MP4s salvos, abrir o painel marca tudo como `done` e a fila não regera nada.
+- Já existe `retryAudiosForMsgIds([...])` que re-sintetiza áudios (TTS bate no cache, então não cobra crédito de novo) e em seguida chama `runPerSpeechExport(id)` para cada um, gerando o MP4.
 
-1. **Per-speech export** (`src/components/ExportVideoButton.tsx` linha 662): remover `musicUrl`/`musicVolume` do builder per-speech — falas individuais não devem ter música de fundo. Resultado: cada MP4 por fala fica só com a voz (sem jingle, sem bed).
+## Mudança
 
-2. **Vídeo único completo** (linha 427): também remover `musicUrl: musicAsset.url` / `musicVolume` do payload do export completo, para o jingle de abertura tocar **apenas** nos 10s de intro (disclaimer + vinheta) e não como cama durante todas as falas. O `video-export.ts` já usa o `musicAsset.url` internamente apenas no bloco `includeIntro`, então isso não afeta a abertura.
+Adicionar um botão **"Refazer todos sem jingle"** no painel per-speech (`src/components/ExportVideoButton.tsx`), ao lado dos botões já existentes (Gerar / Continuar fila / Refazer áudios). Comportamento:
 
-Se no futuro quisermos uma cama musical diferente durante as falas, podemos adicionar um asset novo (ex: "bed_neutral.mp3") e plugar nesses dois pontos. Por ora, ficar sem cama resolve a queixa imediata.
+1. Confirmação rápida (`window.confirm`): "Apagar os vídeos já gerados e refazer todos sem o jingle?"
+2. Apaga do IndexedDB os MP4s de todas as falas do debate (`mp4PartDelete` em loop).
+3. Reseta o estado de cada `part`: `status: "pending"`, limpa `videoBlob`/`videoUrl`/`audioUrl`/`progressPct`/`error`.
+4. Chama `retryAudiosForMsgIds(allMsgIds)` — que rebusca os áudios (cache TTS já evita custo) e dispara a fila de render. Com a correção anterior, os MP4s saem **sem** o jingle.
 
-## Arquivo a alterar
+### Bônus (correção pequena no mesmo lugar)
 
-- `src/components/ExportVideoButton.tsx` — duas pequenas edições (linhas 427-428 e 662-663) removendo `musicUrl`/`musicVolume`.
+- O botão atual **"Refazer áudios"** só pega itens em `error` sem áudio. Vou ajustar o título/tooltip para deixar claro a diferença ("Refazer áudios faltantes" vs. o novo "Refazer todos sem jingle").
 
-Nenhuma mudança em `video-export.ts` ou `video-export-webcodecs.ts`.
+## Arquivos a alterar
+
+- `src/components/ExportVideoButton.tsx` — adicionar a função `redoAllWithoutJingle()` e o botão correspondente no header do painel per-speech.
+
+Nada muda em cache/encoder/server.
