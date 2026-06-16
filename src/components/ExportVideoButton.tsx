@@ -891,15 +891,20 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   async function downloadAllAsZip() {
-    const ready = parts.filter((p) => p.status === "done" && p.videoBlob);
+    const ready = parts.filter((p) => p.status === "done");
     if (ready.length === 0) { toast.error("Nenhuma fala pronta."); return; }
     setMergeBusy({ label: "Compactando ZIP", pct: 0.5 });
     try {
+      const loaded: { name: string; blob: Blob }[] = [];
+      for (let i = 0; i < ready.length; i++) {
+        const p = ready[i];
+        const blob = p.videoBlob ?? await mp4PartGet(debateId, p.msgId);
+        if (blob) loaded.push({ name: `${String(p.index + 1).padStart(2, "0")}-${p.role}.mp4`, blob });
+        setMergeBusy({ label: `Carregando MP4 ${i + 1}/${ready.length}`, pct: 0.1 + 0.4 * ((i + 1) / ready.length) });
+      }
+      if (loaded.length === 0) throw new Error("Nenhum MP4 encontrado no cache.");
       const zip = await zipMp4Parts(
-        ready.map((p) => ({
-          name: `${String(p.index + 1).padStart(2, "0")}-${p.role}.mp4`,
-          blob: p.videoBlob!,
-        })),
+        loaded,
       );
       const url = URL.createObjectURL(zip);
       const a = document.createElement("a");
@@ -915,13 +920,21 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   async function mergeAndDownload() {
-    const ready = parts.filter((p) => p.status === "done" && p.videoBlob);
+    const ready = parts.filter((p) => p.status === "done");
     if (ready.length === 0) { toast.error("Nenhuma fala pronta."); return; }
     setMergeBusy({ label: "Juntando vídeos", pct: 0 });
     try {
+      const blobs: Blob[] = [];
+      for (let i = 0; i < ready.length; i++) {
+        const p = ready[i];
+        const blob = p.videoBlob ?? await mp4PartGet(debateId, p.msgId);
+        if (blob) blobs.push(blob);
+        setMergeBusy({ label: `Carregando MP4 ${i + 1}/${ready.length}`, pct: 0.05 + 0.25 * ((i + 1) / ready.length) });
+      }
+      if (blobs.length < 2) throw new Error("MP4s insuficientes no cache para juntar.");
       const merged = await concatMp4Parts(
-        ready.map((p) => p.videoBlob!),
-        (label, pct) => setMergeBusy({ label, pct }),
+        blobs,
+        (label, pct) => setMergeBusy({ label, pct: 0.3 + pct * 0.7 }),
       );
       const url = URL.createObjectURL(merged);
       const a = document.createElement("a");
