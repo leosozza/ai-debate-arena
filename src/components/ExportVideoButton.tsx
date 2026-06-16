@@ -1143,6 +1143,30 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={previewPart !== null} onOpenChange={(o) => { if (!o) closePartPreview(); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="truncate">{previewPart?.part.label}</DialogTitle>
+            <DialogDescription className="truncate">{previewPart?.part.phaseLabel}</DialogDescription>
+          </DialogHeader>
+          {previewPart && (
+            <video
+              src={previewPart.url}
+              controls
+              autoPlay
+              className="w-full rounded-md bg-black aspect-video"
+            />
+          )}
+          {previewPart && (
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => downloadPart(previewPart.part)}>
+                <Download className="h-4 w-4 mr-1" /> Baixar
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
