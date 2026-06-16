@@ -360,7 +360,8 @@ function PresentMode() {
         audio.playbackRate = 1;
         audio.volume = 1;
       }
-      audio.onended = () => { if (token === playTokenRef.current) onEnd(); };
+      audio.onended = () => { if (token === playTokenRef.current) { setActiveAudio(null); onEnd(); } };
+      setActiveAudio(audio);
       await audio.play();
       // Prefetch das próximas 2 falas em background (não bloqueia).
       void prefetchUpcoming(2);
