@@ -826,8 +826,35 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
 
 
   async function renderOnePart(p: Part, base: NonNullable<ReturnType<typeof buildBasePerSpeech>>): Promise<Part> {
-    if (!p.audioUrl || !p.duration) {
-      return { ...p, status: "error", error: "Áudio ausente." };
+    let audioUrl = p.audioUrl;
+    let duration = p.duration;
+    // Se o áudio não veio no lote (TTS falhou/rate-limit), tenta gerar AGORA —
+    // isolado, uma fala por vez, bem mais confiável que o lote concorrente.
+    if (!audioUrl || !duration) {
+      if (!data) return { ...p, status: "error", error: "Áudio ausente." };
+      const d = data.debate;
+      const slot = p.role === "a"
+        ? resolveSlot(d.voice_provider_a, d.voice_id_a, d.debater_a_name)
+        : p.role === "b"
+        ? resolveSlot(d.voice_provider_b, d.voice_id_b, d.debater_b_name)
+        : resolveSlot(d.voice_provider_mod, d.voice_id_mod);
+      if (!slot.voiceId) return { ...p, status: "error", error: "Sem voz configurada para este papel." };
+      try {
+        setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, status: "rendering", progressPct: 0.05 } : x));
+        audioUrl = await fetchAudioUrl(slot, p.content);
+        duration = await getAudioDuration(audioUrl);
+        // Persiste no cache pra próxima vez.
+        try {
+          const blob = audioUrl.startsWith("data:") ? await dataUrlToBlob(audioUrl) : await (await fetch(audioUrl)).blob();
+          const clean = stripMarkdownForTts(p.content).slice(0, 5000);
+          const suffix = slot.provider === "minimax"
+            ? `|${DEFAULT_VOICE_SETTINGS.speed}|${DEFAULT_VOICE_SETTINGS.pitch}|${DEFAULT_VOICE_SETTINGS.volume}`
+            : "";
+          await ttsCachePut(`${slot.provider}|${slot.voiceId}|${p.msgId}|${hashContent(clean)}${suffix}`, blob, duration);
+        } catch { /* cache best-effort */ }
+      } catch (e) {
+        return { ...p, status: "error", error: `Áudio falhou: ${e instanceof Error ? e.message : String(e)}` };
+      }
     }
     // Revoga URL antiga (re-render) pra não vazar memória.
     if (p.videoUrl) { try { URL.revokeObjectURL(p.videoUrl); } catch { /* noop */ } }
@@ -836,7 +863,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         base,
         {
           id: p.msgId, role: p.role, phase: p.phaseLabel === "—" ? "" : p.phaseLabel,
-          content: p.content, audioUrl: p.audioUrl, trimStart: 0, trimEnd: 0, subtitle: true,
+          content: p.content, audioUrl, trimStart: 0, trimEnd: 0, subtitle: true,
         },
         (_label, pct) => {
           updateParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, progressPct: pct, status: "rendering" } : x));
