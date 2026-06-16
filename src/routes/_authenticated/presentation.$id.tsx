@@ -142,19 +142,22 @@ function PresentMode() {
       voiceId: string | null | undefined,
       personaName?: string | null,
     ): VoiceSlot | null => {
-      // Persona é a fonte de verdade quando tem voz definida (especialmente clonada).
+      // Voz definida no DEBATE tem prioridade — é o que o usuário acabou de trocar no editor.
+      if (isProvider(provider) && voiceId) {
+        return { provider, voiceId, settings: DEFAULT_VOICE_SETTINGS };
+      }
+      // Fallback 1: voz cadastrada na persona.
       const persona = findPersona(personaName);
       const pp = persona?.voice_provider as VoiceProvider | null | undefined;
       const pid = persona?.voice_id ?? null;
-      // A persona só sobrescreve se tiver voz REAL com id; senão usa a voz definida no debate.
       if (pp && pid && isProvider(pp)) {
         return { provider: pp, voiceId: pid, settings: DEFAULT_VOICE_SETTINGS };
       }
-      // Migra valor antigo "browser" / nulo → Kokoro com voz default por gênero da persona.
-      if (!isProvider(provider)) {
-        return defaultSlotByName(personaName);
+      // Fallback 2: provider válido sem id (raro) ou default por gênero do nome.
+      if (isProvider(provider)) {
+        return { provider, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
       }
-      return { provider, voiceId: voiceId ?? null, settings: DEFAULT_VOICE_SETTINGS };
+      return defaultSlotByName(personaName);
     };
     const m = apply(d.voice_provider_mod, d.voice_id_mod); if (m) setSlotMod(m);
     const a = apply(d.voice_provider_a, d.voice_id_a, d.debater_a_name); if (a) setSlotA(a);
