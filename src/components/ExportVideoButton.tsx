@@ -672,36 +672,84 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
 
     // 2) Sintetiza áudios em background. Falhas individuais NÃO derrubam o painel.
     setProgress({ label: "Preparando vozes", pct: 0 });
+    const errMap = new Map<string, string>();
     try {
-      const built = await synthesizeClips(all, slots);
-      if (built && built.length > 0) {
-        const byId = new Map(built.map((c) => [c.id, c]));
-        setParts((prev) => prev.map((p) => {
-          const c = byId.get(p.msgId);
-          if (!c) {
-            // Sem áudio: marca como erro mas mantém na fila para retry.
-            if (p.status === "done") return p; // já tem MP4 — não mexe
-            return { ...p, status: "error", error: "Áudio ausente." };
-          }
-          return { ...p, audioUrl: c.audioUrl, duration: c.duration,
-            // se já tem MP4 pronto, mantém "done"; senão volta pra pending
-            status: p.status === "done" ? "done" : "pending",
-            error: undefined };
-        }));
-      } else {
-        setParts((prev) => prev.map((p) =>
-          p.status === "done" ? p : { ...p, status: "error", error: "Áudio ausente." },
-        ));
-      }
+      const built = await synthesizeClips(all, slots, errMap);
+      const byId = new Map((built ?? []).map((c) => [c.id, c]));
+      setParts((prev) => prev.map((p) => {
+        const c = byId.get(p.msgId);
+        if (!c) {
+          if (p.status === "done") return p;
+          const reason = errMap.get(p.msgId) ?? "Áudio ausente.";
+          return { ...p, status: "error", error: reason };
+        }
+        return { ...p, audioUrl: c.audioUrl, duration: c.duration,
+          status: p.status === "done" ? "done" : "pending",
+          error: undefined };
+      }));
     } catch (e) {
       toast.error(`Falha ao preparar áudios: ${e instanceof Error ? e.message : String(e)}. Falas com áudio em cache continuam disponíveis.`);
       setParts((prev) => prev.map((p) =>
-        p.status === "done" || p.audioUrl ? p : { ...p, status: "error", error: "Áudio ausente." },
+        p.status === "done" || p.audioUrl ? p : { ...p, status: "error", error: errMap.get(p.msgId) ?? "Áudio ausente." },
       ));
     } finally {
       setProgress(null);
     }
   }
+
+  /** Retry TTS for one or more failed messages, then auto-render their MP4s. */
+  async function retryAudiosForMsgIds(msgIds: string[]) {
+    if (!data || msgIds.length === 0) return;
+    const slots = resolveSlotsOrWarn();
+    if (!slots) return;
+    const all = buildMessageList(null);
+    const subset = all.filter((m) => msgIds.includes(m.id));
+    if (subset.length === 0) return;
+
+    // Marca como "rendering" só pra indicar atividade na linha (sem barra).
+    setParts((prev) => prev.map((x) =>
+      msgIds.includes(x.msgId) ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x,
+    ));
+    setProgress({ label: `Gerando áudio (${subset.length})`, pct: 0 });
+    const errMap = new Map<string, string>();
+    let built: TimelineClip[] | null = null;
+    try {
+      built = await synthesizeClips(subset, slots, errMap);
+    } catch (e) {
+      toast.error(`Falha ao gerar áudio: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setProgress(null);
+    }
+    const byId = new Map((built ?? []).map((c) => [c.id, c]));
+    setParts((prev) => prev.map((p) => {
+      if (!msgIds.includes(p.msgId)) return p;
+      const c = byId.get(p.msgId);
+      if (!c) {
+        return { ...p, status: "error", error: errMap.get(p.msgId) ?? "Áudio ausente." };
+      }
+      return { ...p, audioUrl: c.audioUrl, duration: c.duration, status: "pending", error: undefined };
+    }));
+    // Renderiza MP4 das que ganharam áudio
+    const renderable = msgIds.filter((id) => byId.has(id));
+    if (renderable.length > 0) {
+      for (const id of renderable) {
+        // Roda uma por vez para reusar a fila de render existente.
+        await runPerSpeechExport(id);
+      }
+      toast.success(`${renderable.length} áudio(s) corrigido(s).`);
+    }
+  }
+
+  async function retryAudioForPart(msgId: string) {
+    await retryAudiosForMsgIds([msgId]);
+  }
+
+  async function retryAllMissingAudios() {
+    const ids = parts.filter((p) => p.status === "error" && !p.audioUrl).map((p) => p.msgId);
+    if (ids.length === 0) { toast.info("Nenhum áudio faltando."); return; }
+    await retryAudiosForMsgIds(ids);
+  }
+
 
   async function renderOnePart(p: Part, base: NonNullable<ReturnType<typeof buildBasePerSpeech>>): Promise<Part> {
     if (!p.audioUrl || !p.duration) {
