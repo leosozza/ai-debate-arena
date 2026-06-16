@@ -24,7 +24,10 @@ type Segment = {
   duration: number;
 };
 
-const FPS = 30;
+// Os vídeos exportados aqui são slides estáticos com áudio. 30fps gera milhares
+// de frames idênticos por fala, bloqueia a UI e pode fazer a fila parecer
+// travada em falas longas. 6fps mantém compatibilidade e reduz muito CPU/RAM.
+const FPS = 6;
 // 44.1 kHz vs 48 kHz reduz ~8% do PCM em memória sem perda perceptível em fala/música.
 const SAMPLE_RATE = 44100;
 const VIDEO_BITRATE = 2_500_000;
@@ -292,6 +295,16 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
         frame.close();
       }
       frameIndex++;
+      if (f % Math.max(1, FPS) === 0) {
+        log(
+          `Codificando vídeo ${segIdx + 1}/${segments.length}`,
+          0.25 + 0.55 * (frameIndex / Math.max(1, totalFrames)),
+        );
+        // Cede o event loop durante falas longas; evita a aparência de
+        // travamento e deixa React atualizar a barra da fila.
+        await new Promise((r) => setTimeout(r, 0));
+        if (videoErr) throw videoErr;
+      }
     }
     log(
       `Codificando vídeo ${segIdx + 1}/${segments.length}`,

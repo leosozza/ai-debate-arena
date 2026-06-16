@@ -29,7 +29,7 @@ import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 import { KOKORO_VOICE_IDS, kokoroFallback } from "@/lib/kokoro-voices";
 import { ttsCacheGet, ttsCachePut, ttsCachePrune, blobToUrl, dataUrlToBlob, hashContent } from "@/lib/tts-cache";
-import { mp4PartGet, mp4PartPut, mp4PartDelete, mp4PartsByDebate, mp4PartsPrune } from "@/lib/mp4-parts-cache";
+import { mp4PartGet, mp4PartPut, mp4PartIdsByDebate, mp4PartsPrune } from "@/lib/mp4-parts-cache";
 
 type Slot = { provider: VoiceProvider; voiceId: string | null };
 
@@ -687,17 +687,15 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     //    O painel abre antes mesmo de sintetizar áudios — assim, se algo der
     //    errado na voz, o usuário ainda vê os vídeos já prontos do cache.
     const all = buildMessageList(null);
-    const cached = await mp4PartsByDebate(debateId);
+    const cached = await mp4PartIdsByDebate(debateId);
     const baseParts: Part[] = all.map((m, i) => {
       const { label, phase } = labelForPart(m.role, m.phase, i);
-      const cachedBlob = cached.get(m.id);
+      const hasCached = cached.has(m.id);
       return {
         msgId: m.id, index: i, label, phaseLabel: phase,
         role: m.role, content: m.content,
-        videoBlob: cachedBlob,
-        videoUrl: cachedBlob ? URL.createObjectURL(cachedBlob) : undefined,
-        status: (cachedBlob ? "done" : "pending") as PartStatus,
-        progressPct: cachedBlob ? 1 : undefined,
+        status: (hasCached ? "done" : "pending") as PartStatus,
+        progressPct: hasCached ? 1 : undefined,
       };
     });
     updateParts(() => baseParts);
@@ -811,8 +809,12 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       // Aguarda persistir ANTES de avançar — assim, se o usuário fechar o
       // modal ou a aba travar, o MP4 já está no IndexedDB pra próxima sessão.
       try { await mp4PartPut(debateId, p.msgId, blob); } catch { /* best-effort */ }
-      const url = URL.createObjectURL(blob);
-      return { ...p, status: "done", videoBlob: blob, videoUrl: url, progressPct: 1, error: undefined };
+      // Depois que o MP4 está persistido, a fala não precisa manter o data URL
+      // do áudio em memória. Em debates longos isso evita travar por acúmulo
+      // de base64 + buffers enquanto a fila avança.
+      // O próprio MP4 também fica só no IndexedDB; carregar todos os blobs na
+      // memória era o que fazia a fila parar por volta da 14ª fala.
+      return { ...p, audioUrl: undefined, videoBlob: undefined, videoUrl: undefined, status: "done", progressPct: 1, error: undefined };
     } catch (e) {
       return { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
     }
@@ -864,7 +866,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
             progressPct: 0,
           }));
           updateParts((prev) => prev.map((x) => x.msgId === next.msgId ? updated : x));
-          await new Promise((r) => setTimeout(r, 400));
+          await new Promise((r) => setTimeout(r, 900));
           if (onlyMsgId) break;
         }
       } finally {
@@ -877,24 +879,32 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     perSpeechTaskRef.current = task;
     await task;
   }
-  function downloadPart(p: Part) {
-    if (!p.videoUrl) return;
+  async function downloadPart(p: Part) {
+    const blob = p.videoBlob ?? await mp4PartGet(debateId, p.msgId);
+    if (!blob) { toast.error("MP4 não encontrado no cache. Refazer esta fala."); return; }
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = p.videoUrl;
+    a.href = url;
     a.download = `debate-${debateId.slice(0, 8)}-${String(p.index + 1).padStart(2, "0")}.mp4`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function downloadAllAsZip() {
-    const ready = parts.filter((p) => p.status === "done" && p.videoBlob);
+    const ready = parts.filter((p) => p.status === "done");
     if (ready.length === 0) { toast.error("Nenhuma fala pronta."); return; }
     setMergeBusy({ label: "Compactando ZIP", pct: 0.5 });
     try {
+      const loaded: { name: string; blob: Blob }[] = [];
+      for (let i = 0; i < ready.length; i++) {
+        const p = ready[i];
+        const blob = p.videoBlob ?? await mp4PartGet(debateId, p.msgId);
+        if (blob) loaded.push({ name: `${String(p.index + 1).padStart(2, "0")}-${p.role}.mp4`, blob });
+        setMergeBusy({ label: `Carregando MP4 ${i + 1}/${ready.length}`, pct: 0.1 + 0.4 * ((i + 1) / ready.length) });
+      }
+      if (loaded.length === 0) throw new Error("Nenhum MP4 encontrado no cache.");
       const zip = await zipMp4Parts(
-        ready.map((p) => ({
-          name: `${String(p.index + 1).padStart(2, "0")}-${p.role}.mp4`,
-          blob: p.videoBlob!,
-        })),
+        loaded,
       );
       const url = URL.createObjectURL(zip);
       const a = document.createElement("a");
@@ -910,13 +920,21 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   async function mergeAndDownload() {
-    const ready = parts.filter((p) => p.status === "done" && p.videoBlob);
+    const ready = parts.filter((p) => p.status === "done");
     if (ready.length === 0) { toast.error("Nenhuma fala pronta."); return; }
     setMergeBusy({ label: "Juntando vídeos", pct: 0 });
     try {
+      const blobs: Blob[] = [];
+      for (let i = 0; i < ready.length; i++) {
+        const p = ready[i];
+        const blob = p.videoBlob ?? await mp4PartGet(debateId, p.msgId);
+        if (blob) blobs.push(blob);
+        setMergeBusy({ label: `Carregando MP4 ${i + 1}/${ready.length}`, pct: 0.05 + 0.25 * ((i + 1) / ready.length) });
+      }
+      if (blobs.length < 2) throw new Error("MP4s insuficientes no cache para juntar.");
       const merged = await concatMp4Parts(
-        ready.map((p) => p.videoBlob!),
-        (label, pct) => setMergeBusy({ label, pct }),
+        blobs,
+        (label, pct) => setMergeBusy({ label, pct: 0.3 + pct * 0.7 }),
       );
       const url = URL.createObjectURL(merged);
       const a = document.createElement("a");
@@ -1096,7 +1114,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                       </Button>
                     )}
                     {(p.status === "error" || p.status === "done") && !perSpeechRunning && (
-                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => runPerSpeechExport(p.msgId)} title="Refazer só esta">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => p.audioUrl ? runPerSpeechExport(p.msgId) : retryAudioForPart(p.msgId)} title="Refazer só esta">
                         <RotateCcw className="h-3.5 w-3.5" />
                       </Button>
                     )}

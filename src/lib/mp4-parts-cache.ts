@@ -105,6 +105,28 @@ export async function mp4PartsByDebate(debateId: string): Promise<Map<string, Bl
   return out;
 }
 
+/** Load only cached part ids for a debate, without pulling MP4 blobs into RAM. */
+export async function mp4PartIdsByDebate(debateId: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  try {
+    const store = await tx("readonly");
+    const idx = store.index("debateId");
+    await new Promise<void>((res) => {
+      const r = idx.openKeyCursor(IDBKeyRange.only(debateId));
+      r.onsuccess = () => {
+        const c = r.result;
+        if (!c) { res(); return; }
+        const key = String(c.primaryKey ?? "");
+        const prefix = `${debateId}:`;
+        if (key.startsWith(prefix)) out.add(key.slice(prefix.length));
+        c.continue();
+      };
+      r.onerror = () => res();
+    });
+  } catch { /* noop */ }
+  return out;
+}
+
 let pruned = false;
 export async function mp4PartsPrune(): Promise<void> {
   if (pruned) return;
