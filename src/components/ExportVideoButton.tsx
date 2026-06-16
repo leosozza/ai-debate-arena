@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Film, Loader2, Download, Layers, Mic2, Scissors, RotateCcw, Archive, FileVideo, X } from "lucide-react";
+import { Film, Loader2, Download, Layers, Mic2, Scissors, RotateCcw, Archive, FileVideo, X, Play } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { exportSpeechToMp4, concatMp4Parts, zipMp4Parts } from "@/lib/video-export-per-speech";
