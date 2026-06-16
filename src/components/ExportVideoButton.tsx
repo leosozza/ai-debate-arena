@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Film, Loader2, Download, Layers, Mic2, Scissors, RotateCcw, Archive, FileVideo, X } from "lucide-react";
+import { Film, Loader2, Download, Layers, Mic2, Scissors, RotateCcw, Archive, FileVideo, X, Play } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { exportSpeechToMp4, concatMp4Parts, zipMp4Parts } from "@/lib/video-export-per-speech";
@@ -77,6 +77,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const [parts, setParts] = useState<Part[]>([]);
   const [perSpeechRunning, setPerSpeechRunning] = useState(false);
   const [mergeBusy, setMergeBusy] = useState<null | { label: string; pct: number }>(null);
+  const [previewPart, setPreviewPart] = useState<null | { part: Part; url: string }>(null);
   const cancelRef = useRef(false);
   const partsRef = useRef<Part[]>([]);
   const perSpeechRunningRef = useRef(false);
@@ -890,6 +891,18 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  async function openPartPreview(p: Part) {
+    const blob = p.videoBlob ?? await mp4PartGet(debateId, p.msgId);
+    if (!blob) { toast.error("MP4 não encontrado no cache. Refazer esta fala."); return; }
+    const url = URL.createObjectURL(blob);
+    setPreviewPart({ part: p, url });
+  }
+
+  function closePartPreview() {
+    if (previewPart) URL.revokeObjectURL(previewPart.url);
+    setPreviewPart(null);
+  }
+
   async function downloadAllAsZip() {
     const ready = parts.filter((p) => p.status === "done");
     if (ready.length === 0) { toast.error("Nenhuma fala pronta."); return; }
@@ -1103,6 +1116,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                   </div>
                   <div className="flex items-center gap-1">
                     {p.status === "done" && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openPartPreview(p)} title="Assistir prévia">
+                        <Play className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {p.status === "done" && (
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => downloadPart(p)} title="Baixar esta fala">
                         <Download className="h-3.5 w-3.5" />
                       </Button>
@@ -1123,6 +1141,30 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
               ))}
             </ul>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewPart !== null} onOpenChange={(o) => { if (!o) closePartPreview(); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="truncate">{previewPart?.part.label}</DialogTitle>
+            <DialogDescription className="truncate">{previewPart?.part.phaseLabel}</DialogDescription>
+          </DialogHeader>
+          {previewPart && (
+            <video
+              src={previewPart.url}
+              controls
+              autoPlay
+              className="w-full rounded-md bg-black aspect-video"
+            />
+          )}
+          {previewPart && (
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => downloadPart(previewPart.part)}>
+                <Download className="h-4 w-4 mr-1" /> Baixar
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
