@@ -29,7 +29,7 @@ import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 import { KOKORO_VOICE_IDS, kokoroFallback } from "@/lib/kokoro-voices";
 import { ttsCacheGet, ttsCachePut, ttsCachePrune, blobToUrl, dataUrlToBlob, hashContent } from "@/lib/tts-cache";
-import { mp4PartGet, mp4PartPut, mp4PartIdsByDebate, mp4PartsPrune } from "@/lib/mp4-parts-cache";
+import { mp4PartGet, mp4PartPut, mp4PartDelete, mp4PartIdsByDebate, mp4PartsPrune } from "@/lib/mp4-parts-cache";
 
 type Slot = { provider: VoiceProvider; voiceId: string | null };
 
@@ -789,6 +789,24 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     await retryAudiosForMsgIds(ids);
   }
 
+  async function redoAllWithoutJingle() {
+    if (perSpeechRunningRef.current) { toast.info("Aguarde a fila atual terminar ou pare-a."); return; }
+    const all = partsRef.current;
+    if (all.length === 0) return;
+    if (!window.confirm(`Apagar os ${all.length} vídeos já gerados e refazer todos sem o jingle?`)) return;
+    // Apaga MP4s do IndexedDB.
+    for (const p of all) {
+      try { await mp4PartDelete(debateId, p.msgId); } catch { /* noop */ }
+    }
+    // Reseta estado de cada parte.
+    updateParts((prev) => prev.map((p) => {
+      if (p.videoUrl) { try { URL.revokeObjectURL(p.videoUrl); } catch { /* noop */ } }
+      return { ...p, status: "pending", videoBlob: undefined, videoUrl: undefined, audioUrl: undefined, progressPct: 0, error: undefined };
+    }));
+    toast.info("Refazendo todos os vídeos sem o jingle…");
+    await retryAudiosForMsgIds(all.map((p) => p.msgId));
+  }
+
 
   async function renderOnePart(p: Part, base: NonNullable<ReturnType<typeof buildBasePerSpeech>>): Promise<Part> {
     if (!p.audioUrl || !p.duration) {
@@ -1074,6 +1092,13 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                 title="Tenta gerar de novo os áudios das falas marcadas como ausentes, e renderiza o MP4 em seguida">
                 <Mic2 className="h-4 w-4 mr-1" />
                 Corrigir áudios faltantes ({parts.filter((p) => p.status === "error" && !p.audioUrl).length})
+              </Button>
+            )}
+            {parts.length > 0 && !perSpeechRunning && (
+              <Button size="sm" variant="secondary" onClick={redoAllWithoutJingle} disabled={mergeBusy !== null}
+                title="Apaga todos os MP4s já gerados e refaz a fila sem a música de fundo (jingle)">
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Refazer todos sem jingle
               </Button>
             )}
             <div className="flex-1" />
