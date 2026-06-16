@@ -78,6 +78,37 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const [perSpeechRunning, setPerSpeechRunning] = useState(false);
   const [mergeBusy, setMergeBusy] = useState<null | { label: string; pct: number }>(null);
   const cancelRef = useRef(false);
+  const partsRef = useRef<Part[]>([]);
+  const perSpeechRunningRef = useRef(false);
+  const perSpeechTaskRef = useRef<Promise<void> | null>(null);
+  const audioPreparingRef = useRef(false);
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
+
+  function updateParts(updater: (prev: Part[]) => Part[]): void {
+    setParts((prev) => {
+      const next = updater(prev);
+      partsRef.current = next;
+      return next;
+    });
+  }
+
+  useEffect(() => { partsRef.current = parts; }, [parts]);
+
+  async function keepExportAwake(enable: boolean): Promise<void> {
+    if (typeof navigator === "undefined") return;
+    const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } };
+    try {
+      if (enable && !wakeLockRef.current && nav.wakeLock) {
+        wakeLockRef.current = await nav.wakeLock.request("screen");
+      }
+      if (!enable && wakeLockRef.current) {
+        await wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    } catch {
+      wakeLockRef.current = null;
+    }
+  }
 
   // Cache em memória das URLs criadas a partir do cache IDB nesta sessão.
   // O cache PERSISTENTE de TTS vive em IndexedDB (src/lib/tts-cache.ts),
