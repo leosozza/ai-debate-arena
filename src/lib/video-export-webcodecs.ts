@@ -25,9 +25,19 @@ type Segment = {
 };
 
 const FPS = 30;
-const SAMPLE_RATE = 48000;
+// 44.1 kHz vs 48 kHz reduz ~8% do PCM em memória sem perda perceptível em fala/música.
+const SAMPLE_RATE = 44100;
 const VIDEO_BITRATE = 2_500_000;
 const AUDIO_BITRATE = 128_000;
+
+function logMem(stage: string): void {
+  const perf = performance as Performance & { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } };
+  if (perf.memory) {
+    const used = (perf.memory.usedJSHeapSize / 1024 / 1024).toFixed(0);
+    const lim = (perf.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(0);
+    console.info(`[video-export][mem] ${stage}: ${used}MB / ${lim}MB`);
+  }
+}
 
 async function decodeAudioFromUrl(ac: AudioContext, url: string): Promise<AudioBuffer | null> {
   try {
