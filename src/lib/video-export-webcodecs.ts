@@ -212,8 +212,17 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
 
   if (segments.length === 0) throw new Error("Sem segmentos pra codificar");
 
+  logMem("antes do mix de áudio");
   log("Misturando áudio", 0.22);
   const mixed = await renderMixedAudio(segments);
+
+  // Libera os AudioBuffers originais — não são mais necessários, e somam ~8MB/min cada.
+  for (const seg of segments) {
+    seg.audio = null;
+    seg.bedMusic = null;
+  }
+  try { await ac.close(); } catch { /* noop */ }
+  logMem("após mix (buffers liberados)");
 
   // ── Encoders + Muxer ──
   log("Iniciando encoder", 0.25);
