@@ -793,7 +793,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   async function retryAllMissingAudios() {
-    const ids = parts.filter((p) => p.status === "error" && !p.audioUrl).map((p) => p.msgId);
+    const ids = parts.filter((p) => p.status === "error" && (!p.audioUrl || !p.duration)).map((p) => p.msgId);
     if (ids.length === 0) { toast.info("Nenhum áudio faltando."); return; }
     await retryAudiosForMsgIds(ids);
   }
@@ -1112,11 +1112,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                 <X className="h-4 w-4 mr-1" /> Parar
               </Button>
             )}
-            {parts.some((p) => p.status === "error" && !p.audioUrl) && !perSpeechRunning && (
+            {parts.some((p) => p.status === "error" && (!p.audioUrl || !p.duration)) && !perSpeechRunning && (
               <Button size="sm" variant="secondary" onClick={retryAllMissingAudios} disabled={mergeBusy !== null}
                 title="Tenta gerar de novo os áudios das falas marcadas como ausentes, e renderiza o MP4 em seguida">
                 <Mic2 className="h-4 w-4 mr-1" />
-                Corrigir áudios faltantes ({parts.filter((p) => p.status === "error" && !p.audioUrl).length})
+                Corrigir áudios faltantes ({parts.filter((p) => p.status === "error" && (!p.audioUrl || !p.duration)).length})
               </Button>
             )}
             {parts.length > 0 && !perSpeechRunning && (
@@ -1175,14 +1175,14 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                         <Download className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {p.status === "error" && !p.audioUrl && !perSpeechRunning && (
+                    {p.status === "error" && (!p.audioUrl || !p.duration) && !perSpeechRunning && (
                       <Button size="sm" variant="secondary" className="h-7 px-2" onClick={() => retryAudioForPart(p.msgId)} title="Gera o áudio que faltou e cria o vídeo">
                         <Mic2 className="h-3.5 w-3.5 mr-1" />
                         Tentar áudio
                       </Button>
                     )}
                     {(p.status === "error" || p.status === "done") && !perSpeechRunning && (
-                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => p.audioUrl ? runPerSpeechExport([p.msgId]) : retryAudioForPart(p.msgId)} title="Refazer só esta">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => (p.audioUrl && p.duration) ? runPerSpeechExport([p.msgId]) : retryAudioForPart(p.msgId)} title="Refazer só esta">
                         <RotateCcw className="h-3.5 w-3.5" />
                       </Button>
                     )}
