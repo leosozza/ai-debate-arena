@@ -197,6 +197,7 @@ function PresentMode() {
       try { audioRef.current.pause(); } catch { /* ignore */ }
       // NÃO destruir o elemento — manter a permissão de autoplay no mobile.
     }
+    setActiveAudio(null);
   }
 
   function ensureAudioEl(): HTMLAudioElement {
