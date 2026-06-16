@@ -77,6 +77,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const [parts, setParts] = useState<Part[]>([]);
   const [perSpeechRunning, setPerSpeechRunning] = useState(false);
   const [mergeBusy, setMergeBusy] = useState<null | { label: string; pct: number }>(null);
+  const [previewPart, setPreviewPart] = useState<null | { part: Part; url: string }>(null);
   const cancelRef = useRef(false);
   const partsRef = useRef<Part[]>([]);
   const perSpeechRunningRef = useRef(false);
