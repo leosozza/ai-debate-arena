@@ -2,7 +2,12 @@
 const ENDPOINT = "https://api.elevenlabs.io/v1/text-to-speech";
 const MODEL = "eleven_multilingual_v2";
 
-export async function elevenTTS(text: string, voiceId: string): Promise<{ audio: string; mime: string }> {
+function clampSpeed(speed: number | null | undefined): number {
+  if (!Number.isFinite(speed)) return 1;
+  return Math.max(0.7, Math.min(1.2, Number(speed)));
+}
+
+export async function elevenTTS(text: string, voiceId: string, speed = 1): Promise<{ audio: string; mime: string }> {
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) throw new Error("ELEVENLABS_API_KEY ausente. Configure o secret no Lovable.");
 
@@ -22,7 +27,13 @@ export async function elevenTTS(text: string, voiceId: string): Promise<{ audio:
         model_id: MODEL,
         // stability mais baixa = mais expressivo/natural; speaker_boost melhora
         // a fidelidade da voz; similarity alta mantém o timbre.
-        voice_settings: { stability: 0.45, similarity_boost: 0.85, style: 0.0, use_speaker_boost: true },
+        voice_settings: {
+          stability: 0.45,
+          similarity_boost: 0.85,
+          style: 0.0,
+          use_speaker_boost: true,
+          speed: clampSpeed(speed),
+        },
       }),
       signal: ctrl.signal,
     });

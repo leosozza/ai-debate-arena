@@ -263,11 +263,13 @@ function PresentMode() {
     const voiceId = slot.voiceId ?? "";
     if (!voiceId) throw new Error("Voz não selecionada.");
     const clean = stripMarkdownForTts(text).slice(0, 5000);
+    const isElevenId = slot.provider === "eleven" || voiceId.startsWith("el:");
     // Chave unificada compartilhada com o ExportVideoButton (IndexedDB).
-    // Settings só entram na chave quando o provider sintetiza com elas (minimax);
-    // para replicate/eleven speed/pitch/volume são aplicados no <audio> no playback.
+    // Settings entram na chave quando o provider sintetiza com elas.
     const settingsSuffix = slot.provider === "minimax"
       ? `|${slot.settings.speed}|${slot.settings.pitch}|${slot.settings.volume}`
+      : isElevenId
+      ? `|${Math.max(0.7, Math.min(1.2, slot.settings.speed))}`
       : "";
     const persistKey = `${slot.provider}|${voiceId}|${msgId}|${hashContent(clean)}${settingsSuffix}`;
     const hot = audioCache.current.get(persistKey);
@@ -280,7 +282,6 @@ function PresentMode() {
       return u;
     }
     let url: string;
-    const isElevenId = slot.provider === "eleven" || voiceId.startsWith("el:");
     if (slot.provider === "kokoro") {
       const { kokoroSynthUrl } = await import("@/lib/kokoro-tts");
       url = await kokoroSynthUrl(clean, voiceId);
@@ -289,7 +290,7 @@ function PresentMode() {
       url = await piperSynthUrl(clean, voiceId);
     } else if (isElevenId) {
       const rawId = voiceId.startsWith("el:") ? voiceId.slice(3) : voiceId;
-      const res = await elTts({ data: { text: clean, voiceId: rawId } });
+      const res = await elTts({ data: { text: clean, voiceId: rawId, speed: Math.max(0.7, Math.min(1.2, slot.settings.speed)) } });
       if ("error" in res && res.error) {
         console.warn("[tts] ElevenLabs direto falhou, tentando via Replicate:", res.error);
         const rp = await rpTts({ data: { text: clean, voiceId: `el:${rawId}` } });
@@ -348,8 +349,8 @@ function PresentMode() {
         }
       };
       audio.src = url;
-      // Para providers que não aceitam settings server-side, aplica no player.
-      if (slot.provider === "replicate" || slot.provider === "eleven") {
+      // Replicate não aceita settings server-side neste fluxo; Eleven já recebe speed na síntese.
+      if (slot.provider === "replicate") {
         audio.playbackRate = Math.max(0.5, Math.min(2, slot.settings.speed));
         audio.volume = Math.max(0, Math.min(1, slot.settings.volume));
       } else {
@@ -616,32 +617,30 @@ function PresentMode() {
   }
 
 
-  // Cartela do bloco só aparece DEPOIS que o usuário começa (não bloqueia o botão Tocar).
+  // Cartela do bloco só aparece entre falas: nunca corta áudio em andamento.
   const lastBlockShownRef = useRef<number>(-1);
   const subtopicsList = (data?.debate?.block_subtopics as Array<{ title: string; focus: string }> | null) ?? [];
   const blocksTotal = data?.debate?.blocks_count ?? subtopicsList.length ?? 1;
-  useEffect(() => {
-    if (!playing || !current) return;
-    const b = current.block_index ?? 0;
-    // O bloco 0 é coberto pelo card de apresentação dos convidados (DebaterIntroCard),
-    // então não exibimos o BlockIntroCard tradicional nesse caso.
-    if (b > 0 && blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
-      lastBlockShownRef.current = b;
-      stopAll();
-      setIntroBlock(b);
-    }
-  }, [playing, current?.id, blocksTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!playing || !current || introBlock !== null) return;
+    const b = current.block_index ?? 0;
+    if (b > 0 && blocksTotal > 1 && subtopicsList[b] && lastBlockShownRef.current !== b) {
+      lastBlockShownRef.current = b;
+      setIntroBlock(b);
+      return;
+    }
+    let advanced = false;
     const advance = () => {
+      if (advanced) return;
+      advanced = true;
       if (index + 1 < slideCount) setIndex((i) => i + 1);
       else setPlaying(false);
     };
     speak(current.id, current.content, (current.role ?? "moderator") as Side, advance);
     return () => { stopAll(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, index, current?.id, introBlock, slotMod, slotA, slotB]);
+  }, [playing, index, current?.id, introBlock, blocksTotal, slideCount, slotMod.provider, slotMod.voiceId, slotMod.settings.speed, slotMod.settings.pitch, slotMod.settings.volume, slotA.provider, slotA.voiceId, slotA.settings.speed, slotA.settings.pitch, slotA.settings.volume, slotB.provider, slotB.voiceId, slotB.settings.speed, slotB.settings.pitch, slotB.settings.volume]);
 
 
   function handlePlayToggle() {
