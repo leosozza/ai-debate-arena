@@ -798,7 +798,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           content: p.content, audioUrl: p.audioUrl, trimStart: 0, trimEnd: 0, subtitle: true,
         },
         (_label, pct) => {
-          setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, progressPct: pct, status: "rendering" } : x));
+          updateParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, progressPct: pct, status: "rendering" } : x));
         },
       );
       // Aguarda persistir ANTES de avançar — assim, se o usuário fechar o
@@ -812,8 +812,66 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   async function runPerSpeechExport(onlyMsgId?: string) {
+    if (perSpeechRunningRef.current) {
+      toast.info("A fila já está rodando em segundo plano.", { duration: 2500 });
+      await perSpeechTaskRef.current;
+      return;
+    }
     const base = buildBasePerSpeech();
     if (!base) return;
+    const task = (async () => {
+      const attempted = new Set<string>();
+      perSpeechRunningRef.current = true;
+      setPerSpeechRunning(true);
+      cancelRef.current = false;
+      await keepExportAwake(true);
+      try {
+        while (!cancelRef.current) {
+          const snapshot = partsRef.current;
+          const queue = onlyMsgId
+            ? snapshot.filter((p) => p.msgId === onlyMsgId)
+            : snapshot.filter((p) => p.status !== "done");
+          const next = queue.find((p) => !attempted.has(p.msgId) && p.audioUrl && p.duration);
+          if (!next) {
+            const waitingForAudio = queue.some((p) => !attempted.has(p.msgId) && (!p.audioUrl || !p.duration));
+            if (waitingForAudio && audioPreparingRef.current) {
+              await new Promise((r) => setTimeout(r, 600));
+              continue;
+            }
+            if (waitingForAudio) {
+              updateParts((prev) => prev.map((x) =>
+                queue.some((p) => p.msgId === x.msgId) && !attempted.has(x.msgId) && x.status !== "done"
+                  ? { ...x, status: "error", error: x.error ?? "Áudio ausente.", progressPct: 0 }
+                  : x,
+              ));
+            }
+            break;
+          }
+          attempted.add(next.msgId);
+          updateParts((prev) => prev.map((x) => x.msgId === next.msgId ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x));
+          const fresh = partsRef.current.find((x) => x.msgId === next.msgId) ?? next;
+          const updated = await renderOnePart(fresh, base).catch((e) => ({
+            ...fresh,
+            status: "error" as PartStatus,
+            error: e instanceof Error ? e.message : String(e),
+            progressPct: 0,
+          }));
+          updateParts((prev) => prev.map((x) => x.msgId === next.msgId ? updated : x));
+          await new Promise((r) => setTimeout(r, 400));
+          if (onlyMsgId) break;
+        }
+      } finally {
+        perSpeechRunningRef.current = false;
+        setPerSpeechRunning(false);
+        perSpeechTaskRef.current = null;
+        await keepExportAwake(false);
+      }
+    })();
+    perSpeechTaskRef.current = task;
+    await task;
+  }
+
+  async function runPerSpeechExportOld(onlyMsgId?: string) {
     setPerSpeechRunning(true);
     cancelRef.current = false;
     try {
