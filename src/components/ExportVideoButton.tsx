@@ -783,7 +783,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     // uma mini-fila por fala; isso reduz vazamento de memória em lotes longos.
     const renderable = msgIds.filter((id) => byId.has(id));
     if (renderable.length > 0) {
-      await runPerSpeechExport();
+      await runPerSpeechExport(renderable);
       toast.success(`${renderable.length} áudio(s) corrigido(s).`);
     }
   }
@@ -857,7 +857,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
   }
 
-  async function runPerSpeechExport(onlyMsgId?: string) {
+  async function runPerSpeechExport(onlyMsgIds?: string[]) {
     if (perSpeechRunningRef.current) {
       toast.info("A fila já está rodando em segundo plano.", { duration: 2500 });
       await perSpeechTaskRef.current;
@@ -872,10 +872,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       cancelRef.current = false;
       await keepExportAwake(true);
       try {
+        const scope = onlyMsgIds ? new Set(onlyMsgIds) : null;
         while (!cancelRef.current) {
           const snapshot = partsRef.current;
-          const queue = onlyMsgId
-            ? snapshot.filter((p) => p.msgId === onlyMsgId)
+          const queue = scope
+            ? snapshot.filter((p) => scope.has(p.msgId))
             : snapshot.filter((p) => p.status !== "done");
           const next = queue.find((p) => !attempted.has(p.msgId) && p.audioUrl && p.duration);
           if (!next) {
@@ -910,7 +911,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           } else {
             await new Promise((r) => setTimeout(r, 900));
           }
-          if (onlyMsgId) break;
+          if (scope && queue.every((p) => attempted.has(p.msgId) || p.status === "done")) break;
         }
       } finally {
         perSpeechRunningRef.current = false;
