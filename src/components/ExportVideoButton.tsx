@@ -78,6 +78,37 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const [perSpeechRunning, setPerSpeechRunning] = useState(false);
   const [mergeBusy, setMergeBusy] = useState<null | { label: string; pct: number }>(null);
   const cancelRef = useRef(false);
+  const partsRef = useRef<Part[]>([]);
+  const perSpeechRunningRef = useRef(false);
+  const perSpeechTaskRef = useRef<Promise<void> | null>(null);
+  const audioPreparingRef = useRef(false);
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
+
+  function updateParts(updater: (prev: Part[]) => Part[]): void {
+    setParts((prev) => {
+      const next = updater(prev);
+      partsRef.current = next;
+      return next;
+    });
+  }
+
+  useEffect(() => { partsRef.current = parts; }, [parts]);
+
+  async function keepExportAwake(enable: boolean): Promise<void> {
+    if (typeof navigator === "undefined") return;
+    const nav = navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } };
+    try {
+      if (enable && !wakeLockRef.current && nav.wakeLock) {
+        wakeLockRef.current = await nav.wakeLock.request("screen");
+      }
+      if (!enable && wakeLockRef.current) {
+        await wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
+    } catch {
+      wakeLockRef.current = null;
+    }
+  }
 
   // Cache em memória das URLs criadas a partir do cache IDB nesta sessão.
   // O cache PERSISTENTE de TTS vive em IndexedDB (src/lib/tts-cache.ts),
@@ -645,6 +676,10 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       toast.error("Exportação por fala ainda só suporta o formato Duelo.");
       return;
     }
+    if (perSpeechRunningRef.current || audioPreparingRef.current || partsRef.current.length > 0) {
+      setPerSpeechOpen(true);
+      return;
+    }
     const slots = resolveSlotsOrWarn();
     if (!slots) return;
 
@@ -665,18 +700,19 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         progressPct: cachedBlob ? 1 : undefined,
       };
     });
-    setParts(baseParts);
+    updateParts(() => baseParts);
     const reused = baseParts.filter((p) => p.status === "done").length;
     if (reused > 0) toast.success(`${reused} fala(s) reaproveitada(s) do cache.`, { duration: 4000 });
     setPerSpeechOpen(true);
 
     // 2) Sintetiza áudios em background. Falhas individuais NÃO derrubam o painel.
+    audioPreparingRef.current = true;
     setProgress({ label: "Preparando vozes", pct: 0 });
     const errMap = new Map<string, string>();
     try {
       const built = await synthesizeClips(all, slots, errMap);
       const byId = new Map((built ?? []).map((c) => [c.id, c]));
-      setParts((prev) => prev.map((p) => {
+      updateParts((prev) => prev.map((p) => {
         const c = byId.get(p.msgId);
         if (!c) {
           if (p.status === "done") return p;
@@ -689,11 +725,15 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       }));
     } catch (e) {
       toast.error(`Falha ao preparar áudios: ${e instanceof Error ? e.message : String(e)}. Falas com áudio em cache continuam disponíveis.`);
-      setParts((prev) => prev.map((p) =>
+      updateParts((prev) => prev.map((p) =>
         p.status === "done" || p.audioUrl ? p : { ...p, status: "error", error: errMap.get(p.msgId) ?? "Áudio ausente." },
       ));
     } finally {
+      audioPreparingRef.current = false;
       setProgress(null);
+      if (!perSpeechRunningRef.current && partsRef.current.some((p) => p.status !== "done" && p.audioUrl && p.duration)) {
+        void runPerSpeechExport();
+      }
     }
   }
 
@@ -707,7 +747,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     if (subset.length === 0) return;
 
     // Marca como "rendering" só pra indicar atividade na linha (sem barra).
-    setParts((prev) => prev.map((x) =>
+    updateParts((prev) => prev.map((x) =>
       msgIds.includes(x.msgId) ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x,
     ));
     setProgress({ label: `Gerando áudio (${subset.length})`, pct: 0 });
@@ -721,7 +761,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       setProgress(null);
     }
     const byId = new Map((built ?? []).map((c) => [c.id, c]));
-    setParts((prev) => prev.map((p) => {
+    updateParts((prev) => prev.map((p) => {
       if (!msgIds.includes(p.msgId)) return p;
       const c = byId.get(p.msgId);
       if (!c) {
@@ -765,7 +805,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           content: p.content, audioUrl: p.audioUrl, trimStart: 0, trimEnd: 0, subtitle: true,
         },
         (_label, pct) => {
-          setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, progressPct: pct, status: "rendering" } : x));
+          updateParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, progressPct: pct, status: "rendering" } : x));
         },
       );
       // Aguarda persistir ANTES de avançar — assim, se o usuário fechar o
@@ -779,40 +819,64 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   async function runPerSpeechExport(onlyMsgId?: string) {
+    if (perSpeechRunningRef.current) {
+      toast.info("A fila já está rodando em segundo plano.", { duration: 2500 });
+      await perSpeechTaskRef.current;
+      return;
+    }
     const base = buildBasePerSpeech();
     if (!base) return;
-    setPerSpeechRunning(true);
-    cancelRef.current = false;
-    try {
-      // Snapshot atual da fila
-      const snapshot = parts;
-      const queue = onlyMsgId
-        ? snapshot.filter((p) => p.msgId === onlyMsgId)
-        : snapshot.filter((p) => p.status !== "done");
-      for (let i = 0; i < queue.length; i++) {
-        if (cancelRef.current) break;
-        const p = queue[i];
-        // Pula falas sem áudio em vez de tentar e estourar erro genérico.
-        if (!p.audioUrl || !p.duration) {
-          setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, status: "error", error: "Áudio ausente." } : x));
-          continue;
+    const task = (async () => {
+      const attempted = new Set<string>();
+      perSpeechRunningRef.current = true;
+      setPerSpeechRunning(true);
+      cancelRef.current = false;
+      await keepExportAwake(true);
+      try {
+        while (!cancelRef.current) {
+          const snapshot = partsRef.current;
+          const queue = onlyMsgId
+            ? snapshot.filter((p) => p.msgId === onlyMsgId)
+            : snapshot.filter((p) => p.status !== "done");
+          const next = queue.find((p) => !attempted.has(p.msgId) && p.audioUrl && p.duration);
+          if (!next) {
+            const waitingForAudio = queue.some((p) => !attempted.has(p.msgId) && (!p.audioUrl || !p.duration));
+            if (waitingForAudio && audioPreparingRef.current) {
+              await new Promise((r) => setTimeout(r, 600));
+              continue;
+            }
+            if (waitingForAudio) {
+              updateParts((prev) => prev.map((x) =>
+                queue.some((p) => p.msgId === x.msgId) && !attempted.has(x.msgId) && x.status !== "done"
+                  ? { ...x, status: "error", error: x.error ?? "Áudio ausente.", progressPct: 0 }
+                  : x,
+              ));
+            }
+            break;
+          }
+          attempted.add(next.msgId);
+          updateParts((prev) => prev.map((x) => x.msgId === next.msgId ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x));
+          const fresh = partsRef.current.find((x) => x.msgId === next.msgId) ?? next;
+          const updated = await renderOnePart(fresh, base).catch((e) => ({
+            ...fresh,
+            status: "error" as PartStatus,
+            error: e instanceof Error ? e.message : String(e),
+            progressPct: 0,
+          }));
+          updateParts((prev) => prev.map((x) => x.msgId === next.msgId ? updated : x));
+          await new Promise((r) => setTimeout(r, 400));
+          if (onlyMsgId) break;
         }
-        setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x));
-        let updated: Part;
-        try {
-          updated = await renderOnePart(p, base);
-        } catch (e) {
-          updated = { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
-        }
-        setParts((prev) => prev.map((x) => x.msgId === p.msgId ? updated : x));
-        // Folga maior pro GC entre falas (era 200ms).
-        await new Promise((r) => setTimeout(r, 400));
+      } finally {
+        perSpeechRunningRef.current = false;
+        setPerSpeechRunning(false);
+        perSpeechTaskRef.current = null;
+        await keepExportAwake(false);
       }
-    } finally {
-      setPerSpeechRunning(false);
-    }
+    })();
+    perSpeechTaskRef.current = task;
+    await task;
   }
-
   function downloadPart(p: Part) {
     if (!p.videoUrl) return;
     const a = document.createElement("a");
@@ -907,9 +971,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
           Exportar MP4
         </Button>
-        <Button onClick={openPerSpeechPanel} disabled={disabled} size="sm" variant="default" title="Gera um MP4 por fala (não trava em debates longos) — depois junta ou baixa individualmente">
-          {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Scissors className="h-4 w-4 mr-1" />}
-          Exportar por fala
+        <Button onClick={openPerSpeechPanel} disabled={!data || data.messages.length === 0} size="sm" variant="default" title="Gera um MP4 por fala (não trava em debates longos) — depois junta ou baixa individualmente">
+          {busy || perSpeechRunning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Scissors className="h-4 w-4 mr-1" />}
+          {parts.length > 0 ? "Ver fila" : "Exportar por fala"}
         </Button>
         {blockCount > 1 && (
           <DropdownMenu>
