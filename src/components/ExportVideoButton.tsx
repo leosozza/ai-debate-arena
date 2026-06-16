@@ -975,6 +975,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
               <Button size="sm" variant="ghost" onClick={() => { cancelRef.current = true; }}>
                 <X className="h-4 w-4 mr-1" /> Parar
               </Button>
+            )}
             {parts.some((p) => p.status === "error" && !p.audioUrl) && !perSpeechRunning && (
               <Button size="sm" variant="secondary" onClick={retryAllMissingAudios} disabled={mergeBusy !== null}
                 title="Tenta gerar de novo os áudios das falas marcadas como ausentes, e renderiza o MP4 em seguida">
