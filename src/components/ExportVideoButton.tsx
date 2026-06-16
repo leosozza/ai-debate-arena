@@ -850,6 +850,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       // de base64 + buffers enquanto a fila avança.
       // O próprio MP4 também fica só no IndexedDB; carregar todos os blobs na
       // memória era o que fazia a fila parar por volta da 14ª fala.
+      releaseSessionAudioForMsg(p.msgId);
       return { ...p, audioUrl: undefined, videoBlob: undefined, videoUrl: undefined, status: "done", progressPct: 1, error: undefined };
     } catch (e) {
       return { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
@@ -902,7 +903,13 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
             progressPct: 0,
           }));
           updateParts((prev) => prev.map((x) => x.msgId === next.msgId ? updated : x));
-          await new Promise((r) => setTimeout(r, 900));
+          if (attempted.size % 6 === 0) {
+            setProgress({ label: "Liberando memória antes de continuar", pct: 1 });
+            await new Promise((r) => setTimeout(r, 2500));
+            setProgress(null);
+          } else {
+            await new Promise((r) => setTimeout(r, 900));
+          }
           if (onlyMsgId) break;
         }
       } finally {
