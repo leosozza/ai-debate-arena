@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Film, Loader2, Download, Layers } from "lucide-react";
+import { Film, Loader2, Download, Layers, Mic2 } from "lucide-react";
 import { toast } from "sonner";
 import { getDebate, ttsSpeak } from "@/lib/debate.functions";
 import { listPersonas } from "@/lib/persona.functions";
@@ -293,6 +293,29 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     return built;
   }
 
+  /** Etapa explícita: pré-gera e SALVA (cache IndexedDB) o áudio de todas as
+   *  falas, com avisos por fala. Deixa o vídeo pronto pra exportar sem surpresa. */
+  async function prepareAudiosOnly() {
+    if (!data) return;
+    const slots = resolveSlotsOrWarn();
+    if (!slots) return;
+    setProgress({ label: "Gerando áudios", pct: 0 });
+    try {
+      const all = buildMessageList(null);
+      const built = await synthesizeClips(all, slots);
+      if (built) {
+        const ok = built.length, total = all.length;
+        if (ok >= total) toast.success(`✓ Áudios prontos: ${ok}/${total} falas. Agora é só exportar o vídeo.`, { duration: 6000 });
+        else toast.warning(`Áudios: ${ok}/${total} prontas — ${total - ok} falharam (confira as vozes). O vídeo pulará as sem áudio.`, { duration: 8000 });
+      }
+    } catch (e) {
+      console.error("[gerar-audios] falhou:", e);
+      toast.error(`Falha ao gerar áudios: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setProgress(null);
+    }
+  }
+
   async function prepareAndOpen() {
     if (!data) return;
     const d = data.debate;
@@ -526,6 +549,10 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   return (
     <div className="inline-flex flex-col gap-1">
       <div className="inline-flex flex-wrap items-center gap-1">
+        <Button onClick={prepareAudiosOnly} disabled={disabled} size="sm" variant="secondary" title="Pré-gera e salva o áudio de todas as falas (deixa o vídeo pronto, sem falhar na hora)">
+          {busy && !editorOpen ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mic2 className="h-4 w-4 mr-1" />}
+          Gerar áudios
+        </Button>
         <Button onClick={prepareAndOpen} disabled={disabled} size="sm" variant="default">
           {busy && !editorOpen ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Film className="h-4 w-4 mr-1" />}
           {busy && !editorOpen ? "Preparando…" : "Editor de vídeo"}
