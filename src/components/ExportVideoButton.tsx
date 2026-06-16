@@ -417,19 +417,61 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
   }
 
+  /** Sequencia exportDirect(0..N-1) — evita estouro de memória em debates longos. */
+  async function exportAllBlocksSequentially() {
+    if (!data) return;
+    const subs = (data.debate.block_subtopics as Array<{ title?: string }> | null) ?? [];
+    const total = subs.length;
+    if (total <= 1) return;
+    let ok = 0;
+    for (let i = 0; i < total; i++) {
+      try {
+        setProgress({ label: `Bloco ${i + 1}/${total} — preparando`, pct: i / total });
+        await exportDirect(i, { quiet: true });
+        ok++;
+      } catch (e) {
+        console.error(`[export-block ${i + 1}] falhou:`, e);
+        toast.error(`Bloco ${i + 1} falhou: ${e instanceof Error ? e.message : String(e)}`, { duration: 8000 });
+      }
+      // Folga pro GC entre blocos.
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    if (ok === total) {
+      toast.success(`${ok}/${total} blocos exportados! Veja a lista de vídeos salvos abaixo.`, { duration: 9000 });
+    } else {
+      toast.warning(`${ok}/${total} blocos exportados. Tente os que falharam novamente.`, { duration: 9000 });
+    }
+  }
+
   /** One-click: synth → render → download. No editor. blockIndex=null = full debate. */
-  async function exportDirect(blockIndex: number | null) {
+  async function exportDirect(blockIndex: number | null, opts?: { quiet?: boolean }) {
     if (!data) return;
     const d = data.debate;
     if ((d.format ?? "duel") !== "duel") {
       toast.error("Exportação de vídeo ainda só suporta o formato Duelo.");
       return;
     }
+    // Debate longo + várias blocos? Exportar bloco a bloco evita crash da aba por OOM.
+    if (blockIndex === null && !opts?.quiet) {
+      const subs = (d.block_subtopics as Array<{ title?: string }> | null) ?? [];
+      const isLong = data.messages.length > 20 || subs.length > 3;
+      if (isLong && subs.length > 1) {
+        const choose = window.confirm(
+          `Esse debate é longo (${data.messages.length} falas, ${subs.length} blocos). ` +
+          `Exportar o MP4 inteiro de uma vez costuma travar a aba por falta de memória.\n\n` +
+          `OK = exportar bloco a bloco (recomendado).\nCancelar = tentar tudo num MP4 só.`,
+        );
+        if (choose) {
+          await exportAllBlocksSequentially();
+          return;
+        }
+      }
+    }
     // Atalho: se já tem MP4 salvo pro mesmo escopo, baixa direto sem regerar.
     const existing = (savedExports ?? []).find((e) =>
       blockIndex === null ? e.kind === "full" : e.kind === "block" && e.block_index === blockIndex,
     );
-    if (existing && existing.download_url) {
+    if (existing && existing.download_url && !opts?.quiet) {
       const reuse = window.confirm(
         `Já existe um MP4 salvo desse ${blockIndex === null ? "debate" : "bloco"} (${(existing.size_bytes / 1024 / 1024).toFixed(1)}MB). Baixar o existente em vez de gerar de novo?`,
       );
@@ -453,10 +495,13 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       const subs = (data.debate.block_subtopics as Array<{ title?: string }> | null) ?? [];
       const blockTitle = blockIndex === null ? null : (subs[blockIndex]?.title ?? null);
       await renderAndDownload(built, suffix, { blockIndex, blockTitle });
-      toast.success(blockIndex === null ? "Vídeo MP4 exportado!" : `Bloco ${blockIndex + 1} exportado!`);
+      if (!opts?.quiet) {
+        toast.success(blockIndex === null ? "Vídeo MP4 exportado!" : `Bloco ${blockIndex + 1} exportado!`);
+      }
     } catch (e) {
       console.error("[export-mp4] falhou:", e);
       const msg = e instanceof Error ? e.message : String(e);
+      if (opts?.quiet) throw e;
       toast.error(`Falha ao gerar o MP4: ${msg}`, { duration: 9000 });
     } finally {
       setProgress(null);
