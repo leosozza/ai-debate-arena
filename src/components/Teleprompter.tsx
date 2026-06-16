@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { getActiveAudio } from "@/lib/active-audio";
 
 interface Props {
   text: string;
