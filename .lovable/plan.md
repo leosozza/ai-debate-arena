@@ -1,32 +1,21 @@
-## Problema
+Vou ajustar a exportação por fala para não depender do modal ficar aberto.
 
-Na exportação por fala, quando uma fala fica com "Áudio ausente" (TTS falhou no momento da preparação), não há como tentar gerar o áudio dela de novo. O usuário precisa fechar o painel e refazer tudo, mesmo já tendo áudios prontos para o resto.
+Plano:
+1. **Fechar o modal não pausa mais a fila**
+   - Ao clicar fora/fechar o painel, ele apenas esconde o modal.
+   - A geração dos MP4s continua em segundo plano até terminar ou até o usuário apertar **Parar**.
 
-## Objetivo
+2. **Separar “fechar” de “parar”**
+   - O botão **Parar** será o único que cancela/pausa a fila.
+   - Se parar durante uma fala, a fala atual volta para pendente/erro seguro, para poder continuar depois sem perder o que já foi salvo.
 
-Permitir corrigir falas com erro (especialmente "Áudio ausente") direto no painel "Exportar por fala", sem reabrir nem regerar o que já está pronto.
+3. **Evitar múltiplas filas ao mesmo tempo**
+   - Se a fila já estiver rodando e o usuário abrir o painel ou clicar de novo, não inicia outra execução duplicada.
 
-## Mudanças
+4. **Continuar automaticamente de onde parou**
+   - A fila sempre pula itens já concluídos.
+   - Itens com vídeo salvo no cache continuam como prontos.
+   - Itens pendentes com áudio seguem renderizando sem exigir ficar apertando **Continuar fila**.
 
-1. **Botão "Tentar gerar áudio" por linha (apenas para falas com erro de áudio)**
-   - Em cada item com `status === "error"` e sem `audioUrl`, mostrar um botão pequeno tipo "Tentar áudio".
-   - Roda `synthesizeClips` só para aquela mensagem, aproveitando o cache de TTS (memória + IndexedDB) — se outra fala já gerou voz, nem chama API.
-   - Se sucesso: preenche `audioUrl`/`duration`, volta status para `pending` e dispara `renderOnePart` em seguida (gera o MP4 automaticamente).
-   - Se falha: mantém erro com mensagem clara da causa (ex.: "voz não configurada", "TTS retornou 500").
-
-2. **Botão global "Corrigir áudios faltantes"**
-   - Aparece no topo do painel quando há `parts.some(p => p.status === "error" && !p.audioUrl)`.
-   - Faz a mesma coisa do item 1, em lote, só para as falas sem áudio.
-   - Depois que conseguir áudio, segue para renderizar o MP4 daquelas falas (entra no `runPerSpeechExport` filtrado).
-
-3. **Botão "Tentar novamente" para erros de render (já existe parcialmente)**
-   - Garantir que linhas com erro mas com `audioUrl` presente mostrem "Tentar de novo" para re-renderizar só o MP4 (sem refazer TTS).
-
-4. **Mensagens de erro melhores**
-   - Quando `synthesizeClips` falhar para uma fala específica, salvar a razão (ex.: "Voz B não configurada", "ElevenLabs 429") no `part.error` em vez do genérico "Áudio ausente". Para isso, vou extrair uma versão da função que retorna por-mensagem o motivo da falha, ou simplesmente expor o array `errors` já existente para preencher o erro de cada `Part`.
-
-5. **Sem mexer no fluxo normal de exportação** — só adiciona caminhos de retry. Cache de áudio e cache de MP4 continuam iguais.
-
-## Arquivo
-
-- `src/components/ExportVideoButton.tsx` — novas funções `retryAudioForPart(msgId)` e `retryAllMissingAudios()`, novo botão no header do dialog, novo botão "Tentar áudio" por linha em erros sem áudio, mensagens de erro mais específicas vindas do `synthesizeClips`.
+5. **Feedback visual**
+   - O botão/painel continuará mostrando quando há exportação em andamento, mesmo que o modal tenha sido fechado e reaberto.

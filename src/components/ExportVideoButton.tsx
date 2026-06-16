@@ -881,10 +881,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   function closePerSpeechPanel() {
-    // Apenas pausa a fila. Mantém `parts` e object URLs vivos para que
-    // reabrir o painel mostre tudo que já estava pronto sem reprocessar.
-    // O cache em IndexedDB também garante recuperação entre sessões.
-    if (perSpeechRunning) cancelRef.current = true;
+    // Fechar o modal NÃO pausa a fila — a renderização segue em segundo
+    // plano. Só o botão "Parar" cancela. Mantém `parts` e object URLs vivos.
     setPerSpeechOpen(false);
   }
 
@@ -958,7 +956,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         } : undefined}
       />
 
-      <Dialog open={perSpeechOpen} onOpenChange={(o) => { if (!o) closePerSpeechPanel(); }}>
+      <Dialog open={perSpeechOpen} onOpenChange={(o) => { if (!o) closePerSpeechPanel(); else setPerSpeechOpen(true); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Exportar por fala</DialogTitle>
