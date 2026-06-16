@@ -812,7 +812,10 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       // modal ou a aba travar, o MP4 já está no IndexedDB pra próxima sessão.
       try { await mp4PartPut(debateId, p.msgId, blob); } catch { /* best-effort */ }
       const url = URL.createObjectURL(blob);
-      return { ...p, status: "done", videoBlob: blob, videoUrl: url, progressPct: 1, error: undefined };
+      // Depois que o MP4 está persistido, a fala não precisa manter o data URL
+      // do áudio em memória. Em debates longos isso evita travar por acúmulo
+      // de base64 + buffers enquanto a fila avança.
+      return { ...p, audioUrl: undefined, status: "done", videoBlob: blob, videoUrl: url, progressPct: 1, error: undefined };
     } catch (e) {
       return { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
     }
@@ -864,7 +867,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
             progressPct: 0,
           }));
           updateParts((prev) => prev.map((x) => x.msgId === next.msgId ? updated : x));
-          await new Promise((r) => setTimeout(r, 400));
+          await new Promise((r) => setTimeout(r, 900));
           if (onlyMsgId) break;
         }
       } finally {
@@ -1096,7 +1099,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                       </Button>
                     )}
                     {(p.status === "error" || p.status === "done") && !perSpeechRunning && (
-                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => runPerSpeechExport(p.msgId)} title="Refazer só esta">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => p.audioUrl ? runPerSpeechExport(p.msgId) : retryAudioForPart(p.msgId)} title="Refazer só esta">
                         <RotateCcw className="h-3.5 w-3.5" />
                       </Button>
                     )}
