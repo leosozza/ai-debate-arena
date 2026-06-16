@@ -29,7 +29,7 @@ import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 import { KOKORO_VOICE_IDS, kokoroFallback } from "@/lib/kokoro-voices";
 import { ttsCacheGet, ttsCachePut, ttsCachePrune, blobToUrl, dataUrlToBlob, hashContent } from "@/lib/tts-cache";
-import { mp4PartGet, mp4PartPut, mp4PartDelete, mp4PartsByDebate, mp4PartsPrune } from "@/lib/mp4-parts-cache";
+import { mp4PartGet, mp4PartPut, mp4PartDelete, mp4PartIdsByDebate, mp4PartsPrune } from "@/lib/mp4-parts-cache";
 
 type Slot = { provider: VoiceProvider; voiceId: string | null };
 
@@ -687,7 +687,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     //    O painel abre antes mesmo de sintetizar áudios — assim, se algo der
     //    errado na voz, o usuário ainda vê os vídeos já prontos do cache.
     const all = buildMessageList(null);
-    const cached = await mp4PartsByDebate(debateId);
+    const cached = await mp4PartIdsByDebate(debateId);
     const baseParts: Part[] = all.map((m, i) => {
       const { label, phase } = labelForPart(m.role, m.phase, i);
       const hasCached = cached.has(m.id);
