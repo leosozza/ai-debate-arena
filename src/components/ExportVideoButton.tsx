@@ -207,6 +207,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   async function synthesizeClips(
     all: PreparedMsg[],
     slots: { slotMod: Slot; slotA: Slot; slotB: Slot },
+    errorOut?: Map<string, string>,
   ): Promise<TimelineClip[] | null> {
     const sessionCache = sessionUrlCacheRef.current;
     const cacheKey = (m: PreparedMsg, slot: Slot) => {
