@@ -270,7 +270,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           audioByMsg.set(m.id, entry);
           sessionCache.set(cacheKey(m, slot), entry);
         } catch (e) {
-          errors.push({ role: labelFor(m.role), reason: e instanceof Error ? e.message : String(e) });
+          const reason = e instanceof Error ? e.message : String(e);
+          errors.push({ role: labelFor(m.role), reason });
+          errorOut?.set(m.id, reason);
         }
         done++;
         setProgress({ label: `Gerando vozes ${done}/${todo.length}`, pct: done / todo.length });
