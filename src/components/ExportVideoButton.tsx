@@ -1116,6 +1116,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                   </div>
                   <div className="flex items-center gap-1">
                     {p.status === "done" && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => openPartPreview(p)} title="Assistir prévia">
+                        <Play className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {p.status === "done" && (
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => downloadPart(p)} title="Baixar esta fala">
                         <Download className="h-3.5 w-3.5" />
                       </Button>
