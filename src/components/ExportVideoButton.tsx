@@ -870,40 +870,6 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     perSpeechTaskRef.current = task;
     await task;
   }
-
-  async function runPerSpeechExportOld(onlyMsgId?: string) {
-    setPerSpeechRunning(true);
-    cancelRef.current = false;
-    try {
-      // Snapshot atual da fila
-      const snapshot = parts;
-      const queue = onlyMsgId
-        ? snapshot.filter((p) => p.msgId === onlyMsgId)
-        : snapshot.filter((p) => p.status !== "done");
-      for (let i = 0; i < queue.length; i++) {
-        if (cancelRef.current) break;
-        const p = queue[i];
-        // Pula falas sem áudio em vez de tentar e estourar erro genérico.
-        if (!p.audioUrl || !p.duration) {
-          setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, status: "error", error: "Áudio ausente." } : x));
-          continue;
-        }
-        setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x));
-        let updated: Part;
-        try {
-          updated = await renderOnePart(p, base);
-        } catch (e) {
-          updated = { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
-        }
-        setParts((prev) => prev.map((x) => x.msgId === p.msgId ? updated : x));
-        // Folga maior pro GC entre falas (era 200ms).
-        await new Promise((r) => setTimeout(r, 400));
-      }
-    } finally {
-      setPerSpeechRunning(false);
-    }
-  }
-
   function downloadPart(p: Part) {
     if (!p.videoUrl) return;
     const a = document.createElement("a");
