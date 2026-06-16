@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { getActiveAudio } from "@/lib/active-audio";
 
 interface Props {
   text: string;
@@ -48,24 +49,29 @@ export function Teleprompter({
     if (containerRef.current) containerRef.current.scrollTop = 0;
   }, [text]);
 
-  // Loop de animação.
+  // Loop de animação — usa o tempo REAL do áudio quando disponível,
+  // caindo para estimativa apenas quando não há elemento de áudio (ex.: SpeechSynthesis).
   useEffect(() => {
     if (!active || !text) return;
-    const total = durationMs && durationMs > 200 ? durationMs : estimateDuration(text);
+    const estimated = durationMs && durationMs > 200 ? durationMs : estimateDuration(text);
     startedAtRef.current = performance.now();
 
     const tick = (now: number) => {
-      const start = startedAtRef.current ?? now;
-      const p = Math.min(1, (now - start) / total);
+      const audio = getActiveAudio();
+      let p: number;
+      if (audio && isFinite(audio.duration) && audio.duration > 0.2 && !audio.paused) {
+        p = Math.min(1, audio.currentTime / audio.duration);
+      } else {
+        const start = startedAtRef.current ?? now;
+        p = Math.min(1, (now - start) / estimated);
+      }
       setProgress(p);
 
       const container = containerRef.current;
       const inner = innerRef.current;
       if (container && inner) {
         const max = Math.max(0, inner.scrollHeight - container.clientHeight);
-        // pequena antecipação (5%) para o olho acompanhar
         const target = Math.min(max, max * Math.min(1, p + 0.05));
-        // smoothing
         const cur = container.scrollTop;
         container.scrollTop = cur + (target - cur) * 0.18;
       }

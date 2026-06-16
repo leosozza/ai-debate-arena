@@ -1,4 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { setActiveAudio } from "@/lib/active-audio";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -196,6 +197,7 @@ function PresentMode() {
       try { audioRef.current.pause(); } catch { /* ignore */ }
       // NÃO destruir o elemento — manter a permissão de autoplay no mobile.
     }
+    setActiveAudio(null);
   }
 
   function ensureAudioEl(): HTMLAudioElement {
@@ -360,7 +362,8 @@ function PresentMode() {
         audio.playbackRate = 1;
         audio.volume = 1;
       }
-      audio.onended = () => { if (token === playTokenRef.current) onEnd(); };
+      audio.onended = () => { if (token === playTokenRef.current) { setActiveAudio(null); onEnd(); } };
+      setActiveAudio(audio);
       await audio.play();
       // Prefetch das próximas 2 falas em background (não bloqueia).
       void prefetchUpcoming(2);
