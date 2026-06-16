@@ -644,31 +644,57 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
     const slots = resolveSlotsOrWarn();
     if (!slots) return;
+
+    // 1) Monta a lista IMEDIATAMENTE a partir das mensagens + cache de MP4.
+    //    O painel abre antes mesmo de sintetizar áudios — assim, se algo der
+    //    errado na voz, o usuário ainda vê os vídeos já prontos do cache.
+    const all = buildMessageList(null);
+    const cached = await mp4PartsByDebate(debateId);
+    const baseParts: Part[] = all.map((m, i) => {
+      const { label, phase } = labelForPart(m.role, m.phase, i);
+      const cachedBlob = cached.get(m.id);
+      return {
+        msgId: m.id, index: i, label, phaseLabel: phase,
+        role: m.role, content: m.content,
+        videoBlob: cachedBlob,
+        videoUrl: cachedBlob ? URL.createObjectURL(cachedBlob) : undefined,
+        status: (cachedBlob ? "done" : "pending") as PartStatus,
+        progressPct: cachedBlob ? 1 : undefined,
+      };
+    });
+    setParts(baseParts);
+    const reused = baseParts.filter((p) => p.status === "done").length;
+    if (reused > 0) toast.success(`${reused} fala(s) reaproveitada(s) do cache.`, { duration: 4000 });
+    setPerSpeechOpen(true);
+
+    // 2) Sintetiza áudios em background. Falhas individuais NÃO derrubam o painel.
     setProgress({ label: "Preparando vozes", pct: 0 });
     try {
-      const all = buildMessageList(null);
       const built = await synthesizeClips(all, slots);
-      if (!built || built.length === 0) { setProgress(null); return; }
-      const cached = await mp4PartsByDebate(debateId);
-      const initial: Part[] = built.map((c, i) => {
-        const { label, phase } = labelForPart(c.role, c.phase, i);
-        const cachedBlob = cached.get(c.id);
-        return {
-          msgId: c.id, index: i, label, phaseLabel: phase,
-          role: c.role, content: c.content,
-          audioUrl: c.audioUrl, duration: c.duration,
-          videoBlob: cachedBlob,
-          videoUrl: cachedBlob ? URL.createObjectURL(cachedBlob) : undefined,
-          status: (cachedBlob ? "done" : "pending") as PartStatus,
-          progressPct: cachedBlob ? 1 : undefined,
-        };
-      });
-      setParts(initial);
-      const reused = initial.filter((p) => p.status === "done").length;
-      if (reused > 0) toast.success(`${reused} fala(s) reaproveitada(s) do cache.`, { duration: 4000 });
-      setPerSpeechOpen(true);
+      if (built && built.length > 0) {
+        const byId = new Map(built.map((c) => [c.id, c]));
+        setParts((prev) => prev.map((p) => {
+          const c = byId.get(p.msgId);
+          if (!c) {
+            // Sem áudio: marca como erro mas mantém na fila para retry.
+            if (p.status === "done") return p; // já tem MP4 — não mexe
+            return { ...p, status: "error", error: "Áudio ausente." };
+          }
+          return { ...p, audioUrl: c.audioUrl, duration: c.duration,
+            // se já tem MP4 pronto, mantém "done"; senão volta pra pending
+            status: p.status === "done" ? "done" : "pending",
+            error: undefined };
+        }));
+      } else {
+        setParts((prev) => prev.map((p) =>
+          p.status === "done" ? p : { ...p, status: "error", error: "Áudio ausente." },
+        ));
+      }
     } catch (e) {
-      toast.error(`Falha ao preparar áudios: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Falha ao preparar áudios: ${e instanceof Error ? e.message : String(e)}. Falas com áudio em cache continuam disponíveis.`);
+      setParts((prev) => prev.map((p) =>
+        p.status === "done" || p.audioUrl ? p : { ...p, status: "error", error: "Áudio ausente." },
+      ));
     } finally {
       setProgress(null);
     }
@@ -678,6 +704,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     if (!p.audioUrl || !p.duration) {
       return { ...p, status: "error", error: "Áudio ausente." };
     }
+    // Revoga URL antiga (re-render) pra não vazar memória.
+    if (p.videoUrl) { try { URL.revokeObjectURL(p.videoUrl); } catch { /* noop */ } }
     try {
       const blob = await exportSpeechToMp4(
         base,
@@ -685,13 +713,14 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           id: p.msgId, role: p.role, phase: p.phaseLabel === "—" ? "" : p.phaseLabel,
           content: p.content, audioUrl: p.audioUrl, trimStart: 0, trimEnd: 0, subtitle: true,
         },
-        (label, pct) => {
+        (_label, pct) => {
           setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, progressPct: pct, status: "rendering" } : x));
-          if (label) {/* per-part label not surfaced to avoid noise */}
         },
       );
+      // Aguarda persistir ANTES de avançar — assim, se o usuário fechar o
+      // modal ou a aba travar, o MP4 já está no IndexedDB pra próxima sessão.
+      try { await mp4PartPut(debateId, p.msgId, blob); } catch { /* best-effort */ }
       const url = URL.createObjectURL(blob);
-      void mp4PartPut(debateId, p.msgId, blob);
       return { ...p, status: "done", videoBlob: blob, videoUrl: url, progressPct: 1, error: undefined };
     } catch (e) {
       return { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
@@ -712,11 +741,21 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       for (let i = 0; i < queue.length; i++) {
         if (cancelRef.current) break;
         const p = queue[i];
+        // Pula falas sem áudio em vez de tentar e estourar erro genérico.
+        if (!p.audioUrl || !p.duration) {
+          setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, status: "error", error: "Áudio ausente." } : x));
+          continue;
+        }
         setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x));
-        const updated = await renderOnePart(p, base);
+        let updated: Part;
+        try {
+          updated = await renderOnePart(p, base);
+        } catch (e) {
+          updated = { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
+        }
         setParts((prev) => prev.map((x) => x.msgId === p.msgId ? updated : x));
-        // Folga pro GC entre falas.
-        await new Promise((r) => setTimeout(r, 200));
+        // Folga maior pro GC entre falas (era 200ms).
+        await new Promise((r) => setTimeout(r, 400));
       }
     } finally {
       setPerSpeechRunning(false);
@@ -791,10 +830,10 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   function closePerSpeechPanel() {
+    // Apenas pausa a fila. Mantém `parts` e object URLs vivos para que
+    // reabrir o painel mostre tudo que já estava pronto sem reprocessar.
+    // O cache em IndexedDB também garante recuperação entre sessões.
     if (perSpeechRunning) cancelRef.current = true;
-    // Limpa object URLs.
-    for (const p of parts) if (p.videoUrl) URL.revokeObjectURL(p.videoUrl);
-    setParts([]);
     setPerSpeechOpen(false);
   }
 
