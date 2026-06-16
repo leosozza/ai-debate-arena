@@ -277,8 +277,8 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
     // Encode segFrames frames. Each frame uses the same canvas snapshot but a
     // unique timestamp; the encoder will produce tiny P-frames for the repeats.
     for (let f = 0; f < segFrames; f++) {
-      // Backpressure: don't pile up more than ~2s of frames in the encoder.
-      while (videoEncoder.encodeQueueSize > FPS * 2) {
+      // Backpressure mais apertada: ~1s de frames em fila (era 2s).
+      while (videoEncoder.encodeQueueSize > FPS) {
         await new Promise((r) => setTimeout(r, 4));
         if (videoErr) throw videoErr;
       }
@@ -296,6 +296,9 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
       0.25 + 0.55 * (frameIndex / Math.max(1, totalFrames)),
     );
     if (videoErr) throw videoErr;
+    // Cede o event loop entre segmentos pra GC respirar.
+    await new Promise((r) => setTimeout(r, 0));
+    if (segIdx % 5 === 0) logMem(`segmento ${segIdx + 1}/${segments.length}`);
   }
 
   log("Finalizando vídeo", 0.82);
