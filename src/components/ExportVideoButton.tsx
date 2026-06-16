@@ -696,18 +696,19 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         progressPct: cachedBlob ? 1 : undefined,
       };
     });
-    setParts(baseParts);
+    updateParts(() => baseParts);
     const reused = baseParts.filter((p) => p.status === "done").length;
     if (reused > 0) toast.success(`${reused} fala(s) reaproveitada(s) do cache.`, { duration: 4000 });
     setPerSpeechOpen(true);
 
     // 2) Sintetiza áudios em background. Falhas individuais NÃO derrubam o painel.
+    audioPreparingRef.current = true;
     setProgress({ label: "Preparando vozes", pct: 0 });
     const errMap = new Map<string, string>();
     try {
       const built = await synthesizeClips(all, slots, errMap);
       const byId = new Map((built ?? []).map((c) => [c.id, c]));
-      setParts((prev) => prev.map((p) => {
+      updateParts((prev) => prev.map((p) => {
         const c = byId.get(p.msgId);
         if (!c) {
           if (p.status === "done") return p;
@@ -720,10 +721,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       }));
     } catch (e) {
       toast.error(`Falha ao preparar áudios: ${e instanceof Error ? e.message : String(e)}. Falas com áudio em cache continuam disponíveis.`);
-      setParts((prev) => prev.map((p) =>
+      updateParts((prev) => prev.map((p) =>
         p.status === "done" || p.audioUrl ? p : { ...p, status: "error", error: errMap.get(p.msgId) ?? "Áudio ausente." },
       ));
     } finally {
+      audioPreparingRef.current = false;
       setProgress(null);
     }
   }
@@ -738,7 +740,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     if (subset.length === 0) return;
 
     // Marca como "rendering" só pra indicar atividade na linha (sem barra).
-    setParts((prev) => prev.map((x) =>
+    updateParts((prev) => prev.map((x) =>
       msgIds.includes(x.msgId) ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x,
     ));
     setProgress({ label: `Gerando áudio (${subset.length})`, pct: 0 });
@@ -752,7 +754,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       setProgress(null);
     }
     const byId = new Map((built ?? []).map((c) => [c.id, c]));
-    setParts((prev) => prev.map((p) => {
+    updateParts((prev) => prev.map((p) => {
       if (!msgIds.includes(p.msgId)) return p;
       const c = byId.get(p.msgId);
       if (!c) {
