@@ -676,6 +676,10 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       toast.error("Exportação por fala ainda só suporta o formato Duelo.");
       return;
     }
+    if (perSpeechRunningRef.current || audioPreparingRef.current || partsRef.current.length > 0) {
+      setPerSpeechOpen(true);
+      return;
+    }
     const slots = resolveSlotsOrWarn();
     if (!slots) return;
 
