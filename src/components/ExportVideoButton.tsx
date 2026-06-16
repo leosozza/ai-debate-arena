@@ -891,6 +891,18 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  async function openPartPreview(p: Part) {
+    const blob = p.videoBlob ?? await mp4PartGet(debateId, p.msgId);
+    if (!blob) { toast.error("MP4 não encontrado no cache. Refazer esta fala."); return; }
+    const url = URL.createObjectURL(blob);
+    setPreviewPart({ part: p, url });
+  }
+
+  function closePartPreview() {
+    if (previewPart) URL.revokeObjectURL(previewPart.url);
+    setPreviewPart(null);
+  }
+
   async function downloadAllAsZip() {
     const ready = parts.filter((p) => p.status === "done");
     if (ready.length === 0) { toast.error("Nenhuma fala pronta."); return; }
