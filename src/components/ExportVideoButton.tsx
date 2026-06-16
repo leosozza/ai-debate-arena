@@ -727,6 +727,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     } finally {
       audioPreparingRef.current = false;
       setProgress(null);
+      if (!perSpeechRunningRef.current && partsRef.current.some((p) => p.status !== "done" && p.audioUrl && p.duration)) {
+        void runPerSpeechExport();
+      }
     }
   }
 
