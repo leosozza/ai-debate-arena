@@ -691,6 +691,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         },
       );
       const url = URL.createObjectURL(blob);
+      void mp4PartPut(debateId, p.msgId, blob);
       return { ...p, status: "done", videoBlob: blob, videoUrl: url, progressPct: 1, error: undefined };
     } catch (e) {
       return { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
