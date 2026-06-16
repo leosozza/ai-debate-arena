@@ -432,7 +432,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       await renderAndDownload(built, suffix, { blockIndex, blockTitle });
       toast.success(blockIndex === null ? "Vídeo MP4 exportado!" : `Bloco ${blockIndex + 1} exportado!`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao exportar vídeo");
+      console.error("[export-mp4] falhou:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`Falha ao gerar o MP4: ${msg}`, { duration: 9000 });
     } finally {
       setProgress(null);
     }

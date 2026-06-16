@@ -578,6 +578,7 @@ function getAudioDuration(url: string): Promise<number> {
 export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
   // Try the fast WebCodecs path first; on any failure or unsupported browser,
   // fall back to the slow ffmpeg.wasm path below.
+  let webcodecsErr: unknown = null;
   try {
     const { tryExportDebateMp4Webcodecs } = await import("./video-export-webcodecs");
     const t0 = performance.now();
@@ -588,9 +589,18 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
     }
     console.warn("[video-export] webcodecs unsupported, falling back to ffmpeg.wasm");
   } catch (e) {
+    webcodecsErr = e;
     console.warn("[video-export] webcodecs failed, falling back to ffmpeg.wasm:", e);
   }
-  return exportDebateMp4Ffmpeg(input);
+  try {
+    return await exportDebateMp4Ffmpeg(input);
+  } catch (ffErr) {
+    // Os dois caminhos falharam — surfaca ambos pra diagnóstico.
+    const wc = webcodecsErr instanceof Error ? webcodecsErr.message : webcodecsErr ? String(webcodecsErr) : "n/d";
+    const ff = ffErr instanceof Error ? ffErr.message : String(ffErr);
+    console.error("[video-export] AMBOS falharam. webcodecs:", webcodecsErr, "| ffmpeg:", ffErr);
+    throw new Error(`Render falhou (ffmpeg: ${ff} | webcodecs: ${wc})`);
+  }
 }
 
 async function exportDebateMp4Ffmpeg(input: ExportInput): Promise<Blob> {
