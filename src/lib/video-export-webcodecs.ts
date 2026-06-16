@@ -143,7 +143,7 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
 
   const {
     topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription,
-    messages, musicUrl, musicVolume = 0.18, onProgress,
+    messages, musicUrl, musicVolume = 0.18, includeIntro = true, onProgress,
   } = input;
   const log = (s: string, p: number) => onProgress?.(s, Math.max(0, Math.min(1, p)));
 
@@ -159,29 +159,31 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
   // Avoid the AC ever running for output; OfflineAudioContext does the work.
   try { await ac.suspend(); } catch { /* noop */ }
 
-  const openingBuf = await decodeAudioFromUrl(ac, musicAsset.url);
+  const openingBuf = includeIntro ? await decodeAudioFromUrl(ac, musicAsset.url) : null;
   const bgMusicBuf = musicUrl ? await decodeAudioFromUrl(ac, musicUrl) : null;
 
   const segments: Segment[] = [];
 
-  // Disclaimer (4s) — opening music quiet
-  segments.push({
-    draw: (ctx) => drawDisclaimerFrame(ctx),
-    audio: null,
-    audioGain: 1,
-    bedMusic: openingBuf ? { buffer: trimBuffer(ac, openingBuf, 0, 0), volume: 0.55, fadeIn: 0.4, fadeOut: 0.7 } : null,
-    duration: 4,
-  });
-
-  // Vignette (6s) — opening music up
-  if (openingBuf) {
+  if (includeIntro) {
+    // Disclaimer (4s) — opening music quiet
     segments.push({
-      draw: (ctx) => drawVignetteFrame(ctx, topic),
+      draw: (ctx) => drawDisclaimerFrame(ctx),
       audio: null,
       audioGain: 1,
-      bedMusic: { buffer: trimBuffer(ac, openingBuf, 0, 0), volume: 0.85, fadeIn: 0.4, fadeOut: 0.8 },
-      duration: 6,
+      bedMusic: openingBuf ? { buffer: trimBuffer(ac, openingBuf, 0, 0), volume: 0.55, fadeIn: 0.4, fadeOut: 0.7 } : null,
+      duration: 4,
     });
+
+    // Vignette (6s) — opening music up
+    if (openingBuf) {
+      segments.push({
+        draw: (ctx) => drawVignetteFrame(ctx, topic),
+        audio: null,
+        audioGain: 1,
+        bedMusic: { buffer: trimBuffer(ac, openingBuf, 0, 0), volume: 0.85, fadeIn: 0.4, fadeOut: 0.8 },
+        duration: 6,
+      });
+    }
   }
 
   // Messages — decode each clip
@@ -200,7 +202,7 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
     const showSubtitle = m.subtitle !== false;
     const caption = showSubtitle ? stripMarkdownForTts(m.content) : "";
 
-    const draw = i === 0
+    const draw = (i === 0 && includeIntro)
       ? (ctx: CanvasRenderingContext2D) => drawIntroFrame(ctx, { topic, aName, bName, aImg, bImg, aDescription, bDescription })
       : (ctx: CanvasRenderingContext2D) => drawStageFrame(ctx, { topic, aName, bName, aImg, bImg, role: m.role, phase: m.phase, caption });
 

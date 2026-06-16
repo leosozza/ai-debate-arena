@@ -43,6 +43,8 @@ export interface ExportInput {
   adaptiveBeds?: boolean;
   /** Volume dos beds 0..1 (default 0.18). */
   bedsVolume?: number;
+  /** Se false, pula o cartão de aviso de IA e a vinheta de abertura (útil para gerar 1 MP4 por fala). Default: true. */
+  includeIntro?: boolean;
   onProgress?: (stage: string, pct: number) => void;
 }
 
@@ -604,7 +606,7 @@ export async function exportDebateMp4(input: ExportInput): Promise<Blob> {
 }
 
 async function exportDebateMp4Ffmpeg(input: ExportInput): Promise<Blob> {
-  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, adaptiveBeds, bedsVolume = 0.18, onProgress } = input;
+  const { topic, aName, bName, aImageUrl, bImageUrl, aDescription, bDescription, messages, musicUrl, musicVolume = 0.25, sfx, adaptiveBeds, bedsVolume = 0.18, includeIntro = true, onProgress } = input;
   const log = (stage: string, pct: number) => onProgress?.(stage, Math.max(0, Math.min(1, pct)));
 
   log("Carregando avatares", 0.02);
@@ -634,17 +636,20 @@ async function exportDebateMp4Ffmpeg(input: ExportInput): Promise<Blob> {
 
   // Pré-carrega a música de abertura (compartilhada entre disclaimer e vinheta).
   let openingMusicLoaded = false;
-  try {
-    const musicBytes = await fetchBytes(musicAsset.url);
-    await ffmpeg.writeFile("opening.mp3", musicBytes);
-    openingMusicLoaded = true;
-  } catch {
-    // sem música — segmentos de abertura ficam em silêncio
+  if (includeIntro) {
+    try {
+      const musicBytes = await fetchBytes(musicAsset.url);
+      await ffmpeg.writeFile("opening.mp3", musicBytes);
+      openingMusicLoaded = true;
+    } catch {
+      // sem música — segmentos de abertura ficam em silêncio
+    }
   }
 
-  // ── Disclaimer segment (4s, com música de abertura se disponível) ──
-  log("Renderizando aviso de IA", 0.08);
-  drawDisclaimerFrame(ctx);
+  if (includeIntro) {
+    // ── Disclaimer segment (4s, com música de abertura se disponível) ──
+    log("Renderizando aviso de IA", 0.08);
+    drawDisclaimerFrame(ctx);
   {
     const pngBlob: Blob = await new Promise((res) =>
       canvas.toBlob((b) => res(b!), "image/png"),
@@ -715,10 +720,11 @@ async function exportDebateMp4Ffmpeg(input: ExportInput): Promise<Blob> {
   if (openingMusicLoaded) {
     await ffmpeg.deleteFile("opening.mp3").catch(() => {});
   }
+  } // /if (includeIntro)
 
   // Timeline acumulada das falas, em segundos a partir do INÍCIO do MP4 final.
   // O offset de partida inclui disclaimer (4s) e vinheta (6s se música carregou).
-  const startupOffset = 4 + (openingMusicLoaded ? 6 : 0);
+  const startupOffset = includeIntro ? (4 + (openingMusicLoaded ? 6 : 0)) : 0;
   const phaseTimeline: { phase: string; from: number; to: number }[] = [];
   let cursor = startupOffset;
 
@@ -728,7 +734,7 @@ async function exportDebateMp4Ffmpeg(input: ExportInput): Promise<Blob> {
     const caption = showSubtitle ? stripMarkdownForTts(m.content) : "";
     // O primeiro turno é a vinheta de abertura — usamos o frame de apresentação
     // dos convidados (estilo Roda Viva) em vez do palco padrão.
-    if (i === 0) {
+    if (i === 0 && includeIntro) {
       drawIntroFrame(ctx, { topic, aName, bName, aImg, bImg, aDescription, bDescription });
     } else {
       drawStageFrame(ctx, {

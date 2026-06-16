@@ -13,8 +13,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Film, Loader2, Download, Layers, Mic2 } from "lucide-react";
+import { Film, Loader2, Download, Layers, Mic2, Scissors, RotateCcw, Archive, FileVideo, X } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { exportSpeechToMp4, concatMp4Parts, zipMp4Parts } from "@/lib/video-export-per-speech";
 import { getDebate, ttsSpeak } from "@/lib/debate.functions";
 import { listPersonas } from "@/lib/persona.functions";
 import { minimaxTts } from "@/lib/tts.functions";
@@ -60,6 +62,21 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [clips, setClips] = useState<TimelineClip[]>([]);
+
+  // ── Per-speech export panel ──
+  type PartStatus = "pending" | "rendering" | "done" | "error";
+  type Part = {
+    msgId: string; index: number; label: string; phaseLabel: string;
+    role: "moderator" | "a" | "b"; content: string;
+    audioUrl?: string; duration?: number;
+    videoBlob?: Blob; videoUrl?: string;
+    status: PartStatus; error?: string; progressPct?: number;
+  };
+  const [perSpeechOpen, setPerSpeechOpen] = useState(false);
+  const [parts, setParts] = useState<Part[]>([]);
+  const [perSpeechRunning, setPerSpeechRunning] = useState(false);
+  const [mergeBusy, setMergeBusy] = useState<null | { label: string; pct: number }>(null);
+  const cancelRef = useRef(false);
 
   // Cache em memória das URLs criadas a partir do cache IDB nesta sessão.
   // O cache PERSISTENTE de TTS vive em IndexedDB (src/lib/tts-cache.ts),
@@ -586,6 +603,193 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // Per-speech export: 1 MP4 por fala (não trava a aba em debates longos).
+  // ─────────────────────────────────────────────────────────────
+  function buildBasePerSpeech() {
+    if (!data) return null;
+    const d = data.debate;
+    const findP = (name: string | null | undefined) => {
+      const n = (name ?? "").trim().toLowerCase();
+      return personas?.find((p) => (p.name ?? "").trim().toLowerCase() === n) ?? null;
+    };
+    const pA = findP(d.debater_a_name);
+    const pB = findP(d.debater_b_name);
+    return {
+      topic: d.topic,
+      aName: d.debater_a_name,
+      bName: d.debater_b_name,
+      aImageUrl: d.debater_a_image_url ?? pA?.image_url ?? null,
+      bImageUrl: d.debater_b_image_url ?? pB?.image_url ?? null,
+      aDescription: pA?.description ?? null,
+      bDescription: pB?.description ?? null,
+      musicUrl: musicAsset.url,
+      musicVolume: 0.18,
+    };
+  }
+
+  function labelForPart(role: "moderator" | "a" | "b", phase: string, idx: number): { label: string; phase: string } {
+    const who = role === "a" ? (data?.debate.debater_a_name ?? "Convidado A")
+      : role === "b" ? (data?.debate.debater_b_name ?? "Convidado B")
+      : "Mediador";
+    return { label: `${String(idx + 1).padStart(2, "0")} — ${who}`, phase: phase || "—" };
+  }
+
+  async function openPerSpeechPanel() {
+    if (!data) return;
+    if ((data.debate.format ?? "duel") !== "duel") {
+      toast.error("Exportação por fala ainda só suporta o formato Duelo.");
+      return;
+    }
+    const slots = resolveSlotsOrWarn();
+    if (!slots) return;
+    setProgress({ label: "Preparando vozes", pct: 0 });
+    try {
+      const all = buildMessageList(null);
+      const built = await synthesizeClips(all, slots);
+      if (!built || built.length === 0) { setProgress(null); return; }
+      const initial: Part[] = built.map((c, i) => {
+        const { label, phase } = labelForPart(c.role, c.phase, i);
+        return {
+          msgId: c.id, index: i, label, phaseLabel: phase,
+          role: c.role, content: c.content,
+          audioUrl: c.audioUrl, duration: c.duration,
+          status: "pending" as const,
+        };
+      });
+      setParts(initial);
+      setPerSpeechOpen(true);
+    } catch (e) {
+      toast.error(`Falha ao preparar áudios: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setProgress(null);
+    }
+  }
+
+  async function renderOnePart(p: Part, base: NonNullable<ReturnType<typeof buildBasePerSpeech>>): Promise<Part> {
+    if (!p.audioUrl || !p.duration) {
+      return { ...p, status: "error", error: "Áudio ausente." };
+    }
+    try {
+      const blob = await exportSpeechToMp4(
+        base,
+        {
+          id: p.msgId, role: p.role, phase: p.phaseLabel === "—" ? "" : p.phaseLabel,
+          content: p.content, audioUrl: p.audioUrl, trimStart: 0, trimEnd: 0, subtitle: true,
+        },
+        (label, pct) => {
+          setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, progressPct: pct, status: "rendering" } : x));
+          if (label) {/* per-part label not surfaced to avoid noise */}
+        },
+      );
+      const url = URL.createObjectURL(blob);
+      return { ...p, status: "done", videoBlob: blob, videoUrl: url, progressPct: 1, error: undefined };
+    } catch (e) {
+      return { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
+    }
+  }
+
+  async function runPerSpeechExport(onlyMsgId?: string) {
+    const base = buildBasePerSpeech();
+    if (!base) return;
+    setPerSpeechRunning(true);
+    cancelRef.current = false;
+    try {
+      // Snapshot atual da fila
+      const snapshot = parts;
+      const queue = onlyMsgId
+        ? snapshot.filter((p) => p.msgId === onlyMsgId)
+        : snapshot.filter((p) => p.status !== "done");
+      for (let i = 0; i < queue.length; i++) {
+        if (cancelRef.current) break;
+        const p = queue[i];
+        setParts((prev) => prev.map((x) => x.msgId === p.msgId ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x));
+        const updated = await renderOnePart(p, base);
+        setParts((prev) => prev.map((x) => x.msgId === p.msgId ? updated : x));
+        // Folga pro GC entre falas.
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    } finally {
+      setPerSpeechRunning(false);
+    }
+  }
+
+  function downloadPart(p: Part) {
+    if (!p.videoUrl) return;
+    const a = document.createElement("a");
+    a.href = p.videoUrl;
+    a.download = `debate-${debateId.slice(0, 8)}-${String(p.index + 1).padStart(2, "0")}.mp4`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  async function downloadAllAsZip() {
+    const ready = parts.filter((p) => p.status === "done" && p.videoBlob);
+    if (ready.length === 0) { toast.error("Nenhuma fala pronta."); return; }
+    setMergeBusy({ label: "Compactando ZIP", pct: 0.5 });
+    try {
+      const zip = await zipMp4Parts(
+        ready.map((p) => ({
+          name: `${String(p.index + 1).padStart(2, "0")}-${p.role}.mp4`,
+          blob: p.videoBlob!,
+        })),
+      );
+      const url = URL.createObjectURL(zip);
+      const a = document.createElement("a");
+      a.href = url; a.download = `debate-${debateId.slice(0, 8)}-falas.zip`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`${ready.length} falas baixadas em ZIP.`);
+    } catch (e) {
+      toast.error(`ZIP falhou: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setMergeBusy(null);
+    }
+  }
+
+  async function mergeAndDownload() {
+    const ready = parts.filter((p) => p.status === "done" && p.videoBlob);
+    if (ready.length === 0) { toast.error("Nenhuma fala pronta."); return; }
+    setMergeBusy({ label: "Juntando vídeos", pct: 0 });
+    try {
+      const merged = await concatMp4Parts(
+        ready.map((p) => p.videoBlob!),
+        (label, pct) => setMergeBusy({ label, pct }),
+      );
+      const url = URL.createObjectURL(merged);
+      const a = document.createElement("a");
+      a.href = url; a.download = `debate-${debateId.slice(0, 8)}-completo.mp4`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      // Persiste no debate como o "full"
+      try {
+        const up = await createUpload({ data: { debateId, kind: "full", blockIndex: null } });
+        await fetch(up.uploadUrl, { method: "PUT", headers: { "Content-Type": "video/mp4" }, body: merged });
+        const totalDur = ready.reduce((s, p) => s + (p.duration ?? 0), 0);
+        await finalizeUpload({ data: {
+          debateId, kind: "full", blockIndex: null, blockTitle: null,
+          storagePath: up.storagePath, sizeBytes: merged.size, durationSeconds: totalDur || null,
+        } });
+        await qc.invalidateQueries({ queryKey: ["debate-exports", debateId] });
+      } catch (e) {
+        toast.warning(`Vídeo baixado, mas não foi salvo no debate: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      URL.revokeObjectURL(url);
+      toast.success("Vídeo único exportado!");
+    } catch (e) {
+      toast.error(`Junção falhou: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setMergeBusy(null);
+    }
+  }
+
+  function closePerSpeechPanel() {
+    if (perSpeechRunning) cancelRef.current = true;
+    // Limpa object URLs.
+    for (const p of parts) if (p.videoUrl) URL.revokeObjectURL(p.videoUrl);
+    setParts([]);
+    setPerSpeechOpen(false);
+  }
+
+
   const busy = progress !== null;
   const disabled = !data || data.messages.length === 0 || busy;
   const subtopics = (data?.debate.block_subtopics as Array<{ title?: string }> | null) ?? [];
@@ -602,9 +806,13 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           {busy && !editorOpen ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Film className="h-4 w-4 mr-1" />}
           {busy && !editorOpen ? "Preparando…" : "Editor de vídeo"}
         </Button>
-        <Button onClick={() => exportDirect(null)} disabled={disabled} size="sm" variant="outline" title="Gera o MP4 completo direto, sem abrir o editor">
+        <Button onClick={() => exportDirect(null)} disabled={disabled} size="sm" variant="outline" title="Gera o MP4 completo direto (pode travar em debates longos)">
           {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
           Exportar MP4
+        </Button>
+        <Button onClick={openPerSpeechPanel} disabled={disabled} size="sm" variant="default" title="Gera um MP4 por fala (não trava em debates longos) — depois junta ou baixa individualmente">
+          {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Scissors className="h-4 w-4 mr-1" />}
+          Exportar por fala
         </Button>
         {blockCount > 1 && (
           <DropdownMenu>
@@ -650,6 +858,81 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           arenaThemeId: (data.debate as { arena_theme?: string | null }).arena_theme ?? null,
         } : undefined}
       />
+
+      <Dialog open={perSpeechOpen} onOpenChange={(o) => { if (!o) closePerSpeechPanel(); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Exportar por fala</DialogTitle>
+            <DialogDescription>
+              Cada fala vira um MP4 curto — mais leve, não trava em debates longos. Depois você baixa cada um, junta tudo num vídeo único, ou empacota em ZIP.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
+            <Button size="sm" onClick={() => runPerSpeechExport()} disabled={perSpeechRunning || mergeBusy !== null}>
+              {perSpeechRunning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileVideo className="h-4 w-4 mr-1" />}
+              {parts.some((p) => p.status === "done") ? "Continuar fila" : "Gerar vídeos"}
+            </Button>
+            {perSpeechRunning && (
+              <Button size="sm" variant="ghost" onClick={() => { cancelRef.current = true; }}>
+                <X className="h-4 w-4 mr-1" /> Parar
+              </Button>
+            )}
+            <div className="flex-1" />
+            <Button size="sm" variant="outline" onClick={mergeAndDownload}
+              disabled={perSpeechRunning || mergeBusy !== null || parts.filter((p) => p.status === "done").length < 2}>
+              {mergeBusy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Film className="h-4 w-4 mr-1" />}
+              Baixar vídeo único
+            </Button>
+            <Button size="sm" variant="outline" onClick={downloadAllAsZip}
+              disabled={perSpeechRunning || mergeBusy !== null || !parts.some((p) => p.status === "done")}>
+              <Archive className="h-4 w-4 mr-1" />
+              Baixar ZIP
+            </Button>
+          </div>
+          {mergeBusy && (
+            <div className="px-1">
+              <Progress value={Math.round(mergeBusy.pct * 100)} className="h-1.5" />
+              <div className="text-[10px] text-muted-foreground mt-0.5">{mergeBusy.label}</div>
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto -mx-2 px-2">
+            <ul className="divide-y divide-border">
+              {parts.map((p) => (
+                <li key={p.msgId} className="py-2 flex items-center gap-3">
+                  <div className="w-6 text-center text-xs">
+                    {p.status === "done" ? <span className="text-emerald-500">✓</span>
+                      : p.status === "error" ? <span className="text-red-500">✗</span>
+                      : p.status === "rendering" ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" />
+                      : <span className="text-muted-foreground">·</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{p.label} <span className="text-muted-foreground text-xs">· {p.phaseLabel}</span></div>
+                    <div className="text-xs text-muted-foreground truncate">{p.content.slice(0, 90)}{p.content.length > 90 ? "…" : ""}</div>
+                    {p.status === "rendering" && (
+                      <Progress value={Math.round((p.progressPct ?? 0) * 100)} className="h-1 mt-1" />
+                    )}
+                    {p.status === "error" && (
+                      <div className="text-[11px] text-red-500 mt-0.5">{p.error}</div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {p.status === "done" && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => downloadPart(p)} title="Baixar esta fala">
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {(p.status === "error" || p.status === "done") && !perSpeechRunning && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => runPerSpeechExport(p.msgId)} title="Refazer só esta">
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
