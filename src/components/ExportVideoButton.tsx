@@ -690,14 +690,12 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     const cached = await mp4PartsByDebate(debateId);
     const baseParts: Part[] = all.map((m, i) => {
       const { label, phase } = labelForPart(m.role, m.phase, i);
-      const cachedBlob = cached.get(m.id);
+      const hasCached = cached.has(m.id);
       return {
         msgId: m.id, index: i, label, phaseLabel: phase,
         role: m.role, content: m.content,
-        videoBlob: cachedBlob,
-        videoUrl: cachedBlob ? URL.createObjectURL(cachedBlob) : undefined,
-        status: (cachedBlob ? "done" : "pending") as PartStatus,
-        progressPct: cachedBlob ? 1 : undefined,
+        status: (hasCached ? "done" : "pending") as PartStatus,
+        progressPct: hasCached ? 1 : undefined,
       };
     });
     updateParts(() => baseParts);
@@ -811,11 +809,12 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       // Aguarda persistir ANTES de avançar — assim, se o usuário fechar o
       // modal ou a aba travar, o MP4 já está no IndexedDB pra próxima sessão.
       try { await mp4PartPut(debateId, p.msgId, blob); } catch { /* best-effort */ }
-      const url = URL.createObjectURL(blob);
       // Depois que o MP4 está persistido, a fala não precisa manter o data URL
       // do áudio em memória. Em debates longos isso evita travar por acúmulo
       // de base64 + buffers enquanto a fila avança.
-      return { ...p, audioUrl: undefined, status: "done", videoBlob: blob, videoUrl: url, progressPct: 1, error: undefined };
+      // O próprio MP4 também fica só no IndexedDB; carregar todos os blobs na
+      // memória era o que fazia a fila parar por volta da 14ª fala.
+      return { ...p, audioUrl: undefined, videoBlob: undefined, videoUrl: undefined, status: "done", progressPct: 1, error: undefined };
     } catch (e) {
       return { ...p, status: "error", error: e instanceof Error ? e.message : String(e), progressPct: 0 };
     }
@@ -880,12 +879,15 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
     perSpeechTaskRef.current = task;
     await task;
   }
-  function downloadPart(p: Part) {
-    if (!p.videoUrl) return;
+  async function downloadPart(p: Part) {
+    const blob = p.videoBlob ?? await mp4PartGet(debateId, p.msgId);
+    if (!blob) { toast.error("MP4 não encontrado no cache. Refazer esta fala."); return; }
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = p.videoUrl;
+    a.href = url;
     a.download = `debate-${debateId.slice(0, 8)}-${String(p.index + 1).padStart(2, "0")}.mp4`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function downloadAllAsZip() {
