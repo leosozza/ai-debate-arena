@@ -29,6 +29,7 @@ import { TimelineEditor, type TimelineClip, type TimelineMusic, type TimelineSfx
 import musicAsset from "@/assets/legends-opening.mp3.asset.json";
 import { KOKORO_VOICE_IDS, kokoroFallback } from "@/lib/kokoro-voices";
 import { ttsCacheGet, ttsCachePut, ttsCachePrune, blobToUrl, dataUrlToBlob, hashContent } from "@/lib/tts-cache";
+import { mp4PartGet, mp4PartPut, mp4PartDelete, mp4PartsByDebate, mp4PartsPrune } from "@/lib/mp4-parts-cache";
 
 type Slot = { provider: VoiceProvider; voiceId: string | null };
 
