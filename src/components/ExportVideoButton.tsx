@@ -1027,6 +1027,12 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                         <Download className="h-3.5 w-3.5" />
                       </Button>
                     )}
+                    {p.status === "error" && !p.audioUrl && !perSpeechRunning && (
+                      <Button size="sm" variant="secondary" className="h-7 px-2" onClick={() => retryAudioForPart(p.msgId)} title="Gera o áudio que faltou e cria o vídeo">
+                        <Mic2 className="h-3.5 w-3.5 mr-1" />
+                        Tentar áudio
+                      </Button>
+                    )}
                     {(p.status === "error" || p.status === "done") && !perSpeechRunning && (
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => runPerSpeechExport(p.msgId)} title="Refazer só esta">
                         <RotateCcw className="h-3.5 w-3.5" />
