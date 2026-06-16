@@ -649,16 +649,23 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       const all = buildMessageList(null);
       const built = await synthesizeClips(all, slots);
       if (!built || built.length === 0) { setProgress(null); return; }
+      const cached = await mp4PartsByDebate(debateId);
       const initial: Part[] = built.map((c, i) => {
         const { label, phase } = labelForPart(c.role, c.phase, i);
+        const cachedBlob = cached.get(c.id);
         return {
           msgId: c.id, index: i, label, phaseLabel: phase,
           role: c.role, content: c.content,
           audioUrl: c.audioUrl, duration: c.duration,
-          status: "pending" as const,
+          videoBlob: cachedBlob,
+          videoUrl: cachedBlob ? URL.createObjectURL(cachedBlob) : undefined,
+          status: (cachedBlob ? "done" : "pending") as PartStatus,
+          progressPct: cachedBlob ? 1 : undefined,
         };
       });
       setParts(initial);
+      const reused = initial.filter((p) => p.status === "done").length;
+      if (reused > 0) toast.success(`${reused} fala(s) reaproveitada(s) do cache.`, { duration: 4000 });
       setPerSpeechOpen(true);
     } catch (e) {
       toast.error(`Falha ao preparar áudios: ${e instanceof Error ? e.message : String(e)}`);
