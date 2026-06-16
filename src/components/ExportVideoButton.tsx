@@ -424,8 +424,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
         trimEnd: c.trimEnd,
         subtitle: c.subtitle,
       })),
-      musicUrl: musicAsset.url,
-      musicVolume: 0.18,
+      // Sem cama musical durante as falas — o jingle de abertura toca apenas no intro.
+      musicUrl: null,
       sfx: [],
       onProgress: (label, pct) => setProgress({ label, pct }),
     });
@@ -659,8 +659,8 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       bImageUrl: d.debater_b_image_url ?? pB?.image_url ?? null,
       aDescription: pA?.description ?? null,
       bDescription: pB?.description ?? null,
-      musicUrl: musicAsset.url,
-      musicVolume: 0.18,
+      // Per-speech: sem cama musical de fundo.
+      musicUrl: null,
     };
   }
 
