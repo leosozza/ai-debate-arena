@@ -106,7 +106,7 @@ export function VoicePicker({ label, provider, voiceId, onChange, settings, onSe
       setLoading(true);
       const res =
         p === "eleven"
-          ? await elTts({ data: { text, voiceId: id } })
+          ? await elTts({ data: { text, voiceId: id, speed: Math.max(0.7, Math.min(1.2, s.speed)) } })
           : p === "minimax"
           ? await mmTts({
               data: {

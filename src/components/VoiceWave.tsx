@@ -1,5 +1,3 @@
-import { motion } from "motion/react";
-
 /**
  * Animated voice equalizer for the present mode. Bars pulse while `active`
  * (someone is speaking) and rest flat when idle. Colored per debater side
@@ -23,20 +21,18 @@ export function VoiceWave({
         const dur = 0.45 + ((i % 6) * 0.09);
         const delay = (i % 9) * 0.04;
         return (
-          <motion.span
+          <span
             key={i}
             className={`w-[3px] rounded-full ${colorClass}`}
-            initial={{ height: 6 }}
-            animate={active ? { height: [6, peak, 6] } : { height: 6 }}
-            transition={
-              active
-                ? { duration: dur, repeat: Infinity, ease: "easeInOut", delay }
-                : { duration: 0.3 }
-            }
-            style={{ opacity: active ? 1 : 0.4 }}
+            style={{
+              height: active ? peak : 6,
+              opacity: active ? 1 : 0.4,
+              animation: active ? `voice-wave ${dur}s ease-in-out ${delay}s infinite` : undefined,
+            }}
           />
         );
       })}
+      <style>{`@keyframes voice-wave { 0%, 100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }`}</style>
     </div>
   );
 }

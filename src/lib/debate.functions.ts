@@ -530,12 +530,16 @@ export const drawSubtemas = createServerFn({ method: "POST" })
 export const ttsSpeak = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ text: z.string().trim().min(1).max(5000), voiceId: z.string().trim().min(1).max(60) }).parse(d),
+    z.object({
+      text: z.string().trim().min(1).max(5000),
+      voiceId: z.string().trim().min(1).max(60),
+      speed: z.number().min(0.7).max(1.2).optional().default(1),
+    }).parse(d),
   )
   .handler(async ({ data }) => {
     try {
       const { elevenTTS } = await import("./elevenlabs.server");
-      return await elevenTTS(data.text, data.voiceId);
+      return await elevenTTS(data.text, data.voiceId, data.speed);
     } catch (e) {
       const error = e instanceof Error ? e.message : "ElevenLabs falhou.";
       return { audio: "", mime: "audio/mpeg" as const, error };
