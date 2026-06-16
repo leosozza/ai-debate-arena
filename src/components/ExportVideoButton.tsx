@@ -793,7 +793,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   }
 
   async function retryAllMissingAudios() {
-    const ids = parts.filter((p) => p.status === "error" && !p.audioUrl).map((p) => p.msgId);
+    const ids = parts.filter((p) => p.status === "error" && (!p.audioUrl || !p.duration)).map((p) => p.msgId);
     if (ids.length === 0) { toast.info("Nenhum áudio faltando."); return; }
     await retryAudiosForMsgIds(ids);
   }
