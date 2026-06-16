@@ -971,9 +971,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
           Exportar MP4
         </Button>
-        <Button onClick={openPerSpeechPanel} disabled={disabled} size="sm" variant="default" title="Gera um MP4 por fala (não trava em debates longos) — depois junta ou baixa individualmente">
-          {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Scissors className="h-4 w-4 mr-1" />}
-          Exportar por fala
+        <Button onClick={openPerSpeechPanel} disabled={!data || data.messages.length === 0} size="sm" variant="default" title="Gera um MP4 por fala (não trava em debates longos) — depois junta ou baixa individualmente">
+          {busy || perSpeechRunning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Scissors className="h-4 w-4 mr-1" />}
+          {parts.length > 0 ? "Ver fila" : "Exportar por fala"}
         </Button>
         {blockCount > 1 && (
           <DropdownMenu>
