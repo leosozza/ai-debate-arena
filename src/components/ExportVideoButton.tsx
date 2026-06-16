@@ -207,6 +207,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   async function synthesizeClips(
     all: PreparedMsg[],
     slots: { slotMod: Slot; slotA: Slot; slotB: Slot },
+    errorOut?: Map<string, string>,
   ): Promise<TimelineClip[] | null> {
     const sessionCache = sessionUrlCacheRef.current;
     const cacheKey = (m: PreparedMsg, slot: Slot) => {
@@ -269,7 +270,9 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
           audioByMsg.set(m.id, entry);
           sessionCache.set(cacheKey(m, slot), entry);
         } catch (e) {
-          errors.push({ role: labelFor(m.role), reason: e instanceof Error ? e.message : String(e) });
+          const reason = e instanceof Error ? e.message : String(e);
+          errors.push({ role: labelFor(m.role), reason });
+          errorOut?.set(m.id, reason);
         }
         done++;
         setProgress({ label: `Gerando vozes ${done}/${todo.length}`, pct: done / todo.length });
@@ -669,36 +672,84 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
 
     // 2) Sintetiza áudios em background. Falhas individuais NÃO derrubam o painel.
     setProgress({ label: "Preparando vozes", pct: 0 });
+    const errMap = new Map<string, string>();
     try {
-      const built = await synthesizeClips(all, slots);
-      if (built && built.length > 0) {
-        const byId = new Map(built.map((c) => [c.id, c]));
-        setParts((prev) => prev.map((p) => {
-          const c = byId.get(p.msgId);
-          if (!c) {
-            // Sem áudio: marca como erro mas mantém na fila para retry.
-            if (p.status === "done") return p; // já tem MP4 — não mexe
-            return { ...p, status: "error", error: "Áudio ausente." };
-          }
-          return { ...p, audioUrl: c.audioUrl, duration: c.duration,
-            // se já tem MP4 pronto, mantém "done"; senão volta pra pending
-            status: p.status === "done" ? "done" : "pending",
-            error: undefined };
-        }));
-      } else {
-        setParts((prev) => prev.map((p) =>
-          p.status === "done" ? p : { ...p, status: "error", error: "Áudio ausente." },
-        ));
-      }
+      const built = await synthesizeClips(all, slots, errMap);
+      const byId = new Map((built ?? []).map((c) => [c.id, c]));
+      setParts((prev) => prev.map((p) => {
+        const c = byId.get(p.msgId);
+        if (!c) {
+          if (p.status === "done") return p;
+          const reason = errMap.get(p.msgId) ?? "Áudio ausente.";
+          return { ...p, status: "error", error: reason };
+        }
+        return { ...p, audioUrl: c.audioUrl, duration: c.duration,
+          status: p.status === "done" ? "done" : "pending",
+          error: undefined };
+      }));
     } catch (e) {
       toast.error(`Falha ao preparar áudios: ${e instanceof Error ? e.message : String(e)}. Falas com áudio em cache continuam disponíveis.`);
       setParts((prev) => prev.map((p) =>
-        p.status === "done" || p.audioUrl ? p : { ...p, status: "error", error: "Áudio ausente." },
+        p.status === "done" || p.audioUrl ? p : { ...p, status: "error", error: errMap.get(p.msgId) ?? "Áudio ausente." },
       ));
     } finally {
       setProgress(null);
     }
   }
+
+  /** Retry TTS for one or more failed messages, then auto-render their MP4s. */
+  async function retryAudiosForMsgIds(msgIds: string[]) {
+    if (!data || msgIds.length === 0) return;
+    const slots = resolveSlotsOrWarn();
+    if (!slots) return;
+    const all = buildMessageList(null);
+    const subset = all.filter((m) => msgIds.includes(m.id));
+    if (subset.length === 0) return;
+
+    // Marca como "rendering" só pra indicar atividade na linha (sem barra).
+    setParts((prev) => prev.map((x) =>
+      msgIds.includes(x.msgId) ? { ...x, status: "rendering", progressPct: 0, error: undefined } : x,
+    ));
+    setProgress({ label: `Gerando áudio (${subset.length})`, pct: 0 });
+    const errMap = new Map<string, string>();
+    let built: TimelineClip[] | null = null;
+    try {
+      built = await synthesizeClips(subset, slots, errMap);
+    } catch (e) {
+      toast.error(`Falha ao gerar áudio: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setProgress(null);
+    }
+    const byId = new Map((built ?? []).map((c) => [c.id, c]));
+    setParts((prev) => prev.map((p) => {
+      if (!msgIds.includes(p.msgId)) return p;
+      const c = byId.get(p.msgId);
+      if (!c) {
+        return { ...p, status: "error", error: errMap.get(p.msgId) ?? "Áudio ausente." };
+      }
+      return { ...p, audioUrl: c.audioUrl, duration: c.duration, status: "pending", error: undefined };
+    }));
+    // Renderiza MP4 das que ganharam áudio
+    const renderable = msgIds.filter((id) => byId.has(id));
+    if (renderable.length > 0) {
+      for (const id of renderable) {
+        // Roda uma por vez para reusar a fila de render existente.
+        await runPerSpeechExport(id);
+      }
+      toast.success(`${renderable.length} áudio(s) corrigido(s).`);
+    }
+  }
+
+  async function retryAudioForPart(msgId: string) {
+    await retryAudiosForMsgIds([msgId]);
+  }
+
+  async function retryAllMissingAudios() {
+    const ids = parts.filter((p) => p.status === "error" && !p.audioUrl).map((p) => p.msgId);
+    if (ids.length === 0) { toast.info("Nenhum áudio faltando."); return; }
+    await retryAudiosForMsgIds(ids);
+  }
+
 
   async function renderOnePart(p: Part, base: NonNullable<ReturnType<typeof buildBasePerSpeech>>): Promise<Part> {
     if (!p.audioUrl || !p.duration) {
@@ -925,6 +976,13 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                 <X className="h-4 w-4 mr-1" /> Parar
               </Button>
             )}
+            {parts.some((p) => p.status === "error" && !p.audioUrl) && !perSpeechRunning && (
+              <Button size="sm" variant="secondary" onClick={retryAllMissingAudios} disabled={mergeBusy !== null}
+                title="Tenta gerar de novo os áudios das falas marcadas como ausentes, e renderiza o MP4 em seguida">
+                <Mic2 className="h-4 w-4 mr-1" />
+                Corrigir áudios faltantes ({parts.filter((p) => p.status === "error" && !p.audioUrl).length})
+              </Button>
+            )}
             <div className="flex-1" />
             <Button size="sm" variant="outline" onClick={mergeAndDownload}
               disabled={perSpeechRunning || mergeBusy !== null || parts.filter((p) => p.status === "done").length < 2}>
@@ -967,6 +1025,12 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
                     {p.status === "done" && (
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => downloadPart(p)} title="Baixar esta fala">
                         <Download className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {p.status === "error" && !p.audioUrl && !perSpeechRunning && (
+                      <Button size="sm" variant="secondary" className="h-7 px-2" onClick={() => retryAudioForPart(p.msgId)} title="Gera o áudio que faltou e cria o vídeo">
+                        <Mic2 className="h-3.5 w-3.5 mr-1" />
+                        Tentar áudio
                       </Button>
                     )}
                     {(p.status === "error" || p.status === "done") && !perSpeechRunning && (
