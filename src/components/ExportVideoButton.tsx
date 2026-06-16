@@ -119,6 +119,17 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   // Roda 1× por sessão pra apagar entradas IDB antigas.
   useEffect(() => { void ttsCachePrune(); void mp4PartsPrune(); }, []);
 
+  function releaseSessionAudioForMsg(msgId: string): void {
+    const needle = `|${msgId}|`;
+    for (const [key, entry] of sessionUrlCacheRef.current) {
+      if (!key.includes(needle)) continue;
+      if (entry.url.startsWith("blob:")) {
+        try { URL.revokeObjectURL(entry.url); } catch { /* noop */ }
+      }
+      sessionUrlCacheRef.current.delete(key);
+    }
+  }
+
   function resolveSlot(
     provider: string | null | undefined,
     voiceId: string | null | undefined,
@@ -768,13 +779,11 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       }
       return { ...p, audioUrl: c.audioUrl, duration: c.duration, status: "pending", error: undefined };
     }));
-    // Renderiza MP4 das que ganharam áudio
+    // Renderiza MP4 das que ganharam áudio. Usa a fila única em vez de abrir
+    // uma mini-fila por fala; isso reduz vazamento de memória em lotes longos.
     const renderable = msgIds.filter((id) => byId.has(id));
     if (renderable.length > 0) {
-      for (const id of renderable) {
-        // Roda uma por vez para reusar a fila de render existente.
-        await runPerSpeechExport(id);
-      }
+      await runPerSpeechExport();
       toast.success(`${renderable.length} áudio(s) corrigido(s).`);
     }
   }
@@ -804,7 +813,15 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
       return { ...p, status: "pending", videoBlob: undefined, videoUrl: undefined, audioUrl: undefined, progressPct: 0, error: undefined };
     }));
     toast.info("Refazendo todos os vídeos sem o jingle…");
-    await retryAudiosForMsgIds(all.map((p) => p.msgId));
+    const ids = all.map((p) => p.msgId);
+    const batchSize = 8;
+    for (let i = 0; i < ids.length; i += batchSize) {
+      if (cancelRef.current) break;
+      setProgress({ label: `Refazendo lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(ids.length / batchSize)}`, pct: i / ids.length });
+      await retryAudiosForMsgIds(ids.slice(i, i + batchSize));
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+    setProgress(null);
   }
 
 
