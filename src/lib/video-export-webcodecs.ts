@@ -25,9 +25,19 @@ type Segment = {
 };
 
 const FPS = 30;
-const SAMPLE_RATE = 48000;
+// 44.1 kHz vs 48 kHz reduz ~8% do PCM em memória sem perda perceptível em fala/música.
+const SAMPLE_RATE = 44100;
 const VIDEO_BITRATE = 2_500_000;
 const AUDIO_BITRATE = 128_000;
+
+function logMem(stage: string): void {
+  const perf = performance as Performance & { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } };
+  if (perf.memory) {
+    const used = (perf.memory.usedJSHeapSize / 1024 / 1024).toFixed(0);
+    const lim = (perf.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(0);
+    console.info(`[video-export][mem] ${stage}: ${used}MB / ${lim}MB`);
+  }
+}
 
 async function decodeAudioFromUrl(ac: AudioContext, url: string): Promise<AudioBuffer | null> {
   try {
@@ -202,8 +212,17 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
 
   if (segments.length === 0) throw new Error("Sem segmentos pra codificar");
 
+  logMem("antes do mix de áudio");
   log("Misturando áudio", 0.22);
   const mixed = await renderMixedAudio(segments);
+
+  // Libera os AudioBuffers originais — não são mais necessários, e somam ~8MB/min cada.
+  for (const seg of segments) {
+    seg.audio = null;
+    seg.bedMusic = null;
+  }
+  try { await ac.close(); } catch { /* noop */ }
+  logMem("após mix (buffers liberados)");
 
   // ── Encoders + Muxer ──
   log("Iniciando encoder", 0.25);
@@ -258,8 +277,8 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
     // Encode segFrames frames. Each frame uses the same canvas snapshot but a
     // unique timestamp; the encoder will produce tiny P-frames for the repeats.
     for (let f = 0; f < segFrames; f++) {
-      // Backpressure: don't pile up more than ~2s of frames in the encoder.
-      while (videoEncoder.encodeQueueSize > FPS * 2) {
+      // Backpressure mais apertada: ~1s de frames em fila (era 2s).
+      while (videoEncoder.encodeQueueSize > FPS) {
         await new Promise((r) => setTimeout(r, 4));
         if (videoErr) throw videoErr;
       }
@@ -277,6 +296,9 @@ export async function tryExportDebateMp4Webcodecs(input: ExportInput): Promise<B
       0.25 + 0.55 * (frameIndex / Math.max(1, totalFrames)),
     );
     if (videoErr) throw videoErr;
+    // Cede o event loop entre segmentos pra GC respirar.
+    await new Promise((r) => setTimeout(r, 0));
+    if (segIdx % 5 === 0) logMem(`segmento ${segIdx + 1}/${segments.length}`);
   }
 
   log("Finalizando vídeo", 0.82);

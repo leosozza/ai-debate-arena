@@ -1,59 +1,44 @@
 ## Diagnóstico
 
-Três sintomas, três causas diferentes:
+A página fechou sozinha em "Codificando vídeo X/35". Isso quase sempre é **estouro de memória do navegador** (tab crash), não um bug de código. A exportação de MP4 acontece 100% no seu navegador, e o caminho rápido (WebCodecs) está mantendo na RAM ao mesmo tempo:
 
-### 1. Debate "fecha e volta para o início" na réplica 2
-Não é falha de TTS. O console mostra:
+- o áudio PCM misturado de TODO o debate (≈25 MB por minuto a 48 kHz estéreo),
+- todos os `AudioBuffer` originais de cada fala (mais ≈8 MB por minuto cada),
+- a música de fundo decodificada,
+- o canvas 1280×720,
+- e o MP4 inteiro acumulado em memória pelo `mp4-muxer` (`ArrayBufferTarget`).
 
-```text
-Error: Maximum update depth exceeded
-  at setRef (chunk-67O37JI6 ... Array.map)
-  componentDidCatch (CatchBoundary)
-  Error in route match: __root__/
-```
+Para um debate completo de 8–15 min com 33 falas, isso passa fácil de 1,5–2 GB e o Chrome derruba a aba.
 
-Um `setRef` dentro de `Array.map` (composição de refs de algum botão Radix — provavelmente o `Tooltip` envolvendo botões desabilitados num componente de lista) entra em loop de `setState`, a `CatchBoundary` da raiz captura e o usuário é jogado de volta para a home. Como acontece consistentemente na 2ª réplica, é o ponto em que aquela lista entra em render (provavelmente quando aparece o `BlockIntroCard` do 2º bloco ou um overlay/HUD que re-renderiza a cada `currentAudioMs`).
+## O que vou mudar
 
-### 2. Réplica 1 começa antes do Enéas terminar
-No `useEffect` que dispara o `BlockIntroCard` (`presentation.$id.tsx` ~628), quando o `block_index` muda, ele chama `stopAll()` imediatamente — cortando a fala anterior — e mostra a cartela do novo bloco. Só que o efeito depende de `current?.id`, então dispara na hora em que o `index` avança (ou seja, **antes** do `onended` do Enéas se a cartela coincide). Além disso, o efeito principal de fala (`~635`) lista `slotMod, slotA, slotB` como deps: como esses objetos são recriados a cada render, o efeito re-roda no meio de uma fala, incrementa `playTokenRef` e re-chama `speak`, gerando sobreposição/restart.
+### 1. Reduzir memória do caminho WebCodecs (`src/lib/video-export-webcodecs.ts`)
+- Baixar `SAMPLE_RATE` de 48000 → 44100 (menor PCM, mesma qualidade percebida em fala/música).
+- **Liberar buffers à medida que avança**: após misturar o áudio, zerar `seg.audio` e `seg.bedMusic` de cada segmento (já não são mais necessários durante o encode de vídeo).
+- Fechar o `AudioContext` antes do encode de vídeo (hoje só fecha no final).
+- Decodificar a música de fundo **uma vez** e fatiar por referência em vez de copiar (`trimBuffer` cria cópia para cada segmento — vou substituir por uma estrutura que reusa o buffer original com offsets, evitando ~N cópias da mesma música).
+- Apertar o backpressure do `VideoEncoder` (`encodeQueueSize > FPS` em vez de `FPS*2`) e dar `await new Promise(r=>setTimeout(r,0))` entre segmentos para o GC respirar.
 
-### 3. Marx muito devagar, Enéas muito rápido (ambos ElevenLabs)
-A ElevenLabs **não** suporta `speed` server-side no fluxo atual (`elevenlabs.server.ts` só envia `voice_settings: stability/similarity/style/use_speaker_boost`). O cliente aplica `audio.playbackRate = slot.settings.speed`. Se cada persona tem um `settings.speed` diferente salvo (1.0 vs 0.85 vs 1.2), a velocidade fica desigual. Pausas naturais escalam junto com `playbackRate`, então pausas do Enéas "somem" e as de Marx ficam arrastadas. Os usuários esperam ritmo natural por padrão.
+### 2. Plano B automático: exportar por bloco e juntar (`src/components/ExportVideoButton.tsx`)
+- Detectar quando o debate é longo (> ~6 min de áudio total OU mais de 20 falas) e, ao clicar em "Exportar MP4 (completo)", **gerar um MP4 por bloco em sequência**, salvar cada um no Storage, e em seguida concatená-los no servidor com `ffmpeg.wasm` num passo final leve (apenas `-c copy`, sem reencode), ou apenas oferecer o download de cada bloco se a concat falhar.
+- Mostrar progresso "Bloco 1/4… Bloco 2/4…" — isso evita acumular tudo na RAM de uma vez.
 
----
+### 3. Mensagens de erro melhores
+- Capturar `unload`/`pagehide` durante o export e gravar no `localStorage` que houve crash, para mostrar um toast claro no próximo carregamento ("A última exportação travou — tente exportar por bloco").
+- Logar `performance.memory.usedJSHeapSize` (Chrome) antes de cada etapa pesada para o console — facilita diagnóstico futuro.
 
-## Plano de correção
+### 4. Fora do escopo (não vou mexer agora)
+- Render server-side. Faz sentido, mas é mudança grande; só recomendo se mesmo após (1)+(2) você ainda tiver problemas.
 
-### A. Eliminar o loop de render (prioridade — destrava o debate)
+## Detalhes técnicos
 
-1. Localizar o componente em lista que envolve botões com `Tooltip`/`forwardRef` (suspeitos: `MessageAudioButton`, `CastStrip`, `Teleprompter`, `MultiScoreboard`).
-2. Garantir que o filho do `TooltipTrigger`/`Button` desabilitado não use `asChild` quando o filho é `<button disabled>` (padrão Radix que causa o loop em listas).
-3. Onde houver `forwardRef` próprio com `useImperativeHandle` ou `useEffect(() => setRef(...))`, estabilizar com `useCallback` para evitar nova função a cada render.
-4. Validar que os `currentAudioMs`/`setVoiceFallback` não disparam re-render que recria refs.
+- Arquivos editados: `src/lib/video-export-webcodecs.ts`, `src/components/ExportVideoButton.tsx`.
+- Sem mudança de schema, sem mudança de servidor.
+- O fallback `ffmpeg.wasm` (`exportDebateMp4Ffmpeg`) continua intacto como rede de segurança.
+- Nenhum áudio é regenerado: o cache IndexedDB de TTS é reaproveitado entre tentativas.
 
-### B. Estabilizar a sequência de fala (sem sobreposição na transição de bloco)
+## Como verificar depois
 
-1. No `useEffect` principal de fala (`~635`): trocar deps `slotMod, slotA, slotB` por identificadores estáveis (`slotMod.voiceId`, `slotA.voiceId`, `slotB.voiceId` — ou só `current?.id`/`introBlock`), evitando re-trigger no meio da fala.
-2. No `useEffect` do `BlockIntroCard` (`~623`): **não** chamar `stopAll()` se o áudio atual ainda está tocando — esperar o `onended` natural antes de mostrar a cartela. Implementação: marcar `pendingBlockIntro = b`, e exibir a cartela dentro do `advance()` (logo após `onended`) antes de avançar para a próxima mensagem.
-3. Como salvaguarda, ignorar `onended` se `token !== playTokenRef.current` (já existe) **e** debouncar `advance` para descartar avanços duplicados.
-
-### C. Velocidade uniforme nas vozes ElevenLabs
-
-1. Em `elevenlabs.server.ts`, incluir `speed` em `voice_settings` (suportado pelo `eleven_multilingual_v2`, faixa 0.7–1.2) recebido como parâmetro opcional, default 1.0. Atualizar a chamada em `fetchAudioUrl` para enviar `slot.settings.speed`.
-2. Quando o `speed` vai no payload server-side, **não** aplicar `audio.playbackRate` no cliente (senão acumula). Trocar a regra do `if (slot.provider === "replicate" || slot.provider === "eleven")` para aplicar `playbackRate` apenas em `replicate`.
-3. Ajustar a chave de cache do TTS para incluir `speed` quando provider é `eleven` (hoje o `settingsSuffix` só roda para `minimax`), senão duas velocidades diferentes reutilizam o mesmo áudio.
-4. (Opcional, recomendado) Adicionar um botão "Normalizar ritmo" nas configurações do debate que reseta `settings.speed = 1.0, pitch = 0, volume = 1` para todos os personas — evita que presets antigos continuem ditando ritmos quebrados.
-
-### D. Verificação
-
-- Console limpo de "Maximum update depth" ao reproduzir o trecho que falhava.
-- Reproduzir `/presentation/cea98432-…`: confirmar que a fala do Enéas termina antes da cartela/réplica e que Marx e Enéas têm ritmo equivalente.
-- Cache invalida ao trocar `speed` (testar 1.0 → 1.1 → 1.0 e ouvir diferença).
-
-## Arquivos afetados
-
-- `src/routes/_authenticated/presentation.$id.tsx` — deps dos efeitos, sequência da cartela de bloco, gating do `playbackRate`, chave de cache.
-- `src/lib/elevenlabs.server.ts` — aceitar `speed` no payload.
-- `src/lib/debate.functions.ts` — propagar `speed` na chamada server (ttsSpeak).
-- `src/components/MessageAudioButton.tsx` (e/ou outro componente em lista) — corrigir composição de refs/tooltip que dispara o loop.
-- (opcional) `src/components/CastManager.tsx` — botão "Normalizar ritmo".
+1. Recarregar o debate `cea98432-…` e clicar em "Exportar MP4 (completo)".
+2. Esperado: progresso passa por blocos ("Bloco 1/4 — Codificando vídeo X/N") sem fechar a aba; ao final, baixa o MP4 e aparece na lista de exports salvos.
+3. Se ainda travar num bloco específico, o toast vai dizer qual bloco — aí reduzimos ainda mais o bitrate ou exportamos os blocos separadamente.
