@@ -85,7 +85,7 @@ export function ExportVideoButton({ debateId }: { debateId: string }) {
   // re-abrir editor e re-exportar. Aqui guardamos só as object URLs ativas.
   const sessionUrlCacheRef = useRef<Map<string, { url: string; duration: number }>>(new Map());
   // Roda 1× por sessão pra apagar entradas IDB antigas.
-  useEffect(() => { void ttsCachePrune(); }, []);
+  useEffect(() => { void ttsCachePrune(); void mp4PartsPrune(); }, []);
 
   function resolveSlot(
     provider: string | null | undefined,
